@@ -1,0 +1,12 @@
+[submodule "SEEING"]
+	path = SEEING
+	url = https://github.com/FabioRossiArcetri/SEEING.git
+[submodule "SYMAO"]
+	path = SYMAO
+	url = https://github.com/FabioRossiArcetri/SYMAO.git
+[submodule "MASTSEL"]
+	path = MASTSEL
+	url = https://github.com/FabioRossiArcetri/MASTSEL.git
+[submodule "fourierPSF"]
+	path = fourierPSF
+	url = https://github.com/oliviermartin-lam/fourierPSF.git
