@@ -27,9 +27,15 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     azimuthSrc = np.array(eval(parser.get('PSF_DIRECTIONS', 'ScienceAzimuth')))
     
     # NGSs positions
-    polarNGSCoordsList = [[LO_zen[0],LO_az[0]], [LO_zen[1],LO_az[1]],[LO_zen[2],LO_az[2]]]
-    NGS_flux           = [fluxes[0]*fr, fluxes[1]*fr, fluxes[2]*fr]
+    NGS_flux = []
+    polarNGSCoordsList = []
+    for aFlux, aZen, aAz in zip(fluxes, LO_zen, LO_az):
+        polarNGSCoordsList.append([aZen, aAz])   
+        NGS_flux.append(fluxes[0]*fr)
+
     polarNGSCoords     = np.asarray(polarNGSCoordsList)
+    nNaturalGS         = polarNGSCoords.shape[0]
+
     pp                 = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
@@ -89,7 +95,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         return NGS_SR, psdArray, psfLongExpArr, NGS_FWHM_mas
 
     # HO PSF
-    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-3],wvl,fao.psInMas,scaleFactor=(2*np.pi*1e-9/wvl)**2)
+    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-nNaturalGS],wvl,fao.psInMas,scaleFactor=(2*np.pi*1e-9/wvl)**2)
      
         
     if doConvolve == False:
@@ -97,9 +103,12 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     else:
         # LOW ORDER PART
         psInMas_NGS        = fao.psInMas * (wvl_LO/wvl) #airy pattern PSF FWHM
-        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-3:],wvl_LO,psInMas_NGS,scaleFactor=(2*np.pi*1e-9/wvl_LO)**2,verbose=True)
+        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],wvl_LO,psInMas_NGS,scaleFactor=(2*np.pi*1e-9/wvl_LO)**2,verbose=True)
         cartPointingCoords = np.dstack( (xxPointigs, yyPointigs) ).reshape(-1, 2)
-        cartNGSCoords      = np.asarray([polarToCartesian(polarNGSCoords[0,:]), polarToCartesian(polarNGSCoords[1,:]), polarToCartesian(polarNGSCoords[2,:])])
+        cartNGSCoordsList = []
+        for i in range(nNaturalGS):
+            cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))        
+        cartNGSCoords = np.asarray(cartNGSCoordsList)
         mLO                = MavisLO(path, parametersFile, windPsdFile)
         Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
         cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
