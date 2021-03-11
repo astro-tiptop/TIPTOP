@@ -132,5 +132,5 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     
     cube = np.array(cube)
     hdul1.append(fits.ImageHDU(data=cube))
-    hdul1.writeto( outputDir + outputFile + '.fits',overwrite=True)
+    hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
     print(cube.shape)
