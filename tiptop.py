@@ -1,3 +1,4 @@
+import os
 from matplotlib import rc
 from fourierPSF.fourierModel import *
 from fourierPSF.FourierUtils import *
@@ -7,10 +8,10 @@ from mavis import *
 
 rc("text", usetex=False)
 
-def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, path_pupil='', pitchScaling=1,doConvolve=False):
+def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, path_pupil='', pitchScaling=1,doConvolve=False, doPlot=False):
     
     # initiate the parser
-    fullPathFilename = path + parametersFile + '.ini'    
+    fullPathFilename = os.path.join(path, parametersFile + '.ini')    
     parser           = ConfigParser()
     parser.read(fullPathFilename);
     
@@ -118,8 +119,9 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         results = []
         for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
             results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.fovInPixel * fao.psInMas))))
-        
-    results[0].standardPlot(True)
+
+    if doPlot:
+        results[0].standardPlot(True)
     
     # save PSF cube in fits    
     hdul1 = fits.HDUList()
