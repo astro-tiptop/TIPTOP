@@ -121,8 +121,12 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
             results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.fovInPixel * fao.psInMas))))
 
     if doPlot:
-        results[0].standardPlot(True)
-    
+        if doConvolve:
+            tiledDisplay(results)
+            plotEllipses(cartPointingCoords, cov_ellipses, 0.4)
+        else:
+            results[0].standardPlot(True)
+
     # save PSF cube in fits    
     hdul1 = fits.HDUList()
     cube =[]
@@ -133,4 +137,4 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     cube = np.array(cube)
     hdul1.append(fits.ImageHDU(data=cube))
     hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
-    print(cube.shape)
+    print("Output cube shape:", cube.shape)
