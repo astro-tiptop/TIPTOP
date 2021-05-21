@@ -7,3 +7,6 @@
 [submodule "MASTSEL"]
 	path = MASTSEL
 	url = https://github.com/FabioRossiArcetri/MASTSEL.git
+[submodule "P3"]
+	path = P3
+	url = https://github.com/oliviermartin-lam/P3.git
