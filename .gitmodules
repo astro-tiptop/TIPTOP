@@ -7,6 +7,3 @@
 [submodule "MASTSEL"]
 	path = MASTSEL
 	url = https://github.com/FabioRossiArcetri/MASTSEL.git
-[submodule "fourierPSF"]
-	path = fourierPSF
-	url = https://github.com/oliviermartin-lam/fourierPSF.git
