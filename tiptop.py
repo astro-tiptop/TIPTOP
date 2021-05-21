@@ -1,7 +1,7 @@
 import os
 from matplotlib import rc
-from fourierPSF.fourierModel import *
-from fourierPSF.FourierUtils import *
+from P3.aoSystem.fourierModel import *
+from P3.aoSystem.FourierUtils import *
 from configparser import ConfigParser
 
 from mavis import *
@@ -16,16 +16,21 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     parser.read(fullPathFilename);
     
     # read main parameters
-    wvl        = eval(parser.get('PSF_DIRECTIONS', 'ScienceWavelength'))[0]  # lambda
-    wvl_LO     = eval(parser.get('SENSOR_LO', 'SensingWavelength_LO'))  # lambda
-    pixel_psf  = eval(parser.get('PSF_DIRECTIONS', 'psInMas'))
     tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2      # mas
-    LO_zen     = eval(parser.get('SENSOR_LO', 'GuideStarZenith_LO')) 
-    LO_az      = eval(parser.get('SENSOR_LO', 'GuideStarAzimuth_LO'))
-    fluxes     = eval(parser.get('SENSOR_LO', 'nph_LO'))
-    fr         = eval(parser.get('SENSOR_LO', 'SensorFrameRate_LO'))
-    zenithSrc  = np.array(eval(parser.get('PSF_DIRECTIONS', 'ScienceZenith')))
-    azimuthSrc = np.array(eval(parser.get('PSF_DIRECTIONS', 'ScienceAzimuth')))
+    
+    wvl        = eval(parser.get('sources_science', 'Wavelength'))[0]  # lambda
+    zenithSrc  = np.array(eval(parser.get('sources_science', 'Zenith')))
+    azimuthSrc = np.array(eval(parser.get('sources_science', 'Azimuth')))
+
+    wvl_LO     = eval(parser.get('sources_LO', 'Wavelength'))  # lambda
+    LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
+    LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
+    
+    pixel_psf  = eval(parser.get('sensor_science', 'PixelScale'))
+    
+    fluxes     = eval(parser.get('sensor_LO', 'NumberPhotons'))
+
+    fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
     
     # NGSs positions
     NGS_flux = []
@@ -41,6 +46,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
 
+
     # bypass the dm cut off frequency definition
     if pitchScaling != 1:
         pitchs_dm    = np.array(eval(parser.get('DM', 'DmPitchs')))
@@ -48,26 +54,29 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     else:
         kcExt = None
         
-    
+#  cartPointingCoords=np.array([xxPointigs, yyPointigs]).transpose(),
+#  extraPSFsDirections=polarNGSCoordsList
+#  kcExt=kcExt
+#  pitchScaling=pitchScaling
+#  path_pupil=path_pupil
+
     # High-order PSD caculations at the science directions and NGSs directions
-    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False, \
-                   cartPointingCoords=np.array([xxPointigs, yyPointigs]).transpose() , extraPSFsDirections=polarNGSCoordsList, \
-                      kcExt=kcExt,pitchScaling=pitchScaling,path_pupil=path_pupil)
+    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False)
     PSD           = fao.powerSpectrumDensity() # in nm^2
     PSD           = PSD.transpose()
     N             = PSD[0].shape[0]    
-    freq_range    = fao.fovInPixel*fao.PSDstep # fao.psf_FoV/fao.wvlRef/206264.8
+    freq_range    = fao.ao.wfs.detector.fovInPix*fao.freq.PSDstep # fao.psf_FoV/fao.wvlRef/206264.8
     pitch         = 1/freq_range
     grid_diameter = pitch*N
     sx            = int(2*np.round(tel_radius/pitch))
-    dk            = 1e9*fao.kc/fao.resAO
+    dk            = 1e9*fao.freq.kc_/fao.freq.resAO
     
     # Define the pupil shape
     mask = Field(wvl, N, grid_diameter)
-    mask.sampling = cp.asarray(congrid(fao.tel.pupil, [sx, sx]))
+    mask.sampling = cp.asarray(congrid(fao.ao.tel.pupil, [sx, sx]))
     mask.sampling = zeroPad(mask.sampling, (N-sx)//2)
     #mask.standardPlot(False)
-    print('fao.samp:', fao.samp)
+    print('fao.samp:', fao.freq.samp)
     
     def psdSetToPsfSet(inputPSDs,wavelength,pixelscale,scaleFactor=1,verbose=False):
         NGS_SR = []
@@ -84,7 +93,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
             psfLongExpArr.append(psfLE)
             # Get SR and FWHM in mas at the NGSs positions at the sensing wavelength
             SR             = np.exp(-computedPSD.sum()* scaleFactor) # Strehl-ratio at the sensing wavelength
-            #SR              = getStrehl(cp.asnumpy(psfLE.sampling), fao.tel.pupil, fao.samp)
+            #SR              = getStrehl(cp.asnumpy(psfLE.sampling), fao.ao.tel.pupil, fao.samp)
             NGS_SR.append(SR)
             FWHMx,FWHMy    = getFWHM( cp.asnumpy(psfLE.sampling),pixelscale, method='contour', nargout=2)
             FWHM           = 0.5*(FWHMx+FWHMy) #average over major and minor axes
@@ -96,14 +105,15 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         return NGS_SR, psdArray, psfLongExpArr, NGS_FWHM_mas
 
     # HO PSF
-    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-nNaturalGS],wvl,fao.psInMas,scaleFactor=(2*np.pi*1e-9/wvl)**2)
+    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-nNaturalGS],wvl,fao.freq.psInMas,scaleFactor=(2*np.pi*1e-9/wvl)**2)
      
-        
+    print(psfLongExpPointingsArr)
+    
     if doConvolve == False:
         results = psfLongExpPointingsArr
     else:
         # LOW ORDER PART
-        psInMas_NGS        = fao.psInMas * (wvl_LO/wvl) #airy pattern PSF FWHM
+        psInMas_NGS        = fao.freq.psInMas * (wvl_LO/wvl) #airy pattern PSF FWHM
         NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],wvl_LO,psInMas_NGS,scaleFactor=(2*np.pi*1e-9/wvl_LO)**2,verbose=True)
         cartPointingCoords = np.dstack( (xxPointigs, yyPointigs) ).reshape(-1, 2)
         cartNGSCoordsList = []
@@ -118,7 +128,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         # FINAl CONVOLUTION
         results = []
         for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
-            results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.fovInPixel * fao.psInMas))))
+            results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.ao.wfs.detector.fovInPix * fao.freq.psInMas))))
 
     if doPlot:
         if doConvolve:
