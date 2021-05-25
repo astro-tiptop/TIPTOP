@@ -17,19 +17,13 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     
     # read main parameters
     tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2      # mas
-    
     wvl        = eval(parser.get('sources_science', 'Wavelength'))[0]  # lambda
-    zenithSrc  = np.array(eval(parser.get('sources_science', 'Zenith')))
-    azimuthSrc = np.array(eval(parser.get('sources_science', 'Azimuth')))
-
+    zenithSrc  = eval(parser.get('sources_science', 'Zenith'))
+    azimuthSrc = eval(parser.get('sources_science', 'Azimuth'))
     wvl_LO     = eval(parser.get('sources_LO', 'Wavelength'))  # lambda
     LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
     LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
-    
-    pixel_psf  = eval(parser.get('sensor_science', 'PixelScale'))
-    
     fluxes     = eval(parser.get('sensor_LO', 'NumberPhotons'))
-
     fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
     
     # NGSs positions
@@ -46,7 +40,6 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
 
-
     # bypass the dm cut off frequency definition
     if pitchScaling != 1:
         pitchs_dm    = np.array(eval(parser.get('DM', 'DmPitchs')))
@@ -61,10 +54,10 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
 #  path_pupil=path_pupil
 
     # High-order PSD caculations at the science directions and NGSs directions
-    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False)
+    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
     PSD           = fao.powerSpectrumDensity() # in nm^2
     PSD           = PSD.transpose()
-    N             = PSD[0].shape[0]    
+    N             = PSD[0].shape[0]
     freq_range    = fao.ao.wfs.detector.fovInPix*fao.freq.PSDstep # fao.psf_FoV/fao.wvlRef/206264.8
     pitch         = 1/freq_range
     grid_diameter = pitch*N
@@ -105,16 +98,14 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         return NGS_SR, psdArray, psfLongExpArr, NGS_FWHM_mas
 
     # HO PSF
-    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-nNaturalGS],wvl,fao.freq.psInMas,scaleFactor=(2*np.pi*1e-9/wvl)**2)
-     
-    print(psfLongExpPointingsArr)
+    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-nNaturalGS],wvl,fao.freq.psInMas,scaleFactor=(2*np.pi*1e-9/wvl)**2, verbose=True)
     
     if doConvolve == False:
         results = psfLongExpPointingsArr
     else:
         # LOW ORDER PART
         psInMas_NGS        = fao.freq.psInMas * (wvl_LO/wvl) #airy pattern PSF FWHM
-        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],wvl_LO,psInMas_NGS,scaleFactor=(2*np.pi*1e-9/wvl_LO)**2,verbose=True)
+        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],wvl_LO,psInMas_NGS,scaleFactor=(2*np.pi*1e-9/wvl_LO)**2)
         cartPointingCoords = np.dstack( (xxPointigs, yyPointigs) ).reshape(-1, 2)
         cartNGSCoordsList = []
         for i in range(nNaturalGS):
@@ -123,8 +114,6 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         mLO                = MavisLO(path, parametersFile, windPsdFile)
         Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
         cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
-        #print(cov_ellipses)
-    
         # FINAl CONVOLUTION
         results = []
         for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
