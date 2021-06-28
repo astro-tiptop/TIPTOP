@@ -1,3 +1,17 @@
+# Ok combinare sottosezioni dell'ini
+
+
+# Note: this is for perf, so we do not consider interesting cases which have the same complexity
+# i.e. different atmosphere with the same number of layers
+# 3 - tipi di atmosfera: JQ1, 35 layer, 1 layer a caso, [ JQ4, 35 layer, 1 layer a caso ]
+# 2 - sources_science: 1 position, 9 positions
+# 3 - system: SCAO ( 1 HO, 1 LO) / LTAO (6 HO, 1 LO) / MCAO_ (6 HO, 3 LO)
+# 2 - magnitudine: 100/1000
+
+# tabella atmosfera: motiplicare per alpha le velocita'
+
+
+
 #!/usr/bin/env python
 
 import os

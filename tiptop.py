@@ -16,22 +16,22 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     parser.read(fullPathFilename);
     
     # read main parameters
-    tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2      # mas
+    tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas
     wvl        = eval(parser.get('sources_science', 'Wavelength'))[0]  # lambda
     zenithSrc  = eval(parser.get('sources_science', 'Zenith'))
     azimuthSrc = eval(parser.get('sources_science', 'Azimuth'))
-    wvl_LO     = eval(parser.get('sources_LO', 'Wavelength'))  # lambda
+    LO_wvl     = eval(parser.get('sources_LO', 'Wavelength'))          # lambda
     LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
     LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
-    fluxes     = eval(parser.get('sensor_LO', 'NumberPhotons'))
+    LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
     fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
     
     # NGSs positions
     NGS_flux = []
     polarNGSCoordsList = []
-    for aFlux, aZen, aAz in zip(fluxes, LO_zen, LO_az):
+    for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
         polarNGSCoordsList.append([aZen, aAz])   
-        NGS_flux.append(fluxes[0]*fr)
+        NGS_flux.append(LO_fluxes[0]*fr)
 
     polarNGSCoords     = np.asarray(polarNGSCoordsList)
     nNaturalGS         = polarNGSCoords.shape[0]
@@ -104,8 +104,8 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         results = psfLongExpPointingsArr
     else:
         # LOW ORDER PART
-        psInMas_NGS        = fao.freq.psInMas * (wvl_LO/wvl) #airy pattern PSF FWHM
-        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],wvl_LO,psInMas_NGS,scaleFactor=(2*np.pi*1e-9/wvl_LO)**2)
+        psInMas_NGS        = fao.freq.psInMas * (LO_wvl/wvl) #airy pattern PSF FWHM
+        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],LO_wvl,psInMas_NGS,scaleFactor=(2*np.pi*1e-9/LO_wvl)**2)
         cartPointingCoords = np.dstack( (xxPointigs, yyPointigs) ).reshape(-1, 2)
         cartNGSCoordsList = []
         for i in range(nNaturalGS):
