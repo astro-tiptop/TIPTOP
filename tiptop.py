@@ -4,7 +4,7 @@ from P3.aoSystem.fourierModel import *
 from P3.aoSystem.FourierUtils import *
 from configparser import ConfigParser
 
-from mavis import *
+from mastsel import *
 
 rc("text", usetex=False)
 
