@@ -62,6 +62,8 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     pitch         = 1/freq_range
     grid_diameter = pitch*N
     sx            = int(2*np.round(tel_radius/pitch))
+    print("fao.freq.kc_", fao.freq.kc_)
+    print("fao.freq.resAO", fao.freq.resAO)
     dk            = 1e9*fao.freq.kc_/fao.freq.resAO
     
     # Define the pupil shape
@@ -79,6 +81,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         for computedPSD in inputPSDs:    
             # Get the PSD at the NGSs positions at the sensing wavelength
             psd            = Field(wavelength, N, freq_range, 'rad')
+            print(dk)
             psd.sampling   = cp.asarray( computedPSD / dk**2) # the PSD must be provided in m^2.m^2
             psdArray.append(psd)
             # Get the PSF
