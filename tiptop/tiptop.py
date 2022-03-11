@@ -131,6 +131,8 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         mLO                = MavisLO(path, parametersFile, windPsdFile)
         Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
         cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
+        if verbose:
+            for n in range(cov_ellipses.shape[0]): print('cov_ellipses #',n,': ',cov_ellipses[n,:])
         # FINAl CONVOLUTION
         results = []
         for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
