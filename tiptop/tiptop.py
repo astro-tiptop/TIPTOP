@@ -8,7 +8,7 @@ from mastsel import *
 
 rc("text", usetex=False)
 
-def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, pitchScaling=1,doConvolve=False, doPlot=False, verbose=False):
+def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1,doConvolve=False, doPlot=False, verbose=False):
     
     # initiate the parser
     fullPathFilename = os.path.join(path, parametersFile + '.ini')    
@@ -16,7 +16,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     parser.read(fullPathFilename);
     
     # read main parameters
-    tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas
+    tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas       
     wvl_temp = eval(parser.get('sources_science', 'Wavelength'))
     if isinstance(wvl_temp, list):
         wvl = wvl_temp[0]  # lambda
@@ -33,7 +33,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
     LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
     fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
-    
+        
     # NGSs positions
     NGS_flux = []
     polarNGSCoordsList = []
@@ -101,8 +101,8 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             NGS_FWHM_mas.append(FWHM)
             if verbose:
-                print('SR at the sensing wavelength:', SR)            
-                print('FWHM at the sensing wavelength:', FWHM)            
+                print('SR(@',int(wavelength*1e9),'nm)  :', SR)            
+                print('FWHM(@',int(wavelength*1e9),'nm):', FWHM)            
             
         return NGS_SR, psdArray, psfLongExpArr, NGS_FWHM_mas
 
@@ -128,7 +128,7 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
         for i in range(nNaturalGS):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))        
         cartNGSCoords = np.asarray(cartNGSCoordsList)
-        mLO                = MavisLO(path, parametersFile, windPsdFile)
+        mLO                = MavisLO(path, parametersFile)
         Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
         cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
         if verbose:
@@ -154,5 +154,6 @@ def overallSimulation(path, parametersFile, windPsdFile, outputDir, outputFile, 
     
     cube = np.array(cube)
     hdul1.append(fits.ImageHDU(data=cube))
+    hdul1.append(fits.ImageHDU(data=pp)) # append cartesian coordinates
     hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
     print("Output cube shape:", cube.shape)
