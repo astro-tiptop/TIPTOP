@@ -28,11 +28,6 @@ my_parser.add_argument('parametersFile',
                        type=str,
                        help='the parameters file name (full path)')
 
-my_parser.add_argument('windPsdFile',
-                       metavar='windPsdFile',
-                       type=str,
-                       help='the windPsdFile file')
-
 my_parser.add_argument('outputFile',
                        metavar='outputFile',
                        type=str,
@@ -42,10 +37,9 @@ my_parser.add_argument('outputFile',
 args = my_parser.parse_args()
 
 InputPath, parametersFile = os.path.split( args.parametersFile )
-windPsdFile = args.windPsdFile
 baseOutpuPath, outputFile = os.path.split( args.outputFile )
 
-overallSimulation( InputPath, parametersFile, windPsdFile, baseOutpuPath, outputFile, doConvolve=True, pitchScaling = 0.9)
+overallSimulation( InputPath, parametersFile, baseOutpuPath, outputFile, doConvolve=True, pitchScaling = 0.9)
 
 # test command: 
-# ./tiptopCLT.py localTest/params1GPU MASTSEL/data/windpsd_mavis.fits localTest/test
+# ./tiptopCLT.py localTest/params1GPU localTest/test
