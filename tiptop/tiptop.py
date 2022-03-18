@@ -6,10 +6,19 @@ from configparser import ConfigParser
 
 from mastsel import *
 
+from datetime import datetime
+
+
+
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1,doConvolve=False, doPlot=False, verbose=False):
     
+    #TODO remove this prints in one of the next releases of the library
+    print('ATTENTION: interface of this function is changed.')
+    print('           windPsdFile is not more an input of overallSimulation,')
+    print('           it must be set as a parameter in the telescope section of the ini file.')
+          
     # initiate the parser
     fullPathFilename = os.path.join(path, parametersFile + '.ini')    
     parser           = ConfigParser()
@@ -70,13 +79,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
     pitch         = 1/freq_range
     grid_diameter = pitch*N
     sx            = int(2*np.round(tel_radius/pitch))
-    dk            = 1e9*fao.freq.kcMin_/fao.freq.resAO
+    dk            = 1e9*fao.freq.kcMax_/fao.freq.resAO
     
     # Define the pupil shape
     mask = Field(wvl, N, grid_diameter)
     mask.sampling = cp.asarray(congrid(fao.ao.tel.pupil, [sx, sx]))
     mask.sampling = zeroPad(mask.sampling, (N-sx)//2)
     print('fao.samp:', fao.freq.samp)
+    print('fao.freq.psInMas:', fao.freq.psInMas)
     
     def psdSetToPsfSet(inputPSDs,wavelength,pixelscale,scaleFactor=1,verbose=False):
         NGS_SR = []
@@ -155,5 +165,25 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
     cube = np.array(cube)
     hdul1.append(fits.ImageHDU(data=cube))
     hdul1.append(fits.ImageHDU(data=pp)) # append cartesian coordinates
+    
+    #############################
+    # header
+    hdr0 = hdul1[0].header
+    now = datetime.now()
+    hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+    # header of the PSFs
+    hdr1 = hdul1[1].header
+    hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+    hdr1['CONTENT'] = "PSF CUBE"
+    hdr1['SIZE'] = str(cube.shape)
+    hdr1['WL_NM'] = str(int(wvl*1e9))
+    hdr1['PIX_MAS'] = str(fao.freq.psInMas[0])
+    # header of the coordinates
+    hdr2 = hdul1[2].header
+    hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+    hdr2['CONTENT'] = "CARTESIAN COORD. IN ASEC OF THE SOURCES"
+    hdr2['SIZE'] = str(pp.shape)
+    #############################
+    
     hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
     print("Output cube shape:", cube.shape)
