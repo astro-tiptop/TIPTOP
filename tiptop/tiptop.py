@@ -12,11 +12,11 @@ from datetime import datetime
 
 rc("text", usetex=False)
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1,doConvolve=False, doPlot=False, verbose=False):
+def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False):
     
     #TODO remove this prints in one of the next releases of the library
     print('ATTENTION: interface of this function is changed.')
-    print('           windPsdFile is not more an input of overallSimulation,')
+    print('           windPsdFile is no more an input of overallSimulation,')
     print('           it must be set as a parameter in the telescope section of the ini file.')
           
     # initiate the parser
@@ -85,8 +85,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
     mask = Field(wvl, N, grid_diameter)
     mask.sampling = cp.asarray(congrid(fao.ao.tel.pupil, [sx, sx]))
     mask.sampling = zeroPad(mask.sampling, (N-sx)//2)
-    print('fao.samp:', fao.freq.samp)
-    print('fao.freq.psInMas:', fao.freq.psInMas)
+    if verbose:
+        print('fao.samp:', fao.freq.samp)
+        print('fao.freq.psInMas:', fao.freq.psInMas)
     
     def psdSetToPsfSet(inputPSDs,wavelength,pixelscale,scaleFactor=1,verbose=False):
         NGS_SR = []
@@ -138,7 +139,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
         for i in range(nNaturalGS):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))        
         cartNGSCoords = np.asarray(cartNGSCoordsList)
-        mLO                = MavisLO(path, parametersFile)
+        mLO                = MavisLO(path, parametersFile,verbose=verbose)
         Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
         cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
         if verbose:
