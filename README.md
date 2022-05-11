@@ -17,7 +17,7 @@ conda create -–name tiptop python=3.8
 
 conda activate tiptop
 ```
-Install cupy:
+Install cupy (it requires a CUDA-Enabled NVIDIA GPU):
 ```
 conda install -c conda-forge cupy
 ```
