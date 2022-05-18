@@ -1,34 +1,28 @@
 Usage
 =====
 
+
 .. _installation:
 
 Installation
 ------------
 
-To use Lumache, first install it using pip:
-
 .. code-block:: console
 
-   (.venv) $ pip install lumache
+     pip install -e .
 
-Creating recipes
-----------------
+Quickstart
+----------
 
-To retrieve a list of random ingredients,
-you can use the ``lumache.get_random_ingredients()`` function:
+To try execute the project you can use ``tiptop.overallSimulation()``
 
-.. autofunction:: lumache.get_random_ingredients
+.. py:function:: tiptop.overallSimulation(path2param,paramFileName)
 
-The ``kind`` parameter should be either ``"meat"``, ``"fish"``,
-or ``"veggies"``. Otherwise, :py:func:`lumache.get_random_ingredients`
-will raise an exception.
-
-.. autoexception:: lumache.InvalidKindError
-
-For example:
-
->>> import lumache
->>> lumache.get_random_ingredients()
-['shells', 'gorgonzola', 'parsley']
-
+   return nothing but create a fits file containing the PSF
+   
+   :param path2param: required path to the parameter file
+   :type path2param: str
+   :param paramFileName: required name of the parameter file to be used without the extention
+   :type paramFileName: str
+   :return: nothing
+   :rtype: None
