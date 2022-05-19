@@ -14,6 +14,11 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
+import os
+import sys
+import re
+sys.path.insert(0, os.path.abspath('..'))
+from tiptop.__version__ import __version__
 
 # -- Project information -----------------------------------------------------
 
