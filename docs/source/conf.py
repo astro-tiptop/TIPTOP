@@ -14,11 +14,9 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
-import os
+import pathlib
 import sys
-import re
-sys.path.insert(0, os.path.abspath('..'))
-from tiptop.__version__ import __version__
+sys.path.insert(0, pathlib.Path(__file__).parents[2].resolve().as_posix())
 
 # -- Project information -----------------------------------------------------
 
