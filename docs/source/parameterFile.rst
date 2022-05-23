@@ -281,7 +281,8 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    *Default : 150*, 
    Field of view of the camera in pixel/spaxel. need confirmation on the optionality of this paramiter. 
 
-We have examples of the following parameters being set but we do not understand if they are used in the science sensor case. 
+
+We have examples of the following parameters being set but we do not understand if they are used in the science sensor case. (none of these are used for the science detector, initialised for one specific class but has no effect.). 
 Binning = 1
 NumberPhotons = [1500]
 SpotFWHM = [[0.0, 0.0, 0.0]]
@@ -293,12 +294,27 @@ Dark = 0.0
 SkyBackground = 0.0
 Gain = 1.0
 ExcessNoiseFactor = 1.0
-Wavelength = [0.55e-06]
+Wavelength = [0.55e-06] if the wavelength is specified here it is ignored. 
 FieldOfView = 1024
 
 
 [sensor_HO]
 ^^^^^^^^^^^
+
+Used regardless of the WFS, desired behaviour, 
+
+.. option:: NumberLenslets
+
+   **Required**, 
+   *type: list of int*, 
+   Number of WFS lenslets. Used the same way in Shack-Hartmann wavefront sensor and Pyramid. Also used for noise computation if `NoiseVariance` is not set. 
+
+.. option:: SizeLenslets                                                   
+   
+   **Required**,
+   *type: list of float*, 
+   Size of WFS lenslets in meters. used, why a list of float? This overrides the ratio between telescope size and Number of lenslet used to compute the matrix size.
+
 
 Shack-Hartmann requirement
 
@@ -313,13 +329,14 @@ Shack-Hartmann requirement
 
    **Required**, 
    *type: int*, 
-   Number of pixels per subaperture. unsure this is well named : Guido found that this is divided by `NumberLenslet`.
+   Number of pixels on the detector. 
+   TODOI : change this behaviour as it makes no sense. Guido found that this is divided by `NumberLenslet`. Used for the noise. 
 
 .. option:: NumberPhotons  
 
    **Required**, 
    *type: list of int*, 
-   Flux return in [nph/frame/subaperture], There might be a confusion between High Order and Low Order on the units. 
+   Flux return in [nph/frame/subaperture]
 
 .. option:: SigmaRON 
 
@@ -327,17 +344,7 @@ Shack-Hartmann requirement
    *type: float*, 
    read-out noise std in [e-], used only if the `NoiseVariance` is not set. 
 
-.. option:: NumberLenslets
 
-   **Required**, 
-   *type: list of int*, 
-   Number of WFS lenslets. Used the same way in Shack-Hartmann wavefront sensor and Pyramid. Also used for noise computation if `NoiseVariance` is not set. 
-
-.. option:: SizeLenslets                                                   
-   
-   **Required**,
-   *type: list of float*, 
-   Size of WFS lenslets in meters. why a list of float?
 
 
 
@@ -360,13 +367,14 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: int*, 
    *default: 1*, 
-   Binning factor of the detector
+   Binning factor of the detector, only used in the pyramid case, optionnal for pyramid
 
 .. option:: SpotFWHM    
    
    **Optional**, 
    *type: list of list of float*, 
    *defaut: [[0.0, 0.0, 0.0]]*, 
+   Not used
    High Order spot scale in mili arcsec. Why list of list and why three?
 
 .. option:: SpectralBandwidth
@@ -374,6 +382,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 0.0*, 
+   Not used
    Spectral bandwidth of the filter (imaging mode)? why specific to the imaging mode? what is the effect?
 
 .. option:: Transmittance = [1.0]
@@ -381,6 +390,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: list of float*, 
    *default: [1.0]*, 
+   Used for PSF computation and flux scaling but not with noise computation
    Transmittance at the considered wavelengths for polychromatic mode. How do you set polychromatic mode? Each element can not have a value superior to 1?
 
 
@@ -389,7 +399,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: apparently list of list of float?*, 
    *default: [[0.0,0.0]]*, 
-   Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance... Also sorry for my ignorance: dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?
+   Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. Chromatic dispertion for PSF computation only.  In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance... Also sorry for my ignorance: dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?
    
 
 .. option:: Dark
@@ -397,6 +407,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 0.0*, 
+   not used 
    dark current in [e-/s/pix]
         
 .. option:: SkyBackground
@@ -404,6 +415,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 0.0*, 
+   not used
    Sky background [e-/s/pix]
 
 .. option:: Gain 
@@ -411,6 +423,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default:1.0*, 
+   used
    Pixel gain. do you mean camera gain?
                   
 .. option:: ExcessNoiseFactor
@@ -418,6 +431,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 2.0*, 
+   used 
    excess noise factor. Why the hell would you by default have excess noise?
 
 .. option:: NoiseVariance
@@ -432,6 +446,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: str*, 
    *defaut:'wcog'*, 
+   not used, even if it actually has a default value. The default seems to be normal center of gravity.
    CoG computation algorithm, What are the other options?
 
     
@@ -440,6 +455,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: int?*, 
    *default: 2*, 
+   not used
    Number of pixels for ?windiwing? the low order WFS pixels
         
 .. option:: ThresholdWCoG
@@ -447,6 +463,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float?*, 
    *default: 0.0*, 
+   not used
    Threshold Number of pixels for windowing the low order WFS pixels
 
  
@@ -455,7 +472,8 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 0.0*, 
-   New value for pixels lower than threshold? Why is this a 'new' value?
+   not used
+   New value for pixels lower than `ThresholdWCoG. Is there a reason to want to force these values to something else?
 
 
 [sensor_LO]
@@ -471,13 +489,14 @@ Shack-Hartmann requirement
 
    **Required**, 
    *type: int*, 
+   not used. 
    Number of pixels per subaperture
 
 .. option:: NumberPhotons 
 
    **Required**, 
    *type: list of int*, 
-   detected flux in [nph/frame/subaperture]
+   detected flux in [nph/frame]
    Must be the same length as NumberLenslet
 
 .. option:: NumberLenslets
@@ -494,6 +513,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: int*, 
    *default: 1*, 
+   not used
    binning factor of the detector
  
 .. option:: SpotFWHM   
@@ -501,6 +521,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: list of list of int*, 
    *default: [[0.0, 0.0, 0.0]]*,
+   not used
    Low Order spot scale in [mas]
 
 .. option:: SigmaRON   
@@ -529,7 +550,8 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 1.0*,
-   Pixel gain /camera gain?
+   not used
+   camera gain
 
 .. option:: ExcessNoiseFactor
 
@@ -543,6 +565,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: str*, 
    *default: 'wcog'*,
+   not used
    CoG computation algorithm
 
 .. option:: WindowRadiusWCoG
@@ -550,6 +573,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: int*, 
    *default: 1*,2
+   used instead of field of view
    Number of pixels for windiwing the low order WFS pixels
     
 .. option:: ThresholdWCoG
@@ -559,12 +583,13 @@ Shack-Hartmann requirement
    *default: 0.0*,
    Threshold Number of pixels for windowing the low order WFS pixels
 
-.. option:: NewValueThrPix = 0.0
+.. option:: NewValueThrPix
 
    **Optional**, 
    *type: float*, 
    *default: 0.0*,
-   New value for pixels lower than threshold
+   New value for pixels lower than threshold.
+   
 
 [DM]
 ^^^^
@@ -589,14 +614,14 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: str*, 
    *default: 'gaussian'*,
-   DM influence function model
+   DM influence function model. What are the other possible one?
 
 .. option:: InfCoupling
 
    **Optional**, 
    *type: list of float*, 
    *default: 0.0*,
-   DM influence function model mechanical coupling
+   DM influence function model mechanical coupling. Unclear to me what this does.
    Must be the same length as NumberActuators?
 
 .. option:: DmHeights 
@@ -612,7 +637,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: [0.0]*,
-   Zenith position in arcsec
+   Zenith position in arcsec. Unclear to me what this does.
    Must be the same length as NumberActuators?
 
 .. option:: OptimizationAzimuth
@@ -651,7 +676,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: str*, 
    *default: 'circle'*,
-   Shape of the AO-corrected area
+   Shape of the AO-corrected area. what are the other options?
 
 [RTC]
 ^^^^^
