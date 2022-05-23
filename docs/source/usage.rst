@@ -101,6 +101,16 @@ Quickstart
 ----------
 
 To try execute the project you can use ``tiptop.overallSimulation()``
+Here is some example code to use it:
+
+.. code-block::
+
+   from tiptop.tiptop import *
+   overallSimulation("perfTest", HarmoniSCAO_1, 'perfTest', 'testPyramid', doPlot=False, doConvolve=False)
+
+
+
+.. autofunction:: tiptop.tiptop.overallSimulation
 
 .. py:function:: tiptop.overallSimulation(path2param,paramFileName)
 
@@ -112,3 +122,14 @@ To try execute the project you can use ``tiptop.overallSimulation()``
    :type paramFileName: str
    :return: nothing
    :rtype: None
+
+
+>>> from tiptop.tiptop import *
+>>> overallSimulation('perfTest', 'HarmoniSCAO_1','perfTest', "testPyramid", 
+                  doPlot=False, doConvolve=False)
+ATTENTION: interface of this function is changed.
+           windPsdFile is no more an input of overallSimulation,
+           it must be set as a parameter in the telescope section of the ini file.
+
+Vectorize the wavelength value to cope with the number of SCIENCE sources
+Output cube shape: (1, 640, 640)

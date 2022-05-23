@@ -1,0 +1,700 @@
+Parameter files explained
+=========================
+
+Introduction
+------------
+
+To run tiptop you need two things: to execute the function and to create a parameter file. This section explaines
+what should your parameter file contain and the various parameters you can set. You can already find example parameter 
+files in the `github <https://github.com/FabioRossiArcetri/TIPTOP/tree/main/perfTest>`_ .
+
+
+The parameter files are divided in sections and they can contain multiple parameter. It is very important that each 
+parameter be placed in the appropriate section. The section starts with its name between '[]' and ends either with 
+the end of file or with the next section. The order they are placed in the file does not matter.
+
+
+The mandatory sections and their content are:
+
+.. note:: 
+
+   In the current state if the parameter file is not found there won't be an error message and the code will do something. It is unclear what the code does in that case. 
+
+[telescope]
+^^^^^^^^^^^
+
+.. option:: TelescopeDiameter
+
+   **Required**, 
+   *type : float*, 
+   Set the outer diameter of the telescope pupil in unit of meters.
+
+
+.. option:: ObscurationRatio
+
+   **Required?**, 
+   *type : float*, 
+   Defines the central obstruction due to the secondary as a ratio of the TelescopeDiameter
+
+
+.. option:: Resolution
+
+   **Required**, 
+   *type : int*, 
+   Number of pixels across the pupil diameter
+
+
+
+.. option:: ZenithAngle
+
+   **Optional**, 
+   *type : float*, 
+   *Default: 0.0*, 
+   Set the pointing direction of the telescope in degree
+
+
+.. option:: TechnicalFoV
+
+   **Optional**, 
+   *type : float*, 
+   *default: ''*, 
+   set the size of the technical field of view
+
+.. option:: PathPupil
+
+   **Optional**, 
+   *type : str*, 
+   *default: ''*, 
+   path to the pupil model in .fits file (if provided, the pupil model is interpolated).if absent or '', not used
+
+.. option:: PathStaticOn
+
+   **Optional**, 
+   *type : str*, 
+   *default: ''*, 
+   path to a map of static aberrations (nm) in .fits file. if absent or '', not used
+
+.. option:: PathStaticOff
+
+   **Optional**, 
+   *type : str*, 
+   *default: ''*, 
+   No clue what this does. if absent or '', not used
+
+.. option:: PathStaticPos
+
+   **Optional**, 
+   *type : str*, 
+   *default: ''*, 
+   No clue
+
+.. option::  PathApodizer
+
+   **Optional**, 
+   *type : str*, 
+   *default: ''*, 
+   Path to a fits file that contain a binary map corresponding to a pupil apodizer (TBC). if absent or '', not used
+
+.. option:: PathStatModes
+   
+   **Optional**, 
+   *type : str*, 
+   *default: ''*, 
+   path to a .fits file that contain a cube of map of mode in amplitude which lead to a rms of 1 in nanometer of static aberation. if absent or '', not used. Unsure how this works.
+
+.. option:: coeficientOfTheStaticMode
+   
+   **Optional**, 
+   *type : str*, 
+   *default: ''*, 
+   place holder 
+   (TBC) need to find how does the pathStatModes fits file work.
+
+[atmosphere]
+^^^^^^^^^^^^
+
+.. option:: r0_Value
+   
+   **required?**, 
+   *type : float*, 
+   set the atmospere Fried parameter. Might need fixing. 
+   temporary use: ``R0_Value``=0 and the seeing to the wanted value.
+
+.. option:: testWindspeed
+
+   **WTF?**, 
+   *type : float*, 
+   test variable that should not be here?
+   Required at the moment, for LO (which requires it) because the LO requires the average windspeed. If set to zero takes the average of WindSpeed weighted by the Cn2Weights.
+
+.. option:: Seeing
+
+   **Required**, 
+   *type : float*, 
+   Set the seeing at Zenith in arcsec. Might need fixing. seeing looks like it is converted to R0
+
+
+
+.. option:: Wavelength
+
+   **Optional**, 
+   *type : float*, 
+   *Default : 500e-9*, 
+   Wavelength of definition of the atmosphere statistics
+
+.. option:: L0
+
+   **Optional**, 
+   *type : float*, 
+   *Default : 25.0*, 
+   Outer Scale of the atmosphere  in meters
+
+.. option:: Cn2Weights
+
+   **Optional**, 
+   *type : list of float*, 
+   *Default : [1]*, 
+   Relative contribution of each layer. The sum of all the list element must be 1. 
+   Must have the same length as ``Cn2Heights``, ``WindSpeed`` and ``WindDirection``.
+
+.. option:: Cn2Heights
+
+   **Optional**, 
+   *type : list of float*, 
+   *Default : [0.0]*, 
+   altitude of layers in meters.
+   Must have the same length as ``Cn2Weights``, ``WindSpeed`` and ``WindDirection``.
+
+.. option:: WindSpeed
+
+   **Optionnal**, 
+   *Type : list of float*, 
+   *Default : [0.0]*, 
+   Wind speed values for each layer in m/s. 
+   Must have the same length as ``Cn2Weights``,``Cn2Heights`` and ``WindDirection``.
+
+.. option:: WindDirection
+
+   **Optionnal**, 
+   *Type : list of float*, 
+   *Default : [0.0]*, 
+   wind direction for each layer in degrees. 0 degree is ?? then anticlockwise.
+   Must have the same length as ``Cn2Weights``,``Cn2Heights`` and ``WindSpeed``.
+
+
+[sources_science]
+^^^^^^^^^^^^^^^^^
+
+.. option:: Wavelength
+
+   **Required**, 
+   *Type : list of float*, 
+   list of central wavelengths for each frame in meters. you can have more than one science target. needs explaining why the science sources can be multiple. (polychromatic? several targets? you can set many taget of the same wavelength by only setting more than one Zenith and Azimuth. It produces one PSF per target. The number of PSF is the number of wavelength times the number of Azimuth/Zenith couple.
+
+.. option:: Zenith
+
+   **Required?**, 
+   *Type : list of float*, 
+   Zenithal coordinate in arcsec of Wavelength sources given in ``Wavelength``.
+   Must be the same length as ``Azimuth``
+
+.. option:: Azimuth
+
+   **Required?**, 
+   *Type : list of float*, 
+   Azimuthal coordinate in degree of Wavelength sources given in ``Wavelength``.
+   Must be the same length as ``Zenith``
+
+
+[sources_HO]
+^^^^^^^^^^^^
+
+Typically the wavelength is the same for all guide star (at least in Laser guide star)
+
+.. option:: Wavelength
+
+   **Required**, 
+   *type : float*, 
+   Sensing wavelength for Hight Order modes in meters
+
+.. option:: Zenith
+
+   **Required?**, 
+   *Type : list of float*, 
+   Zenithal coordinate of each guide stars in arcsec.
+   Must be the same length as ``Azimuth``
+   
+.. option:: Azimuth
+
+   **Required?**, 
+   *Type : list of float*, 
+   Azimuthal coordinate in degree of each guide stars.
+   Must be the same length as ``Zenith``
+
+
+
+.. option:: Height
+   
+   **Optional**, 
+   *Type : float*, 
+   *Default : 0.0*, 
+   altitude of the guide stars (0 if infinite). Consider that all star are at the same heigh.
+
+
+[sources_LO]
+^^^^^^^^^^^^
+
+.. option:: Wavelength
+
+   **Required**, 
+   *type : float*, 
+   Sensing wavelength for Low Order modes in meters
+
+.. option:: Zenith
+
+   **Required?**, 
+   *Type : list of float*, 
+   Zenithal coordinate of each guide stars in arcsec.
+   Must be the same length as ``Azimuth``
+   
+.. option:: Azimuth
+
+   **Required?**, 
+   *Type : list of float*, 
+   Azimuthal coordinate in degree of each guide stars.
+   Must be the same length as ``Zenith``
+
+[sensor_science]
+^^^^^^^^^^^^^^^^
+
+.. option:: PixelScale
+
+   **Required**, 
+   *type : float*, 
+   pixel/spaxel scale in mili arcsec
+
+
+.. option:: FieldOfView
+
+   **Required?**, 
+   *type : float*, 
+   *Default : 150*, 
+   Field of view of the camera in pixel/spaxel. need confirmation on the optionality of this paramiter. 
+
+We have examples of the following parameters being set but we do not understand if they are used. 
+Binning = 1
+NumberPhotons = [1500]
+SpotFWHM = [[0.0, 0.0, 0.0]]
+SpectralBandwidth = 0
+Transmittance = [1.0]
+Dispersion = [[0.0],[0.0]]
+SigmaRON = [0.1]
+Dark = 0.0
+SkyBackground = 0.0
+Gain = 1.0
+ExcessNoiseFactor = 1.0
+Wavelength = [0.55e-06]
+FieldOfView = 1024
+
+
+[sensor_HO]
+^^^^^^^^^^^
+
+Shack-Hartmann requirement
+
+
+.. option:: PixelScale
+
+   **Required**, 
+   *type: int*, 
+   HO WFS pixel scale in [mas]
+
+.. option:: FieldOfView
+
+   **Required**, 
+   *type: int*, 
+   Number of pixels per subaperture
+
+.. option:: NumberPhotons  
+
+   **Required**, 
+   *type: list of int*, 
+   Flux return in [nph/frame/subaperture]
+
+.. option:: SigmaRON 
+
+   **Required**, 
+   *type: float*, 
+   read-out noise std in [e-]
+
+.. option:: NumberLenslets
+
+   **Required**, 
+   *type: list of int*, 
+   Number of WFS lenslets
+
+
+
+.. option:: WfsType = 'Pyramid'
+   
+   **Optional**, 
+   *type: str*, 
+   *default : 'Shack-Hartmann'*, 
+   type of wavefront sensor used for the High Order sensing
+
+.. option:: Modulation
+   
+   **Optional**, 
+   *type: float*, 
+   *default : None*, 
+   If the chosen wavefront sensor is the ``'Pyramid'``, Spot modulation radius in lambda/D units.
+
+.. option:: Binning = 1
+   
+   **Optional**, 
+   *type: int*, 
+   *default: 1*, 
+   Binning factor of the detector
+
+.. option:: SpotFWHM    
+   
+   **Optional**, 
+   *type: list of list of float*, 
+   *defaut: [[0.0, 0.0, 0.0]]*, 
+   High Order spot scale in mili arcsec. Why list of list and why three?
+
+.. option:: SpectralBandwidth
+   
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*, 
+   Spectral bandwidth of the filter (imaging mode)? why specific to the imagin mode? what is the effect?
+
+.. option:: Transmittance = [1.0]
+   
+   **Optional**, 
+   *type: list of float*, 
+   *default: [1.0]*, 
+   Transmittance at the considered wavelengths for polychromatic mode. How do you set polychromatic mode? Each element can not have a value superior to 1?
+
+
+.. option:: Dispersion = [[0.0],[0.0]]                          
+   
+   **Optional**, 
+   *type: apparently list of list of float?*, 
+   *default: [[0.0,0.0]]*, 
+   Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance...
+   
+
+.. option:: Dark
+   
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*, 
+   dark current in [e-/s/pix]
+        
+.. option:: SkyBackground
+   
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*, 
+   Sky background [e-/s/pix]
+
+.. option:: Gain 
+   
+   **Optional**, 
+   *type: float*, 
+   *default:1.0*, 
+   Pixel gain. do you mean camera gain?
+                  
+.. option:: ExcessNoiseFactor
+   
+   **Optional**, 
+   *type: float*, 
+   *default: 2.0*, 
+   excess noise factor. Why the hell would you by default have excess noise?
+
+.. option:: SizeLenslets                                                   
+   
+   **Optional**,
+   *type: list of float*, 
+   *Default: ???*, 
+   Size of WFS lenslets in meters. why a list of float?
+
+.. option:: NoiseVariance
+
+   **Optional**, 
+   *type: unknown*, 
+   *Default : None*?, 
+   Noise Variance in rd2. If not empty, this value overwrites the analytical noise variance calculation.
+
+.. option:: Algorithm
+   
+   **Optional**, 
+   *type: str*, 
+   *defaut:'wcog'*, 
+   CoG computation algorithm
+
+    
+.. option:: WindowRadiusWCoG 
+   
+   **Optional**, 
+   *type: int?*, 
+   *default: 2*, 
+   Number of pixels for windiwing the low order WFS pixels
+        
+.. option:: ThresholdWCoG
+   
+   **Optional**, 
+   *type: float?*, 
+   *default: 0.0*, 
+   Threshold Number of pixels for windowing the low order WFS pixels
+
+ 
+.. option:: NewValueThrPix 
+   
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*, 
+   New value for pixels lower than threshold
+
+
+[sensor_LO]
+^^^^^^^^^^^
+
+.. option:: PixelScale
+
+   **Required**, 
+   *type: float*, 
+   LO WFS pixel scale in [mas]
+
+.. option:: FieldOfView 
+
+   **Required**, 
+   *type: int*, 
+   Number of pixels per subaperture
+
+.. option:: NumberPhotons 
+
+   **Required**, 
+   *type: list of int*, 
+   detected flux in [nph/frame/subaperture]
+   Must be the same length as NumberLenslet
+
+.. option:: NumberLenslets
+
+   **Required**, 
+   *type: list of int*, 
+   number of WFS lenslets
+   Must be the same length as NumberPhotons
+
+
+
+.. option:: Binning   
+
+   **Optional**, 
+   *type: int*, 
+   *default: 1*, 
+   binning factor of the detector
+ 
+.. option:: SpotFWHM   
+
+   **Optional**, 
+   *type: list of list of int*, 
+   *default: [[0.0, 0.0, 0.0]]*,
+   Low Order spot scale in [mas]
+
+.. option:: SigmaRON   
+
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*,
+   read out noise in [e-]
+
+.. option:: Dark
+
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*,
+   dark current[e-/s/pix]
+
+.. option:: SkyBackground
+
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*,
+   sky background [e-/s/pix]
+
+.. option:: Gain
+
+   **Optional**, 
+   *type: float*, 
+   *default: 1.0*,
+   Pixel gain /camera gain
+
+.. option:: ExcessNoiseFactor
+
+   **Optional**, 
+   *type: float*, 
+   *default: 2.0*,
+   excess noise factor
+
+.. option:: Algorithm
+
+   **Optional**, 
+   *type: str*, 
+   *default: 'wcog'*,
+   CoG computation algorithm
+
+.. option:: WindowRadiusWCoG
+
+   **Optional**, 
+   *type: int*, 
+   *default: 1*,2
+   Number of pixels for windiwing the low order WFS pixels
+    
+.. option:: ThresholdWCoG
+
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*,
+   Threshold Number of pixels for windowing the low order WFS pixels
+
+.. option:: NewValueThrPix = 0.0
+
+   **Optional**, 
+   *type: float*, 
+   *default: 0.0*,
+   New value for pixels lower than threshold
+
+[DM]
+^^^^
+
+.. option:: NumberActuators
+
+   **Required**, 
+   *type: list of int*, 
+   DM actuators pitch in meters. why a list of int?
+
+.. option:: DmPitchs
+
+   **Required**, 
+   *type: list of float*, 
+   DM actuators pitch in meters
+   Must be the same length as NumberActuators?
+
+
+
+.. option:: InfModel = 'gaussian'
+
+   **Optional**, 
+   *type: str*, 
+   *default: 'gaussian'*,
+   DM influence function model
+
+.. option:: InfCoupling
+
+   **Optional**, 
+   *type: list of float*, 
+   *default: 0.0*,
+   DM influence function model mechanical coupling
+   Must be the same length as NumberActuators?
+
+.. option:: DmHeights 
+
+   **Optional**, 
+   *type: list of float*, 
+   *default: [0.0]*,
+   DM altitude in meters 
+   Must be the same length as NumberActuators?
+
+.. option:: OptimizationZenith
+
+   **Optional**, 
+   *type: float*, 
+   *default: [0.0]*,
+   Zenith position in arcsec
+   Must be the same length as NumberActuators?
+
+.. option:: OptimizationAzimuth
+
+   **Optional**, 
+   *type: list of float*, 
+   *default: [0.0]*,
+   Azimuth in degrees
+   Must be the same length as NumberActuators?
+
+.. option:: OptimizationWeight
+
+   **Optional**, 
+   *type: float*, 
+   *default: [1.0]*,
+   Weights of what? for the optical gains? of the individual DM? 
+   Must be the same length as NumberActuators?
+
+.. option:: OptimizationConditioning
+
+   **Optional**, 
+   *type: float*, 
+   *default: 1.0e2*,
+   Matrix Conditioning in the SVD sens?
+   Must be the same length as NumberActuators?
+
+.. option:: NumberReconstructedLayers
+
+   **Optional**, 
+   *type: int*, 
+   *default: 10*,
+   Number of reconstructed layers for tomographic systems. Shouldn't this be defaulted to 1 for SCAO sakes?
+
+.. option:: AoArea
+
+   **Optional**, 
+   *type: str*, 
+   *default: 'circle'*,
+   Shape of the AO-corrected area
+
+[RTC]
+^^^^^
+
+.. option:: LoopGain_HO
+
+   **Required**, 
+   *type: float*, 
+   High Order Loop gain
+
+.. option:: SensorFrameRate_HO
+
+   **Required**, 
+   *type: float*, 
+   High Order loop frequency in [Hz]
+
+.. option:: LoopDelaySteps_HO
+
+   **Required**, 
+   *type: int*, 
+   High Order loop delay in [frame]
+
+.. option:: LoopGain_LO
+
+   **Optional**, 
+   *type: float*?, 
+   *default: None*,
+   Low Order loop gain
+
+.. option:: SensorFrameRate_LO
+
+   **Optional**, 
+   *type: float*, 
+   *default: None*,
+   Loop frequency in [Hz]
+
+.. option:: LoopDelaySteps_LO
+
+   **Optional**, 
+   *type: int*, 
+   *default: None*,
+   Low Order loop delays in [frames]
+
+
+

@@ -30,7 +30,8 @@ Check out the :doc:`usage` section for further information, including how to
 .. toctree::
    
    usage
-
+   parameterFile
+   api
 
 
 Indices and tables

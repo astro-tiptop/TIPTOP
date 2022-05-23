@@ -13,7 +13,27 @@ from datetime import datetime
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False):
+    """
+    function to run the entire tiptop simulation based on the imput file
     
+    :param path2param: required path to the parameter file
+    :type path2param: str
+    :param paramFileName: required name of the parameter file to be used without the extention
+    :type paramFileName: str
+    :param outpuDir: required path to the folder in which to write the output
+    :type outputDir: str
+    :param pitchScaling: optional default : 1 pitch of what ??? no clue
+    :type pitchScaling: float (maybe)
+    :param doConvolve: optional default: False if you want to use the natural convolution operation  set to True
+    :type doConvolve: bool
+    :param doPlot: optional default: False if you want to see the result in python set this to True
+    :type doPlot: bool
+    :param verbose: optional default: False If you want all messages set this to True
+    :type verbose: bool
+    :return: nothing
+    :rtype: None
+
+    """
     #TODO remove this prints in one of the next releases of the library
     print('ATTENTION: interface of this function is changed.')
     print('           windPsdFile is no more an input of overallSimulation,')
