@@ -118,7 +118,7 @@ The mandatory sections and their content are:
    **required?**, 
    *type : float*, 
    set the atmospere Fried parameter. Might need fixing. 
-   temporary use: ``R0_Value``=0 and the seeing to the wanted value.
+   temporary use: ``R0_Value`` =0 and the seeing to the wanted value.
 
 .. option:: testWindspeed
 
@@ -171,7 +171,7 @@ The mandatory sections and their content are:
    *Type : list of float*, 
    *Default : [0.0]*, 
    Wind speed values for each layer in m/s. 
-   Must have the same length as ``Cn2Weights``,``Cn2Heights`` and ``WindDirection``.
+   Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and ``WindDirection``.
 
 .. option:: WindDirection
 
@@ -179,7 +179,7 @@ The mandatory sections and their content are:
    *Type : list of float*, 
    *Default : [0.0]*, 
    wind direction for each layer in degrees. 0 degree is ?? then anticlockwise.
-   Must have the same length as ``Cn2Weights``,``Cn2Heights`` and ``WindSpeed``.
+   Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and ``WindSpeed``.
 
 
 [sources_science]
@@ -188,8 +188,8 @@ The mandatory sections and their content are:
 .. option:: Wavelength
 
    **Required**, 
-   *Type : list of float*, 
-   list of central wavelengths for each frame in meters. you can have more than one science target. needs explaining why the science sources can be multiple. (polychromatic? several targets? you can set many taget of the same wavelength by only setting more than one Zenith and Azimuth. It produces one PSF per target. The number of PSF is the number of wavelength times the number of Azimuth/Zenith couple.
+   *Type : list of float or float*, 
+   list of central wavelengths for each frame in meters. you can have more than one science target. needs explaining why the science sources can be multiple. (polychromatic? several targets? you can set many taget of the same wavelength by only setting more than one Zenith and Azimuth but leaving the wavelength as a float. It produces one PSF per target. The number of PSF is the number of wavelength times the number of Azimuth/Zenith couple.
 
 .. option:: Zenith
 
@@ -238,7 +238,7 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Optional**, 
    *Type : float*, 
    *Default : 0.0*, 
-   altitude of the guide stars (0 if infinite). Consider that all star are at the same heigh.
+   altitude of the guide stars (0 if infinite). Consider that all guide star are at the same heigh.
 
 
 [sources_LO]
@@ -281,7 +281,7 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    *Default : 150*, 
    Field of view of the camera in pixel/spaxel. need confirmation on the optionality of this paramiter. 
 
-We have examples of the following parameters being set but we do not understand if they are used. 
+We have examples of the following parameters being set but we do not understand if they are used in the science sensor case. 
 Binning = 1
 NumberPhotons = [1500]
 SpotFWHM = [[0.0, 0.0, 0.0]]
@@ -307,35 +307,41 @@ Shack-Hartmann requirement
 
    **Required**, 
    *type: int*, 
-   HO WFS pixel scale in [mas]
+   High Order WFS pixel scale in [mas], unclear what are the units if we chose a pyramid wavefront sensor
 
 .. option:: FieldOfView
 
    **Required**, 
    *type: int*, 
-   Number of pixels per subaperture
+   Number of pixels per subaperture. unsure this is well named : Guido found that this is divided by `NumberLenslet`.
 
 .. option:: NumberPhotons  
 
    **Required**, 
    *type: list of int*, 
-   Flux return in [nph/frame/subaperture]
+   Flux return in [nph/frame/subaperture], There might be a confusion between High Order and Low Order on the units. 
 
 .. option:: SigmaRON 
 
    **Required**, 
    *type: float*, 
-   read-out noise std in [e-]
+   read-out noise std in [e-], used only if the `NoiseVariance` is not set. 
 
 .. option:: NumberLenslets
 
    **Required**, 
    *type: list of int*, 
-   Number of WFS lenslets
+   Number of WFS lenslets. Used the same way in Shack-Hartmann wavefront sensor and Pyramid. Also used for noise computation if `NoiseVariance` is not set. 
+
+.. option:: SizeLenslets                                                   
+   
+   **Required**,
+   *type: list of float*, 
+   Size of WFS lenslets in meters. why a list of float?
 
 
 
-.. option:: WfsType = 'Pyramid'
+.. option:: WfsType
    
    **Optional**, 
    *type: str*, 
@@ -347,7 +353,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default : None*, 
-   If the chosen wavefront sensor is the ``'Pyramid'``, Spot modulation radius in lambda/D units.
+   If the chosen wavefront sensor is the ``'Pyramid'``, Spot modulation radius in lambda/D units. This is gnored if the WFS is `'Shack-Hartmann'`
 
 .. option:: Binning = 1
    
@@ -368,7 +374,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 0.0*, 
-   Spectral bandwidth of the filter (imaging mode)? why specific to the imagin mode? what is the effect?
+   Spectral bandwidth of the filter (imaging mode)? why specific to the imaging mode? what is the effect?
 
 .. option:: Transmittance = [1.0]
    
@@ -383,7 +389,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: apparently list of list of float?*, 
    *default: [[0.0,0.0]]*, 
-   Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance...
+   Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance... Also sorry for my ignorance: dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?
    
 
 .. option:: Dark
@@ -414,13 +420,6 @@ Shack-Hartmann requirement
    *default: 2.0*, 
    excess noise factor. Why the hell would you by default have excess noise?
 
-.. option:: SizeLenslets                                                   
-   
-   **Optional**,
-   *type: list of float*, 
-   *Default: ???*, 
-   Size of WFS lenslets in meters. why a list of float?
-
 .. option:: NoiseVariance
 
    **Optional**, 
@@ -433,7 +432,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: str*, 
    *defaut:'wcog'*, 
-   CoG computation algorithm
+   CoG computation algorithm, What are the other options?
 
     
 .. option:: WindowRadiusWCoG 
@@ -441,7 +440,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: int?*, 
    *default: 2*, 
-   Number of pixels for windiwing the low order WFS pixels
+   Number of pixels for ?windiwing? the low order WFS pixels
         
 .. option:: ThresholdWCoG
    
@@ -456,7 +455,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 0.0*, 
-   New value for pixels lower than threshold
+   New value for pixels lower than threshold? Why is this a 'new' value?
 
 
 [sensor_LO]
@@ -530,7 +529,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 1.0*,
-   Pixel gain /camera gain
+   Pixel gain /camera gain?
 
 .. option:: ExcessNoiseFactor
 
