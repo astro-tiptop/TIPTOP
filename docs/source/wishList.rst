@@ -9,6 +9,7 @@ Wish List
 * Fix the FieldOfView/PixelScale/NumberOfLenslet behaviour to something that makes sense.
 * Discuss with Cedric the use of FieldOfView VS  WindowRadiusWCoG for LO sensor. Also the center of gravity algorithms
 * NewValueThrPix: is this a really needed parameter or could we not parametrize this? 
+* minimal parameter file example for configuring each of the type of AO
 
 
 
