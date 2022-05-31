@@ -598,13 +598,15 @@ Shack-Hartmann requirement
 
    **Required**, 
    *type: list of int*, 
-   DM actuators pitch in meters. why a list of int?
+   not used
+   Number of actuator on the pupil diameter. why a list of int?
+   Must be the same length as DmPitchs
 
 .. option:: DmPitchs
 
    **Required**, 
    *type: list of float*, 
-   DM actuators pitch in meters
+   DM actuators pitch in meters, on the meta pupil at the conjugasion altitude, used for fitting error computation.
    Must be the same length as NumberActuators?
 
 
@@ -614,14 +616,14 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: str*, 
    *default: 'gaussian'*,
-   DM influence function model. What are the other possible one?
+   DM influence function model. Not used in tiptop but used in the psf reconstruction. What are the other possible one?
 
 .. option:: InfCoupling
 
    **Optional**, 
    *type: list of float*, 
    *default: 0.0*,
-   DM influence function model mechanical coupling. Unclear to me what this does.
+   DM influence function model mechanical coupling. used in the psf reconstruction. Unclear to me what this does.
    Must be the same length as NumberActuators?
 
 .. option:: DmHeights 
@@ -630,45 +632,48 @@ Shack-Hartmann requirement
    *type: list of float*, 
    *default: [0.0]*,
    DM altitude in meters 
-   Must be the same length as NumberActuators?
+   Must be the same length as NumberActuators and DmPitchs
 
 .. option:: OptimizationZenith
 
    **Optional**, 
    *type: float*, 
    *default: [0.0]*,
-   Zenith position in arcsec. Unclear to me what this does.
-   Must be the same length as NumberActuators?
+   Zenith position in arcsec of the direction in which the AO correction is optimized.
+   Must be the same length as OptimisationAzimuth  and OptimizationWeight
+   These are for wide field AO system, should be a requirement for MCAO and GLAO 
 
 .. option:: OptimizationAzimuth
 
    **Optional**, 
    *type: list of float*, 
    *default: [0.0]*,
-   Azimuth in degrees
-   Must be the same length as NumberActuators?
+   Azimuth in degrees  of the direction in which the AO correction is optimized
+   Must be the same length as OptimizationZenith and OptimizationWeight
+   These are for wide field AO system, should be a requirement for MCAO and GLAO 
 
 .. option:: OptimizationWeight
 
    **Optional**, 
    *type: float*, 
    *default: [1.0]*,
-   Weights of what? for the optical gains? of the individual DM? 
-   Must be the same length as NumberActuators?
+   Weights of the optimisation directions 
+   Must be the same length as OptimizationZenith and OptimizationAzimuth
+   These are for wide field AO system, should be a requirement for MCAO and GLAO 
 
 .. option:: OptimizationConditioning
 
    **Optional**, 
    *type: float*, 
    *default: 1.0e2*,
-   Matrix Conditioning in the SVD sens?
-   Must be the same length as NumberActuators?
+   Matrix Conditioning threshold in the truncated SVD inversion. 
 
 .. option:: NumberReconstructedLayers
 
    **Optional**, 
    *type: int*, 
    *default: 10*,
+   Only used for wide field AO system, (meaning more than one guide star is defined)
    Number of reconstructed layers for tomographic systems. Shouldn't this be defaulted to 1 for SCAO sakes?
 
 .. option:: AoArea
@@ -676,7 +681,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: str*, 
    *default: 'circle'*,
-   Shape of the AO-corrected area. what are the other options?
+   Shape of the AO-corrected area. Any other options are not defined and will give a squarre correction area.  
 
 [RTC]
 ^^^^^
@@ -704,6 +709,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*?, 
    *default: None*,
+   not used, auto matically optimized by tiptop.
    Low Order loop gain
 
 .. option:: SensorFrameRate_LO
