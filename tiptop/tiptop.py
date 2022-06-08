@@ -12,7 +12,7 @@ from datetime import datetime
 
 rc("text", usetex=False)
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False):
+def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False, returnRes=False):
     
     #TODO remove this prints in one of the next releases of the library
     print('ATTENTION: interface of this function is changed.')
@@ -124,7 +124,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
                                                                                                  scaleFactor=(2*np.pi*1e-9/wvl)**2,
                                                                                                  verbose=verbose)
     
-    if doConvolve == False:
+    if doConvolve == False and returnRes == False:
         results = psfLongExpPointingsArr
     else:
         # LOW ORDER PART
@@ -141,50 +141,57 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
         cartNGSCoords = np.asarray(cartNGSCoordsList)
         mLO                = MavisLO(path, parametersFile,verbose=verbose)
         Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
-        cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
-        if verbose:
-            for n in range(cov_ellipses.shape[0]): print('cov_ellipses #',n,': ',cov_ellipses[n,:])
-        # FINAl CONVOLUTION
-        results = []
-        for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
-            results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
+        if returnRes == False:
+            cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
+            if verbose:
+                for n in range(cov_ellipses.shape[0]): print('cov_ellipses #',n,': ',cov_ellipses[n,:], ' (unit: rad, mas, mas)')
+            # FINAl CONVOLUTION
+            results = []
+            for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
+                results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
 
     if doPlot:
-        if doConvolve:
+        if doConvolve and returnRes == False:
             tiledDisplay(results)
             plotEllipses(cartPointingCoords, cov_ellipses, 0.4)
         else:
             results[0].standardPlot(True)
+    
+    if returnRes == True:
+        HO_res = np.sqrt(np.sum(PSD[:-nNaturalGS],axis=(1,2)))
+        LO_res = np.sqrt(np.trace(Ctot,axis1=1,axis2=2))
+    
+        return HO_res, LO_res
+    else:
+        # save PSF cube in fits
+        hdul1 = fits.HDUList()
+        cube =[]
+        hdul1.append(fits.PrimaryHDU())
+        for img in results:
+            cube.append(cp.asnumpy(img.sampling))
 
-    # save PSF cube in fits    
-    hdul1 = fits.HDUList()
-    cube =[]
-    hdul1.append(fits.PrimaryHDU())
-    for img in results:
-        cube.append(cp.asnumpy(img.sampling))
-    
-    cube = np.array(cube)
-    hdul1.append(fits.ImageHDU(data=cube))
-    hdul1.append(fits.ImageHDU(data=pp)) # append cartesian coordinates
-    
-    #############################
-    # header
-    hdr0 = hdul1[0].header
-    now = datetime.now()
-    hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-    # header of the PSFs
-    hdr1 = hdul1[1].header
-    hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-    hdr1['CONTENT'] = "PSF CUBE"
-    hdr1['SIZE'] = str(cube.shape)
-    hdr1['WL_NM'] = str(int(wvl*1e9))
-    hdr1['PIX_MAS'] = str(fao.freq.psInMas[0])
-    # header of the coordinates
-    hdr2 = hdul1[2].header
-    hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-    hdr2['CONTENT'] = "CARTESIAN COORD. IN ASEC OF THE SOURCES"
-    hdr2['SIZE'] = str(pp.shape)
-    #############################
-    
-    hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
-    print("Output cube shape:", cube.shape)
+        cube = np.array(cube)
+        hdul1.append(fits.ImageHDU(data=cube))
+        hdul1.append(fits.ImageHDU(data=pp)) # append cartesian coordinates
+
+        #############################
+        # header
+        hdr0 = hdul1[0].header
+        now = datetime.now()
+        hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        # header of the PSFs
+        hdr1 = hdul1[1].header
+        hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr1['CONTENT'] = "PSF CUBE"
+        hdr1['SIZE'] = str(cube.shape)
+        hdr1['WL_NM'] = str(int(wvl*1e9))
+        hdr1['PIX_MAS'] = str(fao.freq.psInMas[0])
+        # header of the coordinates
+        hdr2 = hdul1[2].header
+        hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr2['CONTENT'] = "CARTESIAN COORD. IN ASEC OF THE SOURCES"
+        hdr2['SIZE'] = str(pp.shape)
+        #############################
+
+        hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
+        print("Output cube shape:", cube.shape)
