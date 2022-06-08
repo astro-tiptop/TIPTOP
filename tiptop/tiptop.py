@@ -72,7 +72,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
 
     # High-order PSD caculations at the science directions and NGSs directions
     fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
-    PSD           = fao.powerSpectrumDensity() # in nm^2
+    PSD           = fao.PSD # in nm^2
     PSD           = PSD.transpose()
     N             = PSD[0].shape[0]
     freq_range    = fao.ao.cam.fovInPix*fao.freq.PSDstep 
