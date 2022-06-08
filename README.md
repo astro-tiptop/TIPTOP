@@ -28,7 +28,7 @@ conda install ipython matplotlib scipy astropy sympy
 and to get jupiter and jupiter-lab (many files are Jupyter Notebooks):
 ```
 conda install jupyter
-conda install conda-forge jupyterlab
+conda install -c conda-forge jupyterlab
 ```
 
 ### Get the library
