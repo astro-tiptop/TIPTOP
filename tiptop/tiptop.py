@@ -63,6 +63,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     pp                 = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
+    nPointings         = pp.shape[1]
 
     if verbose:
         print('******** HO PSD science and NGSs directions')
@@ -116,14 +117,16 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     # HO PSF
     if verbose:
         print('******** HO PSF')
-    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-nNaturalGS],
+    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[0:nPointings],
                                                                                                  wvl,
                                                                                                  fao.freq.psInMas[0],
                                                                                                  scaleFactor=(2*np.pi*1e-9/wvl)**2,
                                                                                                  verbose=verbose)
     
     if LOisOn == False or (doConvolve == False and returnRes == False):
-        results = psfLongExpPointingsArr
+        results = []
+        for psfLongExp in psfLongExpPointingsArr:
+            results.append(psfLongExp)
     else:
         # LOW ORDER PART
         if verbose:
@@ -142,8 +145,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         for i in range(nNaturalGS):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))        
         cartNGSCoords = np.asarray(cartNGSCoordsList)
-        mLO                = MavisLO(path, parametersFile,verbose=verbose)
-        Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
+        mLO           = MavisLO(path, parametersFile,verbose=verbose)
+        Ctot          = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
         
         if returnRes == False:
             cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
@@ -160,9 +163,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if LOisOn and doConvolve and returnRes == False:
             tiledDisplay(results)
             plotEllipses(cartPointingCoords, cov_ellipses, 0.4)
-        # TODO this plot is not working
-        #else:
-        #    results[0].standardPlot(True)
+        else:
+            tiledDisplay(results)
     
     if returnRes:
         HO_res = np.sqrt(np.sum(PSD[:-nNaturalGS],axis=(1,2)))
