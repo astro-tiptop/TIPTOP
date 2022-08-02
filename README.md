@@ -19,7 +19,7 @@ conda create -–name tiptop python=3.8
 
 conda activate tiptop
 ```
-Install cupy:
+Install cupy (it requires a CUDA-Enabled NVIDIA GPU):
 ```
 conda install -c conda-forge cupy
 ```
@@ -27,10 +27,10 @@ Install other libraries:
 ```
 conda install ipython matplotlib scipy astropy sympy
 ```
-and to get jupiter andj upiter-lab (many files are Jupyter Notebooks):
+and to get jupiter and jupiter-lab (many files are Jupyter Notebooks):
 ```
 conda install jupyter
-conda install conda-forge jupyterlab
+conda install -c conda-forge jupyterlab
 ```
 
 ### Get the library
@@ -39,7 +39,7 @@ There are two ways clone TIPTOP:
 
 1. with sub-modules:
 ```
-git clone --recurse-submodules --remote-submodules https://github.com/FabioRossiArcetri/TIPTOP.git
+git clone --recurse-submodules https://github.com/FabioRossiArcetri/TIPTOP.git
 ```
 2. without sub-modules (cloned separately):
 ```
