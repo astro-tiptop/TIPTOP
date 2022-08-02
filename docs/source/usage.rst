@@ -46,7 +46,7 @@ There are two ways clone TIPTOP:
 
 .. code-block:: console
 
-   git clone --recurse-submodules --remote-submodules https://github.com/FabioRossiArcetri/TIPTOP.git
+   git clone --recurse-submodules https://github.com/FabioRossiArcetri/TIPTOP.git
 
 2. without sub-modules (cloned separately):
 
@@ -112,24 +112,3 @@ Here is some example code to use it:
 
 .. autofunction:: tiptop.tiptop.overallSimulation
 
-.. py:function:: tiptop.overallSimulation(path2param,paramFileName)
-
-   return nothing but create a fits file containing the PSF
-   
-   :param path2param: required path to the parameter file
-   :type path2param: str
-   :param paramFileName: required name of the parameter file to be used without the extention
-   :type paramFileName: str
-   :return: nothing
-   :rtype: None
-
-
->>> from tiptop.tiptop import *
->>> overallSimulation('perfTest', 'HarmoniSCAO_1','perfTest', "testPyramid", 
-                  doPlot=False, doConvolve=False)
-ATTENTION: interface of this function is changed.
-           windPsdFile is no more an input of overallSimulation,
-           it must be set as a parameter in the telescope section of the ini file.
-
-Vectorize the wavelength value to cope with the number of SCIENCE sources
-Output cube shape: (1, 640, 640)

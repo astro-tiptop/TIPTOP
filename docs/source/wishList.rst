@@ -14,3 +14,22 @@ Wish List
 
 
 
+The matlab code works in spatial frequency domain.
+pyramid from christoph verinaud, pyr responce goes from 0 to 1 
+find 
+umod line 279 fourrierModel.py
+try to plot Sx in fourrier model. 
+for the pyramid only use the high order part
+
+test high order system 
+extract the error breakdown from tiptop
+
+
+
+
+
+https://arxiv.org/pdf/2003.06011.pdf
+
+New 
+rod conan 
+julia shatokina

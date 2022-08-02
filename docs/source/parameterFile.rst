@@ -113,20 +113,6 @@ The mandatory sections and their content are:
 [atmosphere]
 ^^^^^^^^^^^^
 
-.. option:: r0_Value
-   
-   **required?**, 
-   *type : float*, 
-   set the atmospere Fried parameter. Might need fixing. 
-   temporary use: ``R0_Value`` =0 and the seeing to the wanted value.
-
-.. option:: testWindspeed
-
-   **WTF?**, 
-   *type : float*, 
-   test variable that should not be here?
-   Required at the moment, for LO (which requires it) because the LO requires the average windspeed. If set to zero takes the average of WindSpeed weighted by the Cn2Weights.
-
 .. option:: Seeing
 
    **Required**, 
@@ -180,6 +166,20 @@ The mandatory sections and their content are:
    *Default : [0.0]*, 
    wind direction for each layer in degrees. 0 degree is ?? then anticlockwise.
    Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and ``WindSpeed``.
+
+.. option:: r0_Value
+   
+   **Optionnal**, 
+   *type : float*, 
+   set the atmospere Fried parameter. Might need fixing. 
+   temporary use: ``R0_Value`` =0 and the seeing to the wanted value.
+
+.. option:: testWindspeed
+
+   **Optionnal**, 
+   *type : float*, 
+   test variable that should not be here?
+   Required at the moment, for LO (which requires it) because the LO requires the average windspeed. If set to zero takes the average of WindSpeed weighted by the Cn2Weights.
 
 
 [sources_science]
@@ -472,8 +472,7 @@ Shack-Hartmann requirement
    **Optional**, 
    *type: float*, 
    *default: 0.0*, 
-   not used
-   New value for pixels lower than `ThresholdWCoG. Is there a reason to want to force these values to something else?
+   not used, New value for pixels lower than `ThresholdWCoG`. Is there a reason to want to force these values to something else?
 
 
 [sensor_LO]
@@ -496,7 +495,7 @@ Shack-Hartmann requirement
 
    **Required**, 
    *type: list of int*, 
-   detected flux in [nph/frame]
+   detected flux in [nph/frame/subaperture]
    Must be the same length as NumberLenslet
 
 .. option:: NumberLenslets
