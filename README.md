@@ -2,6 +2,8 @@
 
 In order to be able to easily predict the AO performance, we have developed this fast algorithm producing the expected Adaptive Optics (AO see https://en.wikipedia.org/wiki/Adaptive_optics) Point Spread Function (PSF) for any of the existing AO observing modes (Single-Conjugate-AO, Laser-Tomographic-AO, Multi-Conjugate-AO, Ground-Layer-AO), and any atmospheric conditions. This TIPTOP tool takes its roots in an analytical approach, where the simulations are done in the Fourier domain. This allows to reach a very fast computation time (few seconds per PSF with GPU acceleration), and efficiently explore the wide parameter space.
 
+A documentation under development can be found here https://tiptopdoc.readthedocs.io/en/latest/
+
 ## References
 
 Reference: "TIPTOP: a new tool to efficiently predict your favorite AO PSF" SPIE 2020 (ARXIV: https://doi.org/10.48550/arXiv.2101.06486).
@@ -17,7 +19,7 @@ conda create -–name tiptop python=3.8
 
 conda activate tiptop
 ```
-Install cupy:
+Install cupy (it requires a CUDA-Enabled NVIDIA GPU):
 ```
 conda install -c conda-forge cupy
 ```
@@ -25,10 +27,10 @@ Install other libraries:
 ```
 conda install ipython matplotlib scipy astropy sympy
 ```
-and to get jupiter andj upiter-lab (many files are Jupyter Notebooks):
+and to get jupiter and jupiter-lab (many files are Jupyter Notebooks):
 ```
 conda install jupyter
-conda install conda-forge jupyterlab
+conda install -c conda-forge jupyterlab
 ```
 
 ### Get the library
@@ -37,7 +39,7 @@ There are two ways clone TIPTOP:
 
 1. with sub-modules:
 ```
-git clone --recurse-submodules --remote-submodules https://github.com/FabioRossiArcetri/TIPTOP.git
+git clone --recurse-submodules https://github.com/FabioRossiArcetri/TIPTOP.git
 ```
 2. without sub-modules (cloned separately):
 ```

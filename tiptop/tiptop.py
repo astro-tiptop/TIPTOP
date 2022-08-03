@@ -13,12 +13,33 @@ from datetime import datetime
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False):
+    """
+    function to run the entire tiptop simulation based on the imput file
     
+    :param path2param: required path to the parameter file
+    :type path2param: str
+    :param paramFileName: required name of the parameter file to be used without the extention
+    :type paramFileName: str
+    :param outpuDir: required path to the folder in which to write the output
+    :type outputDir: str
+    :param pitchScaling: optional default : 1 pitch of what ??? no clue
+    :type pitchScaling: float (maybe)
+    :param doConvolve: optional default: False if you want to use the natural convolution operation  set to True
+    :type doConvolve: bool
+    :param doPlot: optional default: False if you want to see the result in python set this to True
+    :type doPlot: bool
+    :param verbose: optional default: False If you want all messages set this to True
+    :type verbose: bool
+    :return: nothing
+    :rtype: None
+
+    """
     #TODO remove this prints in one of the next releases of the library
     print('ATTENTION: interface of this function is changed.')
     print('           windPsdFile is no more an input of overallSimulation,')
     print('           it must be set as a parameter in the telescope section of the ini file.')
           
+
     # initiate the parser
     fullPathFilename = os.path.join(path, parametersFile + '.ini')    
     parser           = ConfigParser()
@@ -33,46 +54,47 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
         wvl = wvl_temp     # lambda
     zenithSrc  = eval(parser.get('sources_science', 'Zenith'))
     azimuthSrc = eval(parser.get('sources_science', 'Azimuth'))
-    LO_wvl_temp = eval(parser.get('sources_LO', 'Wavelength'))
-    if isinstance(LO_wvl_temp, list):
-        LO_wvl = LO_wvl_temp[0]  # lambda
-    else:
-        LO_wvl = LO_wvl_temp     # lambda
-    LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
-    LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
-    LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
-    fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
-        
-    # NGSs positions
-    NGS_flux = []
-    polarNGSCoordsList = []
-    for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
-        polarNGSCoordsList.append([aZen, aAz])   
-        NGS_flux.append(LO_fluxes[0]*fr)
 
-    polarNGSCoords     = np.asarray(polarNGSCoordsList)
-    nNaturalGS         = polarNGSCoords.shape[0]
+    # it checks if LO parameters are set and then it acts accordingly
+    if parser.has_section('sensor_LO'):
+        LOisOn = True
+        if verbose: print('LO part is present')
+    else:
+        LOisOn = False
+        nNaturalGS = 0
+        if verbose: print('LO part is not present')
+        
+    if LOisOn:
+        LO_wvl_temp = eval(parser.get('sources_LO', 'Wavelength'))
+        if isinstance(LO_wvl_temp, list):
+            LO_wvl = LO_wvl_temp[0]  # lambda
+        else:
+            LO_wvl = LO_wvl_temp     # lambda
+        LO_zen     = eval(parser.get('sources_LO', 'Zenith'))
+        LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
+        LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
+        fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
+
+        # NGSs positions
+        NGS_flux = []
+        polarNGSCoordsList = []
+        for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
+            polarNGSCoordsList.append([aZen, aAz])
+            NGS_flux.append(LO_fluxes[0]*fr)
+
+        polarNGSCoords     = np.asarray(polarNGSCoordsList)
+        nNaturalGS         = polarNGSCoords.shape[0]
 
     pp                 = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
+    nPointings         = pp.shape[1]
 
-    # bypass the dm cut off frequency definition
-    if pitchScaling != 1:
-        pitchs_dm    = np.array(eval(parser.get('DM', 'DmPitchs')))
-        kcExt        = 1/(2*pitchs_dm.min()*pitchScaling)
-    else:
-        kcExt = None
-        
-#  cartPointingCoords=np.array([xxPointigs, yyPointigs]).transpose(),
-#  extraPSFsDirections=polarNGSCoordsList
-#  kcExt=kcExt
-#  pitchScaling=pitchScaling
-#  path_pupil=path_pupil
-
+    if verbose:
+        print('******** HO PSD science and NGSs directions')
     # High-order PSD caculations at the science directions and NGSs directions
-    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
-    PSD           = fao.powerSpectrumDensity() # in nm^2
+    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=LOisOn,getErrorBreakDown=verbose)
+    PSD           = fao.PSD # in nm^2
     PSD           = PSD.transpose()
     N             = PSD[0].shape[0]
     freq_range    = fao.ao.cam.fovInPix*fao.freq.PSDstep 
@@ -88,7 +110,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
     if verbose:
         print('fao.samp:', fao.freq.samp)
         print('fao.freq.psInMas:', fao.freq.psInMas)
-    
+
     def psdSetToPsfSet(inputPSDs,wavelength,pixelscale,scaleFactor=1,verbose=False):
         NGS_SR = []
         psdArray = []
@@ -108,7 +130,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
             #SR              = getStrehl(cp.asnumpy(psfLE.sampling), fao.ao.tel.pupil, fao.samp)
             NGS_SR.append(SR)
             FWHMx,FWHMy    = getFWHM( cp.asnumpy(psfLE.sampling),pixelscale, method='contour', nargout=2)
-            FWHM           = max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
+            FWHM           = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             NGS_FWHM_mas.append(FWHM)
             if verbose:
@@ -118,73 +140,95 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
         return NGS_SR, psdArray, psfLongExpArr, NGS_FWHM_mas
 
     # HO PSF
-    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[:-nNaturalGS],
+    if verbose:
+        print('******** HO PSF')
+    pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[0:nPointings],
                                                                                                  wvl,
                                                                                                  fao.freq.psInMas[0],
                                                                                                  scaleFactor=(2*np.pi*1e-9/wvl)**2,
                                                                                                  verbose=verbose)
     
-    if doConvolve == False:
-        results = psfLongExpPointingsArr
+    if LOisOn == False or (doConvolve == False and returnRes == False):
+        results = []
+        for psfLongExp in psfLongExpPointingsArr:
+            results.append(psfLongExp)
     else:
         # LOW ORDER PART
+        if verbose:
+            print('******** LO PART')
         psInMas_NGS        = fao.freq.psInMas[0] * (LO_wvl/wvl) #airy pattern PSF FWHM
         
+        if verbose:
+            print('******** HO PSF - NGS directions')
         NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],
                                                                    LO_wvl, psInMas_NGS,
                                                                    scaleFactor=(2*np.pi*1e-9/LO_wvl)**2,
                                                                    verbose=verbose)
+        
         cartPointingCoords = np.dstack( (xxPointigs, yyPointigs) ).reshape(-1, 2)
         cartNGSCoordsList = []
         for i in range(nNaturalGS):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))        
         cartNGSCoords = np.asarray(cartNGSCoordsList)
-        mLO                = MavisLO(path, parametersFile,verbose=verbose)
-        Ctot               = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
-        cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
-        if verbose:
-            for n in range(cov_ellipses.shape[0]): print('cov_ellipses #',n,': ',cov_ellipses[n,:])
-        # FINAl CONVOLUTION
-        results = []
-        for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
-            results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
-
+        mLO           = MavisLO(path, parametersFile,verbose=verbose)
+        Ctot          = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
+        
+        if returnRes == False:
+            cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
+            if verbose:
+                for n in range(cov_ellipses.shape[0]): print('cov_ellipses #',n,': ',cov_ellipses[n,:], ' (unit: rad, mas, mas)')
+            # FINAl CONVOLUTION
+            if verbose:
+                print('******** FINAl CONVOLUTION')
+            results = []
+            for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
+                results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
+    
     if doPlot:
-        if doConvolve:
+        if LOisOn and doConvolve and returnRes == False:
             tiledDisplay(results)
             plotEllipses(cartPointingCoords, cov_ellipses, 0.4)
         else:
-            results[0].standardPlot(True)
+            tiledDisplay(results)
+    
+    if returnRes:
+        HO_res = np.sqrt(np.sum(PSD[:-nNaturalGS],axis=(1,2)))
+        if LOisOn:
+            LO_res = np.sqrt(np.trace(Ctot,axis1=1,axis2=2))
+    
+            return HO_res, LO_res
+        else:
+            return HO_res
+    else:
+        # save PSF cube in fits
+        hdul1 = fits.HDUList()
+        cube =[]
+        hdul1.append(fits.PrimaryHDU())
+        for img in results:
+            cube.append(cp.asnumpy(img.sampling))
+        
+        cube = np.array(cube)
+        hdul1.append(fits.ImageHDU(data=cube))
+        hdul1.append(fits.ImageHDU(data=pp)) # append cartesian coordinates
+    
+        #############################
+        # header
+        hdr0 = hdul1[0].header
+        now = datetime.now()
+        hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        # header of the PSFs
+        hdr1 = hdul1[1].header
+        hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr1['CONTENT'] = "PSF CUBE"
+        hdr1['SIZE'] = str(cube.shape)
+        hdr1['WL_NM'] = str(int(wvl*1e9))
+        hdr1['PIX_MAS'] = str(fao.freq.psInMas[0])
+        # header of the coordinates
+        hdr2 = hdul1[2].header
+        hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr2['CONTENT'] = "CARTESIAN COORD. IN ASEC OF THE SOURCES"
+        hdr2['SIZE'] = str(pp.shape)
+        #############################
 
-    # save PSF cube in fits    
-    hdul1 = fits.HDUList()
-    cube =[]
-    hdul1.append(fits.PrimaryHDU())
-    for img in results:
-        cube.append(cp.asnumpy(img.sampling))
-    
-    cube = np.array(cube)
-    hdul1.append(fits.ImageHDU(data=cube))
-    hdul1.append(fits.ImageHDU(data=pp)) # append cartesian coordinates
-    
-    #############################
-    # header
-    hdr0 = hdul1[0].header
-    now = datetime.now()
-    hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-    # header of the PSFs
-    hdr1 = hdul1[1].header
-    hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-    hdr1['CONTENT'] = "PSF CUBE"
-    hdr1['SIZE'] = str(cube.shape)
-    hdr1['WL_NM'] = str(int(wvl*1e9))
-    hdr1['PIX_MAS'] = str(fao.freq.psInMas[0])
-    # header of the coordinates
-    hdr2 = hdul1[2].header
-    hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-    hdr2['CONTENT'] = "CARTESIAN COORD. IN ASEC OF THE SOURCES"
-    hdr2['SIZE'] = str(pp.shape)
-    #############################
-    
-    hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
-    print("Output cube shape:", cube.shape)
+        hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
+        print("Output cube shape:", cube.shape)
