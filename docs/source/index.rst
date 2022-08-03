@@ -36,7 +36,6 @@ Check out the :doc:`usage` section for further information, including how to
    howto
    parameterFile
    wishList
-   api
 
 
 Indices and tables
