@@ -33,9 +33,9 @@ Check out the :doc:`usage` section for further information, including how to
 .. toctree::
    
    usage
-   howto
    parameterFile
    wishList
+   howto
 
 
 Indices and tables
