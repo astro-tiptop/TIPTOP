@@ -8,8 +8,6 @@ from mastsel import *
 
 from datetime import datetime
 
-
-
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False):
@@ -20,29 +18,56 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
     print('           it must be set as a parameter in the telescope section of the ini file.')
           
     # initiate the parser
-    fullPathFilename = os.path.join(path, parametersFile + '.ini')    
-    parser           = ConfigParser()
-    parser.read(fullPathFilename);
-    
-    # read main parameters
-    tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas       
-    wvl_temp = eval(parser.get('sources_science', 'Wavelength'))
-    if isinstance(wvl_temp, list):
-        wvl = wvl_temp[0]  # lambda
-    else:
-        wvl = wvl_temp     # lambda
-    zenithSrc  = eval(parser.get('sources_science', 'Zenith'))
-    azimuthSrc = eval(parser.get('sources_science', 'Azimuth'))
-    LO_wvl_temp = eval(parser.get('sources_LO', 'Wavelength'))
-    if isinstance(LO_wvl_temp, list):
-        LO_wvl = LO_wvl_temp[0]  # lambda
-    else:
-        LO_wvl = LO_wvl_temp     # lambda
-    LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
-    LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
-    LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
-    fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
+    fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')    
+    fullPathFilename_yml = os.path.join(path, parametersFile + '.yml')
+
+    if os.path.exists(fullPathFilename_yml):
+        with open(fullPathFilename_yml) as f:
+            my_yaml_dict = yaml.safe_load(f)
+        # read main parameters
+        tel_radius = my_yaml_dict['telescope']['TelescopeDiameter']/2  # mas       
+        wvl_temp = my_yaml_dict['sources_science']['Wavelength']
+        if isinstance(wvl_temp, list):
+            wvl = wvl_temp[0]  # lambda
+        else:
+            wvl = wvl_temp     # lambda
+        zenithSrc  = my_yaml_dict['sources_science']['Zenith']
+        azimuthSrc = my_yaml_dict['sources_science']['Azimuth']
+        LO_wvl_temp = my_yaml_dict['sources_LO']['Wavelength']
+        if isinstance(LO_wvl_temp, list):
+            LO_wvl = LO_wvl_temp[0]  # lambda
+        else:
+            LO_wvl = LO_wvl_temp     # lambda
+        LO_zen     = my_yaml_dict['sources_LO']['Zenith']
+        LO_az      = my_yaml_dict['sources_LO']['Azimuth']
+        LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
+        fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
+        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
         
+    else:
+        parser           = ConfigParser()
+        parser.read(fullPathFilename_ini);
+        # read main parameters
+        tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas       
+        wvl_temp = eval(parser.get('sources_science', 'Wavelength'))
+        if isinstance(wvl_temp, list):
+            wvl = wvl_temp[0]  # lambda
+        else:
+            wvl = wvl_temp     # lambda
+        zenithSrc  = eval(parser.get('sources_science', 'Zenith'))
+        azimuthSrc = eval(parser.get('sources_science', 'Azimuth'))
+        LO_wvl_temp = eval(parser.get('sources_LO', 'Wavelength'))
+        if isinstance(LO_wvl_temp, list):
+            LO_wvl = LO_wvl_temp[0]  # lambda
+        else:
+            LO_wvl = LO_wvl_temp     # lambda
+        LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
+        LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
+        LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
+        fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
+        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
+
+
     # NGSs positions
     NGS_flux = []
     polarNGSCoordsList = []
@@ -56,13 +81,6 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
     pp                 = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
-
-    # bypass the dm cut off frequency definition
-    if pitchScaling != 1:
-        pitchs_dm    = np.array(eval(parser.get('DM', 'DmPitchs')))
-        kcExt        = 1/(2*pitchs_dm.min()*pitchScaling)
-    else:
-        kcExt = None
         
 #  cartPointingCoords=np.array([xxPointigs, yyPointigs]).transpose(),
 #  extraPSFsDirections=polarNGSCoordsList
@@ -71,7 +89,6 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
 #  path_pupil=path_pupil
 
     # High-order PSD caculations at the science directions and NGSs directions
-    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
     PSD           = fao.powerSpectrumDensity() # in nm^2
     PSD           = PSD.transpose()
     N             = PSD[0].shape[0]
@@ -105,9 +122,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
             psfLongExpArr.append(psfLE)
             # Get SR and FWHM in mas at the NGSs positions at the sensing wavelength
             SR             = np.exp(-computedPSD.sum()* scaleFactor) # Strehl-ratio at the sensing wavelength
-            #SR              = getStrehl(cp.asnumpy(psfLE.sampling), fao.ao.tel.pupil, fao.samp)
             NGS_SR.append(SR)
-            FWHMx,FWHMy    = getFWHM( cp.asnumpy(psfLE.sampling),pixelscale, method='contour', nargout=2)
+            FWHMx,FWHMy    = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
             FWHM           = max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             NGS_FWHM_mas.append(FWHM)
@@ -161,7 +177,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
     cube =[]
     hdul1.append(fits.PrimaryHDU())
     for img in results:
-        cube.append(cp.asnumpy(img.sampling))
+        cube.append(img.sampling)
     
     cube = np.array(cube)
     hdul1.append(fits.ImageHDU(data=cube))
