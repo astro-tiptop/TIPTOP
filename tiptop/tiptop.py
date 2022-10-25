@@ -45,11 +45,11 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                 LO_wvl = LO_wvl_temp[0]  # lambda
             else:
                 LO_wvl = LO_wvl_temp     # lambda
-                
-        LO_zen     = my_yaml_dict['sources_LO']['Zenith']
-        LO_az      = my_yaml_dict['sources_LO']['Azimuth']
-        LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
-        fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
+            LO_zen     = my_yaml_dict['sources_LO']['Zenith']
+            LO_az      = my_yaml_dict['sources_LO']['Azimuth']
+            LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
+            fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
+
         fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
         
     else:
@@ -79,21 +79,24 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                 LO_wvl = LO_wvl_temp[0]  # lambda
             else:
                 LO_wvl = LO_wvl_temp     # lambda
+            LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
+            LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
+            LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
+            fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
 
-        LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
-        LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
-        LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
-        fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
+
         fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
 
-    # NGSs positions
-    NGS_flux = []
-    polarNGSCoordsList = []
-    for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
-        polarNGSCoordsList.append([aZen, aAz])   
-        NGS_flux.append(LO_fluxes[0]*fr)
-        polarNGSCoords     = np.asarray(polarNGSCoordsList)
-        nNaturalGS         = polarNGSCoords.shape[0]
+
+    if LOisOn:        
+        # NGSs positions
+        NGS_flux = []
+        polarNGSCoordsList = []
+        for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
+            polarNGSCoordsList.append([aZen, aAz])   
+            NGS_flux.append(LO_fluxes[0]*fr)
+            polarNGSCoords     = np.asarray(polarNGSCoordsList)
+            nNaturalGS         = polarNGSCoords.shape[0]
 
     pp                 = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
     xxPointigs         = pp[0,:]
