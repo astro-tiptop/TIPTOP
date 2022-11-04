@@ -10,7 +10,7 @@ from datetime import datetime
 
 rc("text", usetex=False)
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False):
+def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False, doPlot=False, verbose=False, returnRes=False):
     """
     function to run the entire tiptop simulation based on the imput file
     
