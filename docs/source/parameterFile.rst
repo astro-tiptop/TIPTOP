@@ -16,9 +16,11 @@ the end of file or with the next section. The order they are placed in the file 
 
 The mandatory sections and their content are:
 
-.. note:: 
+.. warning::
 
-   In the current state if the parameter file is not found there won't be an error message and the code will do something. It is unclear what the code does in that case. 
+   In the current state, if the parameter file is not found, it raises ``NoSectionError: No section: 'telescope'``.
+
+
 
 [telescope]
 ^^^^^^^^^^^
@@ -32,9 +34,11 @@ The mandatory sections and their content are:
 
 .. option:: ObscurationRatio
 
-   **Required?**, 
+   **Optionnal**, 
    *type : float*, 
+   *Default : 0.0*,
    Defines the central obstruction due to the secondary as a ratio of the TelescopeDiameter
+   *Warning* : MavisLO.py does not have a defualt value for this parameter 
 
 
 .. option:: Resolution
@@ -57,8 +61,9 @@ The mandatory sections and their content are:
 
    **Optional**, 
    *type : float*, 
-   *default: ''*, 
+   *default: ??*, 
    set the size of the technical field of view
+   *Warning* : This is not optional in MavisLO.py
 
 .. option:: PathPupil
 
@@ -71,21 +76,21 @@ The mandatory sections and their content are:
 
    **Optional**, 
    *type : str*, 
-   *default: ''*, 
+   *default: None*, 
    path to a map of static aberrations (nm) in .fits file. if absent or '', not used
 
 .. option:: PathStaticOff
 
    **Optional**, 
    *type : str*, 
-   *default: ''*, 
+   *default: None*, 
    No clue what this does. if absent or '', not used
 
 .. option:: PathStaticPos
 
    **Optional**, 
    *type : str*, 
-   *default: ''*, 
+   *default: None*, 
    No clue
 
 .. option::  PathApodizer
@@ -104,7 +109,7 @@ The mandatory sections and their content are:
 
 .. option:: coeficientOfTheStaticMode
    
-   **Optional**, 
+   **not used**, 
    *type : str*, 
    *default: ''*, 
    place holder 
@@ -118,6 +123,7 @@ The mandatory sections and their content are:
    **Required**, 
    *type : float*, 
    Set the seeing at Zenith in arcsec. Might need fixing. seeing looks like it is converted to R0
+   note : has a confusing error message if absent
 
 
 
@@ -127,6 +133,7 @@ The mandatory sections and their content are:
    *type : float*, 
    *Default : 500e-9*, 
    Wavelength of definition of the atmosphere statistics
+   Warning: not optional in MavisLO.py
 
 .. option:: L0
 
@@ -134,14 +141,17 @@ The mandatory sections and their content are:
    *type : float*, 
    *Default : 25.0*, 
    Outer Scale of the atmosphere  in meters
+   Warning: not optionnal in MavisLO.py
 
 .. option:: Cn2Weights
 
    **Optional**, 
    *type : list of float*, 
-   *Default : [1]*, 
+   *Default : [1.0]*, 
    Relative contribution of each layer. The sum of all the list element must be 1. 
    Must have the same length as ``Cn2Heights``, ``WindSpeed`` and ``WindDirection``.
+   Warning : required if ``Cn2Heights``, ``WindSpeed`` or ``WindDirection`` are defined
+   Warning : extremly confusing error message if absent when it must be defined
 
 .. option:: Cn2Heights
 
@@ -150,22 +160,28 @@ The mandatory sections and their content are:
    *Default : [0.0]*, 
    altitude of layers in meters.
    Must have the same length as ``Cn2Weights``, ``WindSpeed`` and ``WindDirection``.
+   Warning : required if ``Cn2Weights``, ``WindSpeed`` or ``WindDirection`` are defined
+   Warning : extremly confusing error message if absent when it must be defined
 
 .. option:: WindSpeed
 
-   **Optionnal**, 
+   **Optional**, 
    *Type : list of float*, 
-   *Default : [0.0]*, 
+   *Default : [10.0]*, 
    Wind speed values for each layer in m/s. 
    Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and ``WindDirection``.
+   Warning : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindDirection`` are defined
+   Warning : extremly confusing error message if absent when it must be defined
 
 .. option:: WindDirection
 
-   **Optionnal**, 
+   **Optional**, 
    *Type : list of float*, 
    *Default : [0.0]*, 
    wind direction for each layer in degrees. 0 degree is ?? then anticlockwise.
    Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and ``WindSpeed``.
+   Warning : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindSpeed`` are defined
+   Warning : extremly confusing error message if absent when it must be defined
 
 .. option:: r0_Value
    
@@ -173,13 +189,15 @@ The mandatory sections and their content are:
    *type : float*, 
    set the atmospere Fried parameter. Might need fixing. 
    temporary use: ``R0_Value`` =0 and the seeing to the wanted value.
+   If not set it is calculated with ``seeing`` .
 
 .. option:: testWindspeed
 
    **Optionnal**, 
    *type : float*, 
    test variable that should not be here?
-   Required at the moment, for LO (which requires it) because the LO requires the average windspeed. If set to zero takes the average of WindSpeed weighted by the Cn2Weights.
+   Required at the moment, for LO (which requires it) because the LO requires the average windspeed. If set to zero takes the average of WindSpeed weighted by the Cn2Weights. 
+   Update 19/09/2022: no longer required? it does not output a message when removed. Completely ignored if not set.
 
 
 [sources_science]
@@ -193,14 +211,14 @@ The mandatory sections and their content are:
 
 .. option:: Zenith
 
-   **Required?**, 
+   **Required**, 
    *Type : list of float*, 
    Zenithal coordinate in arcsec of Wavelength sources given in ``Wavelength``.
    Must be the same length as ``Azimuth``
 
 .. option:: Azimuth
 
-   **Required?**, 
+   **Required**, 
    *Type : list of float*, 
    Azimuthal coordinate in degree of Wavelength sources given in ``Wavelength``.
    Must be the same length as ``Zenith``
@@ -216,22 +234,25 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Required**, 
    *type : float*, 
    Sensing wavelength for Hight Order modes in meters
+   Warning : gives a confusing error message if absent
 
 .. option:: Zenith
 
-   **Required?**, 
+   **Optional**, 
    *Type : list of float*, 
+   *Default : [0.0]*
    Zenithal coordinate of each guide stars in arcsec.
    Must be the same length as ``Azimuth``
+   Even if ``Azimutal`` is defined, this is optionnal.
    
 .. option:: Azimuth
 
-   **Required?**, 
+   **Optional**, 
    *Type : list of float*, 
+   *Default : [0.0]*
    Azimuthal coordinate in degree of each guide stars.
    Must be the same length as ``Zenith``
-
-
+   Even if ``Zenith`` is defined, this is optionnal.
 
 .. option:: Height
    
@@ -243,6 +264,10 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
 
 [sources_LO]
 ^^^^^^^^^^^^
+.. note::
+
+   This section is completely optional
+
 
 .. option:: Wavelength
 
@@ -252,14 +277,14 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
 
 .. option:: Zenith
 
-   **Required?**, 
+   **Required**, 
    *Type : list of float*, 
    Zenithal coordinate of each guide stars in arcsec.
    Must be the same length as ``Azimuth``
    
 .. option:: Azimuth
 
-   **Required?**, 
+   **Required**, 
    *Type : list of float*, 
    Azimuthal coordinate in degree of each guide stars.
    Must be the same length as ``Zenith``
@@ -272,30 +297,32 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Required**, 
    *type : float*, 
    pixel/spaxel scale in mili arcsec
+   Warning: confusing error message if missing
 
 
 .. option:: FieldOfView
 
-   **Required?**, 
+   **Required**, 
    *type : float*, 
-   *Default : 150*, 
    Field of view of the camera in pixel/spaxel. need confirmation on the optionality of this paramiter. 
+   Warning: confusing error massage if missing
 
+.. note::
 
-We have examples of the following parameters being set but we do not understand if they are used in the science sensor case. (none of these are used for the science detector, initialised for one specific class but has no effect.). 
-Binning = 1
-NumberPhotons = [1500]
-SpotFWHM = [[0.0, 0.0, 0.0]]
-SpectralBandwidth = 0
-Transmittance = [1.0]
-Dispersion = [[0.0],[0.0]]
-SigmaRON = [0.1]
-Dark = 0.0
-SkyBackground = 0.0
-Gain = 1.0
-ExcessNoiseFactor = 1.0
-Wavelength = [0.55e-06] if the wavelength is specified here it is ignored. 
-FieldOfView = 1024
+    We have examples of the following parameters being set but we do not understand if they are used in the science sensor case. (none of these are used for the science detector, initialised for one specific class but has no effect.). 
+    Binning = 1
+    NumberPhotons = [1500]
+    SpotFWHM = [[0.0, 0.0, 0.0]]
+    SpectralBandwidth = 0
+    Transmittance = [1.0]
+    Dispersion = [[0.0],[0.0]]
+    SigmaRON = [0.1]
+    Dark = 0.0
+    SkyBackground = 0.0
+    Gain = 1.0
+    ExcessNoiseFactor = 1.0
+    Wavelength = [0.55e-06] if the wavelength is specified here it is ignored. 
+    FieldOfView = 1024
 
 
 [sensor_HO]
@@ -305,25 +332,24 @@ Used regardless of the WFS, desired behaviour,
 
 .. option:: NumberLenslets
 
-   **Required**, 
+   **Optional**, 
    *type: list of int*, 
+   *Default : [20]*
    Number of WFS lenslets. Used the same way in Shack-Hartmann wavefront sensor and Pyramid. Also used for noise computation if `NoiseVariance` is not set. 
 
 .. option:: SizeLenslets                                                   
    
-   **Required**,
+   **Optionnal**,
    *type: list of float*, 
+   *Default: [Telescope] TelescopeDiameter/[sensor_HO] NumberLenslet*
    Size of WFS lenslets in meters. used, why a list of float? This overrides the ratio between telescope size and Number of lenslet used to compute the matrix size.
-
-
-Shack-Hartmann requirement
-
 
 .. option:: PixelScale
 
    **Required**, 
    *type: int*, 
    High Order WFS pixel scale in [mas], unclear what are the units if we chose a pyramid wavefront sensor
+   Warning: gives a confusing error message if missing 
 
 .. option:: FieldOfView
 
@@ -331,43 +357,29 @@ Shack-Hartmann requirement
    *type: int*, 
    Number of pixels on the detector. 
    TODOI : change this behaviour as it makes no sense. Guido found that this is divided by `NumberLenslet`. Used for the noise. 
+   Warning: gives a confusing error message if missing 
 
-.. option:: NumberPhotons  
-
-   **Required**, 
-   *type: list of int*, 
-   Flux return in [nph/frame/subaperture]
-
-.. option:: SigmaRON 
-
-   **Required**, 
-   *type: float*, 
-   read-out noise std in [e-], used only if the `NoiseVariance` is not set. 
-
-
-
-
+.. option:: Binning
+   
+   **Optional**, 
+   *type: int*, 
+   *default: 1*, 
+   Binning factor of the detector, only used in the pyramid case, optionnal for pyramid
 
 .. option:: WfsType
    
    **Optional**, 
    *type: str*, 
    *default : 'Shack-Hartmann'*, 
-   type of wavefront sensor used for the High Order sensing
+   type of wavefront sensor used for the High Order sensing.
+   Other available option: 'Pyramid'
 
-.. option:: Modulation
-   
-   **Optional**, 
-   *type: float*, 
-   *default : None*, 
-   If the chosen wavefront sensor is the ``'Pyramid'``, Spot modulation radius in lambda/D units. This is gnored if the WFS is `'Shack-Hartmann'`
+.. option:: NumberPhotons  
 
-.. option:: Binning = 1
-   
-   **Optional**, 
-   *type: int*, 
-   *default: 1*, 
-   Binning factor of the detector, only used in the pyramid case, optionnal for pyramid
+   **Required**, 
+   *type: list of int*, 
+   Flux return in [nph/frame/subaperture]
+   Warning: extremly confusing error message if missing
 
 .. option:: SpotFWHM    
    
@@ -385,7 +397,7 @@ Shack-Hartmann requirement
    Not used
    Spectral bandwidth of the filter (imaging mode)? why specific to the imaging mode? what is the effect?
 
-.. option:: Transmittance = [1.0]
+.. option:: Transmittance
    
    **Optional**, 
    *type: list of float*, 
@@ -393,45 +405,27 @@ Shack-Hartmann requirement
    Used for PSF computation and flux scaling but not with noise computation
    Transmittance at the considered wavelengths for polychromatic mode. How do you set polychromatic mode? Each element can not have a value superior to 1?
 
-
-.. option:: Dispersion = [[0.0],[0.0]]                          
+.. option:: Dispersion
    
    **Optional**, 
    *type: apparently list of list of float?*, 
    *default: [[0.0,0.0]]*, 
    Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. Chromatic dispertion for PSF computation only.  In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance... Also sorry for my ignorance: dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?
-   
 
-.. option:: Dark
-   
-   **Optional**, 
-   *type: float*, 
-   *default: 0.0*, 
-   not used 
-   dark current in [e-/s/pix]
-        
-.. option:: SkyBackground
-   
-   **Optional**, 
-   *type: float*, 
-   *default: 0.0*, 
-   not used
-   Sky background [e-/s/pix]
+
 
 .. option:: Gain 
    
    **Optional**, 
    *type: float*, 
    *default:1.0*, 
-   used
    Pixel gain. do you mean camera gain?
-                  
+
 .. option:: ExcessNoiseFactor
    
    **Optional**, 
    *type: float*, 
-   *default: 2.0*, 
-   used 
+   *default: 2.0*,
    excess noise factor. Why the hell would you by default have excess noise?
 
 .. option:: NoiseVariance
@@ -441,9 +435,60 @@ Shack-Hartmann requirement
    *Default : None*?, 
    Noise Variance in rd2. If not empty, this value overwrites the analytical noise variance calculation.
 
+
+
+
+
+
+
+Shack-Hartmann requirement
+""""""""""""""""""""""""""
+
+.. option:: SigmaRON 
+
+   **Required?**, 
+   *type: float*, 
+   read-out noise std in [e-], used only if the `NoiseVariance` is not set. 
+   Note: this is optionnal if the ``WfsType`` == ``'Pyramid'``
+
+Pyramid requirement
+"""""""""""""""""""
+
+.. option:: Modulation
+   
+   **Required if WfsType == 'Pyramid'**, 
+   *type: float*, 
+   *default : None*, 
+   If the chosen wavefront sensor is the ``'Pyramid'``, Spot modulation radius in lambda/D units. This is ignored if the WFS is `'Shack-Hartmann'`
+   Warning : gives really confusing message if missing when required
+   
+
+
+
+
+
+
+Can be set but not used
+"""""""""""""""""""""""
+
+.. option:: Dark
+   
+   **not used**, 
+   *type: float*, 
+   *default: 0.0*, 
+    
+   dark current in [e-/s/pix]
+
+.. option:: SkyBackground
+   
+   **not used**, 
+   *type: float*, 
+   *default: 0.0*, 
+   Sky background [e-/s/pix]
+
 .. option:: Algorithm
    
-   **Optional**, 
+   **not used**, 
    *type: str*, 
    *defaut:'wcog'*, 
    not used, even if it actually has a default value. The default seems to be normal center of gravity.
@@ -452,37 +497,41 @@ Shack-Hartmann requirement
     
 .. option:: WindowRadiusWCoG 
    
-   **Optional**, 
+   **not used**, 
    *type: int?*, 
    *default: 2*, 
-   not used
    Number of pixels for ?windiwing? the low order WFS pixels
-        
+
 .. option:: ThresholdWCoG
    
-   **Optional**, 
+   **not used**, 
    *type: float?*, 
    *default: 0.0*, 
-   not used
    Threshold Number of pixels for windowing the low order WFS pixels
 
  
 .. option:: NewValueThrPix 
    
-   **Optional**, 
+   **not used**, 
    *type: float*, 
    *default: 0.0*, 
-   not used, New value for pixels lower than `ThresholdWCoG`. Is there a reason to want to force these values to something else?
+   New value for pixels lower than `ThresholdWCoG`. Is there a reason to want to force these values to something else?
 
 
 [sensor_LO]
 ^^^^^^^^^^^
+
+.. note::
+
+   This section is optional
+
 
 .. option:: PixelScale
 
    **Required**, 
    *type: float*, 
    LO WFS pixel scale in [mas]
+   Warning: gives a confusing error message if missing
 
 .. option:: FieldOfView 
 
@@ -490,6 +539,7 @@ Shack-Hartmann requirement
    *type: int*, 
    not used. 
    Number of pixels per subaperture
+   Warning: gives a confusing error message if missing
 
 .. option:: NumberPhotons 
 
@@ -500,28 +550,11 @@ Shack-Hartmann requirement
 
 .. option:: NumberLenslets
 
-   **Required**, 
+   **Optional**, 
    *type: list of int*, 
+   *Default : [1]*
    number of WFS lenslets
    Must be the same length as NumberPhotons
-
-
-
-.. option:: Binning   
-
-   **Optional**, 
-   *type: int*, 
-   *default: 1*, 
-   not used
-   binning factor of the detector
- 
-.. option:: SpotFWHM   
-
-   **Optional**, 
-   *type: list of list of int*, 
-   *default: [[0.0, 0.0, 0.0]]*,
-   not used
-   Low Order spot scale in [mas]
 
 .. option:: SigmaRON   
 
@@ -544,28 +577,12 @@ Shack-Hartmann requirement
    *default: 0.0*,
    sky background [e-/s/pix]
 
-.. option:: Gain
-
-   **Optional**, 
-   *type: float*, 
-   *default: 1.0*,
-   not used
-   camera gain
-
 .. option:: ExcessNoiseFactor
 
    **Optional**, 
    *type: float*, 
    *default: 2.0*,
    excess noise factor
-
-.. option:: Algorithm
-
-   **Optional**, 
-   *type: str*, 
-   *default: 'wcog'*,
-   not used
-   CoG computation algorithm
 
 .. option:: WindowRadiusWCoG
 
@@ -588,7 +605,38 @@ Shack-Hartmann requirement
    *type: float*, 
    *default: 0.0*,
    New value for pixels lower than threshold.
-   
+
+Can be set but not used
+"""""""""""""""""""""""
+
+.. option:: Binning   
+
+   **not used**, 
+   *type: int*, 
+   *default: 1*, 
+   binning factor of the detector
+
+.. option:: SpotFWHM   
+
+   **not used**, 
+   *type: list of list of int*, 
+   *default: [[0.0, 0.0, 0.0]]*,
+   Low Order spot scale in [mas]
+
+.. option:: Gain
+
+   **not used**, 
+   *type: float*, 
+   *default: 1.0*,
+   camera gain
+
+.. option:: Algorithm
+
+   **not used**, 
+   *type: str*, 
+   *default: 'wcog'*,
+   CoG computation algorithm
+
 
 [DM]
 ^^^^
@@ -597,9 +645,9 @@ Shack-Hartmann requirement
 
    **Required**, 
    *type: list of int*, 
-   not used
    Number of actuator on the pupil diameter. why a list of int?
    Must be the same length as DmPitchs
+   Warning: gives a confusing error message if missing
 
 .. option:: DmPitchs
 
@@ -607,10 +655,11 @@ Shack-Hartmann requirement
    *type: list of float*, 
    DM actuators pitch in meters, on the meta pupil at the conjugasion altitude, used for fitting error computation.
    Must be the same length as NumberActuators?
+   Warning: gives a confusing error message if missing
 
 
 
-.. option:: InfModel = 'gaussian'
+.. option:: InfModel
 
    **Optional**, 
    *type: str*, 
@@ -621,7 +670,7 @@ Shack-Hartmann requirement
 
    **Optional**, 
    *type: list of float*, 
-   *default: 0.0*,
+   *default: [0.2]*,
    DM influence function model mechanical coupling. used in the psf reconstruction. Unclear to me what this does.
    Must be the same length as NumberActuators?
 
@@ -687,20 +736,23 @@ Shack-Hartmann requirement
 
 .. option:: LoopGain_HO
 
-   **Required**, 
-   *type: float*, 
+   **Optional**, 
+   *Type : float*, 
+   *Default : 0.5*, 
    High Order Loop gain
 
 .. option:: SensorFrameRate_HO
 
-   **Required**, 
+   **Optional**, 
    *type: float*, 
+   *Default : 500.0*,
    High Order loop frequency in [Hz]
 
 .. option:: LoopDelaySteps_HO
 
-   **Required**, 
+   **Optional**, 
    *type: int*, 
+   *Default : 2*, 
    High Order loop delay in [frame]
 
 .. option:: LoopGain_LO
@@ -713,10 +765,11 @@ Shack-Hartmann requirement
 
 .. option:: SensorFrameRate_LO
 
-   **Optional**, 
+   **Required**, 
    *type: float*, 
    *default: None*,
    Loop frequency in [Hz]
+   This is confusing : this is not optional if the ``[sensor_LO]`` is set.  
 
 .. option:: LoopDelaySteps_LO
 
@@ -724,6 +777,13 @@ Shack-Hartmann requirement
    *type: int*, 
    *default: None*,
    Low Order loop delays in [frames]
+
+.. option:: ResidualError
+
+   **Optional**
+   *Type : ?*
+   *Default: None*
+   ?
 
 
 
