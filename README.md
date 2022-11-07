@@ -59,21 +59,21 @@ as reported in the setup.py file.
 
 Navigate to the folder in which you have cloned TIPTOP, then navigate to the folder P3 and install P3 (remove --user to install to all users)
 ```
-pip install -e --user .
+pip install --user -e .
 ```
 Navigate out of P3, navigate inside MASTSEL and install MASTSEL:
 ```
-pip install -e --user .
+pip install --user -e .
 ```
 Navigate out of MASTSEL, navigate inside SEEING and install SEEING:
 ```
-pip install -e --user .
+pip install --user -e .
 ```
 Navigate out of SEEING, navigate inside of SYMAO and install SYMAO:
 ```
-pip install -e --user .
+pip install --user -e .
 ```
 Navigate out of SEEING and install TIPTOP:
 ```
-pip install -e --user .
+pip install --user -e .
 ```

@@ -17,7 +17,7 @@
 import os
 import sys
 import argparse
-from tiptop.tiptop import *
+from tiptop import *
 
 my_parser = argparse.ArgumentParser(description='TIPTOP Command Line Tool')
 

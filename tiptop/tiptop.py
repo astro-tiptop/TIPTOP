@@ -8,11 +8,9 @@ from mastsel import *
 
 from datetime import datetime
 
-
-
 rc("text", usetex=False)
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=1, doConvolve=False, doPlot=False, verbose=False):
+def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False, doPlot=False, verbose=False, returnRes=False):
     """
     function to run the entire tiptop simulation based on the imput file
     
@@ -41,60 +39,107 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
           
 
     # initiate the parser
-    fullPathFilename = os.path.join(path, parametersFile + '.ini')    
-    parser           = ConfigParser()
-    parser.read(fullPathFilename);
-    
-    # read main parameters
-    tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas       
-    wvl_temp = eval(parser.get('sources_science', 'Wavelength'))
-    if isinstance(wvl_temp, list):
-        wvl = wvl_temp[0]  # lambda
-    else:
-        wvl = wvl_temp     # lambda
-    zenithSrc  = eval(parser.get('sources_science', 'Zenith'))
-    azimuthSrc = eval(parser.get('sources_science', 'Azimuth'))
+    fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')    
+    fullPathFilename_yml = os.path.join(path, parametersFile + '.yml')
 
-    # it checks if LO parameters are set and then it acts accordingly
-    if parser.has_section('sensor_LO'):
-        LOisOn = True
-        if verbose: print('LO part is present')
-    else:
-        LOisOn = False
-        nNaturalGS = 0
-        if verbose: print('LO part is not present')
-        
-    if LOisOn:
-        LO_wvl_temp = eval(parser.get('sources_LO', 'Wavelength'))
-        if isinstance(LO_wvl_temp, list):
-            LO_wvl = LO_wvl_temp[0]  # lambda
+    if os.path.exists(fullPathFilename_yml):
+        with open(fullPathFilename_yml) as f:
+            my_yaml_dict = yaml.safe_load(f)
+        # read main parameters
+        tel_radius = my_yaml_dict['telescope']['TelescopeDiameter']/2  # mas       
+        wvl_temp = my_yaml_dict['sources_science']['Wavelength']
+        if isinstance(wvl_temp, list):
+            wvl = wvl_temp[0]  # lambda
         else:
-            LO_wvl = LO_wvl_temp     # lambda
-        LO_zen     = eval(parser.get('sources_LO', 'Zenith'))
-        LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
-        LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
-        fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
+            wvl = wvl_temp     # lambda
+        zenithSrc  = my_yaml_dict['sources_science']['Zenith']
+        azimuthSrc = my_yaml_dict['sources_science']['Azimuth']
+        
+        # it checks if LO parameters are set and then it acts accordingly
+        if 'sensor_LO' in my_yaml_dict.keys():
+            LOisOn = True
+            if verbose: print('LO part is present')
+        else:
+            LOisOn = False
+            nNaturalGS = 0
+            if verbose: print('LO part is not present')
 
+        if LOisOn:        
+            LO_wvl_temp = my_yaml_dict['sources_LO']['Wavelength']
+            if isinstance(LO_wvl_temp, list):
+                LO_wvl = LO_wvl_temp[0]  # lambda
+            else:
+                LO_wvl = LO_wvl_temp     # lambda
+            LO_zen     = my_yaml_dict['sources_LO']['Zenith']
+            LO_az      = my_yaml_dict['sources_LO']['Azimuth']
+            LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
+            fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
+
+        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
+        
+    else:
+        parser           = ConfigParser()
+        parser.read(fullPathFilename_ini);
+        # read main parameters
+        tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas       
+        wvl_temp = eval(parser.get('sources_science', 'Wavelength'))
+        if isinstance(wvl_temp, list):
+            wvl = wvl_temp[0]  # lambda
+        else:
+            wvl = wvl_temp     # lambda
+        zenithSrc  = eval(parser.get('sources_science', 'Zenith'))
+        azimuthSrc = eval(parser.get('sources_science', 'Azimuth'))
+        # it checks if LO parameters are set and then it acts accordingly
+        if parser.has_section('sensor_LO'):
+            LOisOn = True
+            if verbose: print('LO part is present')
+        else:
+            LOisOn = False
+            nNaturalGS = 0
+            if verbose: print('LO part is not present')
+
+        if LOisOn:
+            LO_wvl_temp = eval(parser.get('sources_LO', 'Wavelength'))
+            if isinstance(LO_wvl_temp, list):
+                LO_wvl = LO_wvl_temp[0]  # lambda
+            else:
+                LO_wvl = LO_wvl_temp     # lambda
+            LO_zen     = eval(parser.get('sources_LO', 'Zenith')) 
+            LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
+            LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
+            fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
+
+
+        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
+
+
+    if LOisOn:        
         # NGSs positions
         NGS_flux = []
         polarNGSCoordsList = []
         for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
-            polarNGSCoordsList.append([aZen, aAz])
+            polarNGSCoordsList.append([aZen, aAz])   
             NGS_flux.append(LO_fluxes[0]*fr)
-
-        polarNGSCoords     = np.asarray(polarNGSCoordsList)
-        nNaturalGS         = polarNGSCoords.shape[0]
+            polarNGSCoords     = np.asarray(polarNGSCoordsList)
+            nNaturalGS         = polarNGSCoords.shape[0]
 
     pp                 = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
-    nPointings         = pp.shape[1]
+        
+#  cartPointingCoords=np.array([xxPointigs, yyPointigs]).transpose(),
+#  extraPSFsDirections=polarNGSCoordsList
+#  kcExt=kcExt
+#  pitchScaling=pitchScaling
+#  path_pupil=path_pupil
 
+    # High-order PSD caculations at the science directions and NGSs directions
+#    PSD           = fao.powerSpectrumDensity() # in nm^2 : old way?
+    PSD           = fao.PSD # in nm^2
+    nPointings         = pp.shape[1]
     if verbose:
         print('******** HO PSD science and NGSs directions')
-    # High-order PSD caculations at the science directions and NGSs directions
-    fao = fourierModel(fullPathFilename, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=LOisOn,getErrorBreakDown=verbose)
-    PSD           = fao.PSD # in nm^2
+
     PSD           = PSD.transpose()
     N             = PSD[0].shape[0]
     freq_range    = fao.ao.cam.fovInPix*fao.freq.PSDstep 
@@ -127,10 +172,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
             psfLongExpArr.append(psfLE)
             # Get SR and FWHM in mas at the NGSs positions at the sensing wavelength
             SR             = np.exp(-computedPSD.sum()* scaleFactor) # Strehl-ratio at the sensing wavelength
-            #SR              = getStrehl(cp.asnumpy(psfLE.sampling), fao.ao.tel.pupil, fao.samp)
             NGS_SR.append(SR)
-            FWHMx,FWHMy    = getFWHM( cp.asnumpy(psfLE.sampling),pixelscale, method='contour', nargout=2)
-            FWHM           = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
+            FWHMx,FWHMy    = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
+            FWHM           = max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             NGS_FWHM_mas.append(FWHM)
             if verbose:
@@ -189,7 +233,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, pitchScaling=
             tiledDisplay(results)
             plotEllipses(cartPointingCoords, cov_ellipses, 0.4)
         else:
-            tiledDisplay(results)
+            results[0].standardPlot(True)
+
+    # save PSF cube in fits    
+    hdul1 = fits.HDUList()
+    cube =[]
+    hdul1.append(fits.PrimaryHDU())
+    for img in results:
+        cube.append(img.sampling)
     
     if returnRes:
         HO_res = np.sqrt(np.sum(PSD[:-nNaturalGS],axis=(1,2)))
