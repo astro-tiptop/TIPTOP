@@ -1,8 +1,10 @@
 import os
+import numpy as np
 from matplotlib import rc
 from P3.aoSystem.fourierModel import *
 from P3.aoSystem.FourierUtils import *
 from configparser import ConfigParser
+import yaml
 
 from mastsel import *
 
@@ -10,26 +12,27 @@ from datetime import datetime
 
 rc("text", usetex=False)
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False, doPlot=False, verbose=False, returnRes=False):
+def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False, 
+                      doPlot=False, verbose=False, returnRes=False):
     """
     function to run the entire tiptop simulation based on the imput file
     
-    :param path2param: required path to the parameter file
+    :param path2param: required, path to the parameter file
     :type path2param: str
-    :param paramFileName: required name of the parameter file to be used without the extention
+    :param paramFileName: required, name of the parameter file to be used without the extention
     :type paramFileName: str
-    :param outpuDir: required path to the folder in which to write the output
+    :param outpuDir: required, path to the folder in which to write the output
     :type outputDir: str
-    :param pitchScaling: optional default : 1 pitch of what ??? no clue
-    :type pitchScaling: float (maybe)
-    :param doConvolve: optional default: False if you want to use the natural convolution operation  set to True
+    :param doConvolve: optional default: False, if you want to use the natural convolution operation  set to True
     :type doConvolve: bool
-    :param doPlot: optional default: False if you want to see the result in python set this to True
+    :param doPlot: optional default: False, if you want to see the result in python set this to True
     :type doPlot: bool
-    :param verbose: optional default: False If you want all messages set this to True
+    :param verbose: optional default: False, If you want all messages set this to True
     :type verbose: bool
-    :return: nothing
-    :rtype: None
+    :param returnRes: optionnal default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file. 
+
+    :return: TBD
+    :rtype: TBD
 
     """
     #TODO remove this prints in one of the next releases of the library
@@ -39,14 +42,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
           
 
     # initiate the parser
-    fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')    
+    fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')
     fullPathFilename_yml = os.path.join(path, parametersFile + '.yml')
 
     if os.path.exists(fullPathFilename_yml):
         with open(fullPathFilename_yml) as f:
             my_yaml_dict = yaml.safe_load(f)
         # read main parameters
-        tel_radius = my_yaml_dict['telescope']['TelescopeDiameter']/2  # mas       
+        tel_radius = my_yaml_dict['telescope']['TelescopeDiameter']/2  # mas
         wvl_temp = my_yaml_dict['sources_science']['Wavelength']
         if isinstance(wvl_temp, list):
             wvl = wvl_temp[0]  # lambda
@@ -64,7 +67,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             nNaturalGS = 0
             if verbose: print('LO part is not present')
 
-        if LOisOn:        
+        if LOisOn: 
             LO_wvl_temp = my_yaml_dict['sources_LO']['Wavelength']
             if isinstance(LO_wvl_temp, list):
                 LO_wvl = LO_wvl_temp[0]  # lambda
@@ -75,13 +78,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
             fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
 
-        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
+        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False
+                           , display=False, getPSDatNGSpositions=True)
         
-    else:
+    elif os.path.exists(fullPathFilename_ini):
         parser           = ConfigParser()
         parser.read(fullPathFilename_ini);
         # read main parameters
-        tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas       
+        tel_radius = eval(parser.get('telescope', 'TelescopeDiameter'))/2  # mas
         wvl_temp = eval(parser.get('sources_science', 'Wavelength'))
         if isinstance(wvl_temp, list):
             wvl = wvl_temp[0]  # lambda
@@ -110,8 +114,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
 
 
-        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False, display=False, getPSDatNGSpositions=True)
-
+        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False
+                           , display=False, getPSDatNGSpositions=True)
+    else:
+        raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
     if LOisOn:        
         # NGSs positions
@@ -161,7 +167,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         psdArray = []
         psfLongExpArr = []
         NGS_FWHM_mas = []
-        for computedPSD in inputPSDs:    
+        for computedPSD in inputPSDs:
             # Get the PSD at the NGSs positions at the sensing wavelength
             # computed PSD from fao are given in nm^2, i.e they are multiplied by dk**2 already
             psd            = Field(wavelength, N, freq_range, 'rad')
@@ -178,8 +184,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             NGS_FWHM_mas.append(FWHM)
             if verbose:
-                print('SR(@',int(wavelength*1e9),'nm)  :', SR)            
-                print('FWHM(@',int(wavelength*1e9),'nm):', FWHM)            
+                print('SR(@',int(wavelength*1e9),'nm)  :', SR)
+                print('FWHM(@',int(wavelength*1e9),'nm):', FWHM)
             
         return NGS_SR, psdArray, psfLongExpArr, NGS_FWHM_mas
 
@@ -212,21 +218,26 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         cartPointingCoords = np.dstack( (xxPointigs, yyPointigs) ).reshape(-1, 2)
         cartNGSCoordsList = []
         for i in range(nNaturalGS):
-            cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))        
+            cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
         cartNGSCoords = np.asarray(cartNGSCoordsList)
         mLO           = MavisLO(path, parametersFile,verbose=verbose)
-        Ctot          = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords), cartNGSCoords, NGS_flux, NGS_SR, NGS_FWHM_mas)
+        Ctot          = mLO.computeTotalResidualMatrix(np.array(cartPointingCoords)
+                                                       , cartNGSCoords, NGS_flux, 
+                                                       NGS_SR, NGS_FWHM_mas)
         
         if returnRes == False:
             cov_ellipses       = mLO.ellipsesFromCovMats(Ctot)
             if verbose:
-                for n in range(cov_ellipses.shape[0]): print('cov_ellipses #',n,': ',cov_ellipses[n,:], ' (unit: rad, mas, mas)')
+                for n in range(cov_ellipses.shape[0]): 
+                    print('cov_ellipses #',n,': ',cov_ellipses[n,:], ' (unit: rad, mas, mas)')
             # FINAl CONVOLUTION
             if verbose:
                 print('******** FINAl CONVOLUTION')
             results = []
             for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
-                results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
+                results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl
+                                                                       , N, 1/(fao.ao.cam.fovInPix 
+                                                                               * fao.freq.psInMas[0]))))
     
     if doPlot:
         if LOisOn and doConvolve and returnRes == False:
