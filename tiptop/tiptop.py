@@ -77,6 +77,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             LO_az      = my_yaml_dict['sources_LO']['Azimuth']
             LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
             fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
+            
+        if 'jitter_FWHM' in self.my_yaml_dict['telescope'].keys():
+            jitter_FWHM = self.my_yaml_dict['telescope']['jitter_FWHM']
 
         fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False
                            , display=False, getPSDatNGSpositions=True)
@@ -112,8 +115,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
             LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
             fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
-
-
+        if parser.has_option('telescope', 'jitter_FWHM'):
+            jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
+                
         fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False
                            , display=False, getPSDatNGSpositions=True)
     else:
@@ -201,7 +205,18 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     if LOisOn == False or (doConvolve == False and returnRes == False):
         results = []
         for psfLongExp in psfLongExpPointingsArr:
-            results.append(psfLongExp)
+            if jitter_FWHM is not None:
+                #TODO: understand why we need a factor 10 at the end of the following line
+                scale = (np.pi/(180*3600*1000) * tel_radius*2 / (4*1e-9)) * (2*np.sqrt(2*np.log(2)))/10
+                print('scale',scale)
+                ellp = [0, jitter_FWHM/scale, jitter_FWHM/scale]
+                print('ellp',ellp)
+                results.append(convolve(psfLongExp,
+                               residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
+                print('factor',1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))
+            else:
+                results.append(psfLongExp)
+            
     else:
         # LOW ORDER PART
         if verbose:
