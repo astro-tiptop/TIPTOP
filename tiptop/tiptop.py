@@ -206,14 +206,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         results = []
         for psfLongExp in psfLongExpPointingsArr:
             if jitter_FWHM is not None:
-                #TODO: understand why we need a factor 10 at the end of the following line
-                scale = (np.pi/(180*3600*1000) * tel_radius*2 / (4*1e-9)) * (2*np.sqrt(2*np.log(2)))/10
-                print('scale',scale)
-                ellp = [0, jitter_FWHM/scale, jitter_FWHM/scale]
-                print('ellp',ellp)
+                ellp = [0, sigma_from_FWHM(jitter_FWHM), sigma_from_FWHM(jitter_FWHM)]
                 results.append(convolve(psfLongExp,
                                residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
-                print('factor',1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))
             else:
                 results.append(psfLongExp)
             
