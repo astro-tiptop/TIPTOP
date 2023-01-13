@@ -77,6 +77,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             LO_az      = my_yaml_dict['sources_LO']['Azimuth']
             LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
             fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
+            
+        if 'jitter_FWHM' in self.my_yaml_dict['telescope'].keys():
+            jitter_FWHM = self.my_yaml_dict['telescope']['jitter_FWHM']
 
         fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False
                            , display=False, getPSDatNGSpositions=True)
@@ -112,8 +115,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             LO_az      = eval(parser.get('sources_LO', 'Azimuth'))
             LO_fluxes  = eval(parser.get('sensor_LO', 'NumberPhotons'))
             fr         = eval(parser.get('RTC', 'SensorFrameRate_LO'))
-
-
+        if parser.has_option('telescope', 'jitter_FWHM'):
+            jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
+                
         fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False
                            , display=False, getPSDatNGSpositions=True)
     else:
@@ -201,7 +205,13 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     if LOisOn == False or (doConvolve == False and returnRes == False):
         results = []
         for psfLongExp in psfLongExpPointingsArr:
-            results.append(psfLongExp)
+            if jitter_FWHM is not None:
+                ellp = [0, sigma_from_FWHM(jitter_FWHM), sigma_from_FWHM(jitter_FWHM)]
+                results.append(convolve(psfLongExp,
+                               residualToSpectrum(ellp, wvl, N, 1/(fao.ao.cam.fovInPix * fao.freq.psInMas[0]))))
+            else:
+                results.append(psfLongExp)
+            
     else:
         # LOW ORDER PART
         if verbose:
