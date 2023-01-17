@@ -78,8 +78,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             LO_fluxes  = my_yaml_dict['sensor_LO']['NumberPhotons']
             fr         = my_yaml_dict['RTC']['SensorFrameRate_LO']
             
-        if 'jitter_FWHM' in self.my_yaml_dict['telescope'].keys():
-            jitter_FWHM = self.my_yaml_dict['telescope']['jitter_FWHM']
+        if 'jitter_FWHM' in my_yaml_dict['telescope'].keys():
+            jitter_FWHM = my_yaml_dict['telescope']['jitter_FWHM']
 
         fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False
                            , display=False, getPSDatNGSpositions=True)
@@ -272,22 +272,47 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         else:
             return HO_res
     else:
+        # OPEN-LOOP PSD
+        k   = np.sqrt(fao.freq.k2_)
+        pf  = FourierUtils.pistonFilter(fao.ao.tel.D,k)
+        psdOL = Field(wvl, N, freq_range, 'rad')
+        temp = fao.ao.atm.spectrum(k) * pf
+        psdOL.sampling = cp.asarray(fao.ao.atm.spectrum(k) * pf * (fao.freq.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
+        # Get the OPEN-LOOP PSF
+        psfOL = longExposurePsf(mask, psdOL) 
+        if doPlot:
+            fig, ax1 = plt.subplots(1,1)
+            im = ax1.imshow(np.log(np.abs(psfOL.sampling) + 1e-20), cmap='hot')
+            ax1.set_title('open loop PSF', color='black')
+            
         # save PSF cube in fits
         hdul1 = fits.HDUList()
         cube =[]
         hdul1.append(fits.PrimaryHDU())
         for img in results:
-            cube.append(cp.asnumpy(img.sampling))
+            cube.append(img.sampling)
         
         cube = np.array(cube)
         hdul1.append(fits.ImageHDU(data=cube))
-        hdul1.append(fits.ImageHDU(data=pp)) # append cartesian coordinates
-    
+        hdul1.append(fits.ImageHDU(data=psfOL.sampling)) # append open-loop PSF
+        
         #############################
         # header
         hdr0 = hdul1[0].header
         now = datetime.now()
         hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        # parameters in the header
+        if os.path.exists(fullPathFilename_yml):
+            for key_primary in my_yaml_dict:
+                for key_secondary in my_yaml_dict[key_primary]:
+                    temp = my_yaml_dict[key_primary][key_secondary]
+                    if isinstance(temp, list):
+                        iii = 0
+                        for elem in temp:
+                            hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)] = elem
+                            iii += 1
+                    else:
+                        hdr0['HIERARCH '+key_primary+' '+key_secondary] = temp
         # header of the PSFs
         hdr1 = hdul1[1].header
         hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
@@ -295,12 +320,17 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         hdr1['SIZE'] = str(cube.shape)
         hdr1['WL_NM'] = str(int(wvl*1e9))
         hdr1['PIX_MAS'] = str(fao.freq.psInMas[0])
+        hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(pp.shape[1])+" SOURCES"
+        for i in range(pp.shape[1]):
+            hdr1['CC_X'+str(i).zfill(4)] = pp[0,i]
+            hdr1['CC_Y'+str(i).zfill(4)] = pp[1,i]
         # header of the coordinates
         hdr2 = hdul1[2].header
         hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr2['CONTENT'] = "CARTESIAN COORD. IN ASEC OF THE SOURCES"
-        hdr2['SIZE'] = str(pp.shape)
+        hdr2['CONTENT'] = "OPEN-LOOP PSF"
+        hdr2['SIZE'] = str(psfOL.sampling.shape)
         #############################
 
         hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
-        print("Output cube shape:", cube.shape)
+        if verbose:
+            print("Output cube shape:", cube.shape)
