@@ -13,7 +13,7 @@ from datetime import datetime
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False, 
-                      doPlot=False, verbose=False, returnRes=False):
+                      doPlot=False, verbose=False, returnRes=False, addSrAndFwhm=False):
     """
     function to run the entire tiptop simulation based on the imput file
     
@@ -30,17 +30,15 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :param verbose: optional default: False, If you want all messages set this to True
     :type verbose: bool
     :param returnRes: optionnal default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file. 
+    :type returnRes: bool
+    :param addSrAndFwhm: optionnal default: False, The function will add in the header of the fits file SR anf FWHM for each PSF. 
+    :type addSrAndFwhm: bool
 
     :return: TBD
     :rtype: TBD
 
     """
-    #TODO remove this prints in one of the next releases of the library
-    print('ATTENTION: interface of this function is changed.')
-    print('           windPsdFile is no more an input of overallSimulation,')
-    print('           it must be set as a parameter in the telescope section of the ini file.')
-          
-
+    
     # initiate the parser
     fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')
     fullPathFilename_yml = os.path.join(path, parametersFile + '.yml')
@@ -137,15 +135,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     xxPointigs         = pp[0,:]
     yyPointigs         = pp[1,:]
         
-#  cartPointingCoords=np.array([xxPointigs, yyPointigs]).transpose(),
-#  extraPSFsDirections=polarNGSCoordsList
-#  kcExt=kcExt
-#  pitchScaling=pitchScaling
-#  path_pupil=path_pupil
-
     # High-order PSD caculations at the science directions and NGSs directions
-#    PSD           = fao.powerSpectrumDensity() # in nm^2 : old way?
-    PSD           = fao.PSD # in nm^2
+    PSD                = fao.PSD # in nm^2
     nPointings         = pp.shape[1]
     if verbose:
         print('******** HO PSD science and NGSs directions')
@@ -322,8 +313,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         hdr1['PIX_MAS'] = str(fao.freq.psInMas[0])
         hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(pp.shape[1])+" SOURCES"
         for i in range(pp.shape[1]):
-            hdr1['CC_X'+str(i).zfill(4)] = pp[0,i]
-            hdr1['CC_Y'+str(i).zfill(4)] = pp[1,i]
+            hdr1['CCX'+str(i).zfill(4)] = pp[0,i]
+            hdr1['CCY'+str(i).zfill(4)] = pp[1,i]
+        if addSrAndFwhm:
+            for i in range(cube.shape[0]):
+                hdr1['SR'+str(i).zfill(4)]   = getStrehl(cube[i,:,:], fao.ao.tel.pupil, fao.freq.sampRef)
+            for i in range(cube.shape[0]):
+                hdr1['FWHM'+str(i).zfill(4)] = getFWHM(cube[i,:,:], fao.freq.psInMas[0], method='contour', nargout=1)
+            
         # header of the coordinates
         hdr2 = hdul1[2].header
         hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
