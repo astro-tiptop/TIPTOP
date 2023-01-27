@@ -117,7 +117,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
                 
         fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False
-                           , display=False, getPSDatNGSpositions=True)
+                           , display=False, getPSDatNGSpositions=True, computeFocalAnisoCov=False)
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
