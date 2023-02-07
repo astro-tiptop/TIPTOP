@@ -43,6 +43,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')
     fullPathFilename_yml = os.path.join(path, parametersFile + '.yml')
 
+    # initialize jitter_FWHM variable with a default value
+    jitter_FWHM = None 
+
     if os.path.exists(fullPathFilename_yml):
         with open(fullPathFilename_yml) as f:
             my_yaml_dict = yaml.safe_load(f)
