@@ -11,6 +11,7 @@ Reference: "TIPTOP: a new tool to efficiently predict your favorite AO PSF" SPIE
 ## Installation
 
 ### Anaconda setup
+
 We advise to use conda.
 
 Create a Anaconda environment for TIPTOP with python 3.X (below for example 3.8):
@@ -39,25 +40,26 @@ There are two ways clone TIPTOP:
 
 1. with sub-modules:
 ```
-git clone --recurse-submodules https://github.com/FabioRossiArcetri/TIPTOP.git
+git clone --recurse-submodules https://github.com/astro-tiptop/TIPTOP.git
 ```
 2. without sub-modules (cloned separately):
 ```
-git clone https://github.com/FabioRossiArcetri/TIPTOP.git
+git clone https://github.com/astro-tiptop/TIPTOP.git
 ```
 
 In the second case please clone also the repos:
 
-- https://github.com/FabioRossiArcetri/MASTSEL
-- https://github.com/FabioRossiArcetri/SYMAO
-- https://github.com/FabioRossiArcetri/SEEING
-- https://github.com/oliviermartin-lam/P3/
+- https://github.com/astro-tiptop/MASTSEL
+- https://github.com/astro-tiptop/SYMAO
+- https://github.com/astro-tiptop/SEEING
+- https://github.com/astro-tiptop/P3/
 
-as reported in the setup.py file.
+as reported in the `setup.py` file.
 
 ### Install with pip
 
-Navigate to the folder in which you have cloned TIPTOP, then navigate to the folder P3 and install P3 (remove --user to install to all users)
+Navigate to the folder in which you have cloned TIPTOP, then navigate to the
+folder P3 and install P3 (remove `--user` to install to all users):
 ```
 pip install --user -e .
 ```
