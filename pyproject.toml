@@ -24,6 +24,9 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+docs = ["sphinx"]
+
 [tool.setuptools.packages]
 find = {namespaces = false}
 
