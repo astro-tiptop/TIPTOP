@@ -13,14 +13,12 @@ urls = {repository = "https://github.com/astro-tiptop/TIPTOP"}
 requires-python = ">=3.7"
 license = {text = "MIT License"}
 dependencies = [
-    "astropy",
     "ipywidgets",
     "matplotlib",
     "numpy",
     "pyyaml",
-    "scipy",
-    # "astro-p3",
-    # "mastsel",
+    "astro-p3",
+    "mastsel",
 ]
 dynamic = ["version"]
 
