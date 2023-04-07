@@ -1,4 +1,4 @@
-from MASTSEL.mavis import *
+from mastsel.mavis import *
 
 from ipywidgets import interact, interactive, fixed, interact_manual, Layout
 import ipywidgets as widgets

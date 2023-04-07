@@ -1,5 +1,33 @@
 [build-system]
-requires = ["setuptools >= 38.0.0",
-            "setuptools_scm >= 2.0.0",
-            "wheel"]
-build-backend = 'setuptools.build_meta'
+requires = ["setuptools>=64", "wheel", "setuptools_scm[toml]>=3.4"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "astro-tiptop"
+authors = [
+    {name = "Fabio Rossi", email = "fabio.rossi@inaf.it"},
+]
+description = ""
+readme = "README.md"
+urls = {repository = "https://github.com/astro-tiptop/TIPTOP"}
+requires-python = ">=3.7"
+license = {text = "MIT License"}
+dependencies = [
+    "ipywidgets",
+    "matplotlib",
+    "numpy",
+    "pyyaml",
+    "astro-p3",
+    "mastsel",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+docs = ["sphinx"]
+gpu = ["mastsel[gpu]"]
+
+[tool.setuptools.packages]
+find = {namespaces = false}
+
+[tool.setuptools_scm]
+write_to = "tiptop/_version.py"

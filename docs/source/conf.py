@@ -13,10 +13,7 @@
 # import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
-
-import pathlib
-import sys
-sys.path.insert(0, pathlib.Path(__file__).parents[2].resolve().as_posix())
+from tiptop import __version__
 
 # -- Project information -----------------------------------------------------
 
@@ -25,8 +22,7 @@ copyright = '2022, bneichel,obeltram,frossi,gagapito'
 author = 'bneichel,obeltram,frossi,gagapito'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1'
-
+release = __version__
 
 # -- General configuration ---------------------------------------------------
 
@@ -61,4 +57,4 @@ html_static_path = []
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# html_static_path = ['_static']
