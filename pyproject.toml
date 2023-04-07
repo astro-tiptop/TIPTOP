@@ -24,6 +24,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 docs = ["sphinx"]
+gpu = ["mastsel[gpu]"]
 
 [tool.setuptools.packages]
 find = {namespaces = false}
