@@ -15,6 +15,7 @@ Wish List
 * If an option in the parameter file is missing please choose between the custom message and the basic Python ``NoOptionError``. ALC would prefert the basic ``NoOptionError`` as it lets python deal with error management and lead to less confusing error messages (see below)
 * Is it normal that in ``[sensor_HO]`` , ``NumberLenslet`` ``SizeLenslet`` is optionnal? (similar question for ``[sensor_LO]``, and for the entire ``[RTC]`` section)
 * in aoSystem.py line 707 to 720, The code figures out what is the AO mode (SCAO, LTAO... ) Why is this not simply a parameter?
+* Some section in the parameter file contain only optionnal parameter, verify that the sections are required.
 
 
 
