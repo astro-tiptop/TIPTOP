@@ -110,5 +110,4 @@ Here is some example code to use it:
 
 
 
-.. autofunction:: tiptop.overallSimulation
 
