@@ -1,0 +1,15 @@
+version: 2
+
+sphinx:
+  builder: html
+  configuration: conf.py
+  fail_on_warning: true
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - pyproject.toml
+
+
