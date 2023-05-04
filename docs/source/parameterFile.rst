@@ -8,15 +8,22 @@ To run tiptop you need two things: to execute the function and to create a param
 what should your parameter file contain and the various parameters you can set. You can already find example parameter 
 files in the `github <https://github.com/FabioRossiArcetri/TIPTOP/tree/main/perfTest>`_ .
 
-There is support for two different parameter file format : the '.ini' and the '.yml'. Either format is structured the same way, only the syntax changes. For reference on the syntaxe refert to the `configparser <https://docs.python.org/3/library/configparser.html>`_ documentation for the .ini. For the .yml refert to the `pyYAML <https://pyyaml.org/wiki/PyYAMLDocumentation>`_ documentation.
 
 The parameter files are divided in sections and they can contain multiple parameter. It is very important that each 
-parameter be placed in the appropriate section. The order of the sections in the file does not matter.
+parameter be placed in the appropriate section. The section starts with its name between '[]' and ends either with 
+the end of file or with the next section. The order they are placed in the file does not matter.
 
-Inles specified otherwise the following list of section must appear in the parameter file.
 
-telescope
-^^^^^^^^^
+The mandatory sections and their content are:
+
+.. warning::
+
+   In the current state, if the parameter file is not found, it raises ``NoSectionError: No section: 'telescope'``.
+
+
+
+[telescope]
+^^^^^^^^^^^
 
 .. option:: TelescopeDiameter
 
@@ -108,8 +115,8 @@ telescope
    place holder 
    (TBC) need to find how does the pathStatModes fits file work.
 
-atmosphere
-^^^^^^^^^^
+[atmosphere]
+^^^^^^^^^^^^
 
 .. option:: Seeing
 
@@ -193,8 +200,8 @@ atmosphere
    Update 19/09/2022: no longer required? it does not output a message when removed. Completely ignored if not set.
 
 
-sources_science
-^^^^^^^^^^^^^^^
+[sources_science]
+^^^^^^^^^^^^^^^^^
 
 .. option:: Wavelength
 
@@ -217,8 +224,8 @@ sources_science
    Must be the same length as ``Zenith``
 
 
-sources_HO
-^^^^^^^^^^
+[sources_HO]
+^^^^^^^^^^^^
 
 Typically the wavelength is the same for all guide star (at least in Laser guide star)
 
@@ -255,8 +262,8 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    altitude of the guide stars (0 if infinite). Consider that all guide star are at the same heigh.
 
 
-sources_LO
-^^^^^^^^^^
+[sources_LO]
+^^^^^^^^^^^^
 .. note::
 
    This section is completely optional
@@ -282,8 +289,8 @@ sources_LO
    Azimuthal coordinate in degree of each guide stars.
    Must be the same length as ``Zenith``
 
-sensor_science
-^^^^^^^^^^^^^^
+[sensor_science]
+^^^^^^^^^^^^^^^^
 
 .. option:: PixelScale
 
@@ -318,8 +325,8 @@ sensor_science
     FieldOfView = 1024
 
 
-sensor_HO
-^^^^^^^^^
+[sensor_HO]
+^^^^^^^^^^^
 
 Used regardless of the WFS, desired behaviour, 
 
@@ -511,8 +518,8 @@ Can be set but not used
    New value for pixels lower than `ThresholdWCoG`. Is there a reason to want to force these values to something else?
 
 
-sensor_LO
-^^^^^^^^^
+[sensor_LO]
+^^^^^^^^^^^
 
 .. note::
 
@@ -631,8 +638,8 @@ Can be set but not used
    CoG computation algorithm
 
 
-DM
-^^
+[DM]
+^^^^
 
 .. option:: NumberActuators
 
@@ -724,8 +731,8 @@ DM
    *default: 'circle'*,
    Shape of the AO-corrected area. Any other options are not defined and will give a squarre correction area.  
 
-RTC
-^^^
+[RTC]
+^^^^^
 
 .. option:: LoopGain_HO
 
