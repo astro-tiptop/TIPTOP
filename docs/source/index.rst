@@ -18,9 +18,9 @@ efficiently explore the wide parameter space.
 
 .. note::
    This documentation is still under development. If you find confusing
-   elements please contact Anne-Laure cheffot (anne.cheffot@inaf.it).  Also
-   Some heavy modification is to be expected in TIPTOP. The documentation will
-   try to follow.
+   elements please open an issue on github and label it Documentation and assign 
+   it to @alcheffot.  Also some heavy modification is to be expected in TIPTOP. 
+   The documentation will try to follow.
 
 References
 ----------
