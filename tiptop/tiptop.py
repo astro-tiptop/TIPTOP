@@ -83,7 +83,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             jitter_FWHM = my_yaml_dict['telescope']['jitter_FWHM']
 
         fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False
-                           , display=False, getPSDatNGSpositions=True)
+                           , display=False, getPSDatNGSpositions=True
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn)
 
     elif os.path.exists(fullPathFilename_ini):
         parser           = ConfigParser()
@@ -120,7 +121,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
 
         fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False
-                           , display=False, getPSDatNGSpositions=True, computeFocalAnisoCov=False)
+                           , display=False, getPSDatNGSpositions=True
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn)
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
@@ -278,6 +280,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             fig, ax1 = plt.subplots(1,1)
             im = ax1.imshow(np.log(np.abs(psfOL.sampling) + 1e-20), cmap='hot')
             ax1.set_title('open loop PSF', color='black')
+            
+        # DIFFRACTION LIMITED PSD
+        psdDL = Field(wvl, N, freq_range, 'rad')
+        psfDL = longExposurePsf(mask, psdDL)
+        if doPlot:
+            fig, ax2 = plt.subplots(1,1)
+            im = ax2.imshow(np.log(np.abs(psfDL.sampling) + 1e-20), cmap='hot')
+            ax2.set_title('diffraction limited PSF', color='black')
 
         # save PSF cube in fits
         hdul1 = fits.HDUList()
@@ -289,6 +299,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         cube = np.array(cube)
         hdul1.append(fits.ImageHDU(data=cube))
         hdul1.append(fits.ImageHDU(data=psfOL.sampling)) # append open-loop PSF
+        hdul1.append(fits.ImageHDU(data=psfDL.sampling)) # append diffraction limited PSF
 
         #############################
         # header
@@ -324,11 +335,17 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             for i in range(cube.shape[0]):
                 hdr1['FWHM'+str(i).zfill(4)] = getFWHM(cube[i,:,:], fao.freq.psInMas[0], method='contour', nargout=1)
 
-        # header of the coordinates
+        # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
         hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr2['CONTENT'] = "OPEN-LOOP PSF"
         hdr2['SIZE'] = str(psfOL.sampling.shape)
+        
+        # header of the DIFFRACTION LIMITED PSF
+        hdr3 = hdul1[3].header
+        hdr3['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr3['CONTENT'] = "DIFFRACTION LIMITED PSF"
+        hdr3['SIZE'] = str(psfDL.sampling.shape)
         #############################
 
         hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
