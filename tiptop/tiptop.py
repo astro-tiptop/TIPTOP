@@ -1,8 +1,8 @@
 import os
 import numpy as np
 from matplotlib import rc
-from P3.aoSystem.fourierModel import *
-from P3.aoSystem.FourierUtils import *
+from p3.aoSystem.fourierModel import *
+from p3.aoSystem.FourierUtils import *
 from configparser import ConfigParser
 import yaml
 
