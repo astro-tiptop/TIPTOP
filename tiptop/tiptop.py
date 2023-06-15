@@ -128,6 +128,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                            , display=False, getPSDatNGSpositions=True
                            , computeFocalAnisoCov=False, TiltFilter=LOisOn
                            , getErrorBreakDown=getHoErrorBreakDown)
+        
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
