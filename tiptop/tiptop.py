@@ -1,8 +1,8 @@
 import os
 import numpy as np
 from matplotlib import rc
-from P3.p3.aoSystem.fourierModel import *
-from P3.p3.aoSystem.FourierUtils import *
+from P3.aoSystem.fourierModel import *
+from P3.aoSystem.FourierUtils import *
 from configparser import ConfigParser
 import yaml
 
@@ -28,9 +28,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :type doConvolve: bool
     :param doPlot: optional default: False, if you want to see the result in python set this to True
     :type doPlot: bool
-    :param returnRes: optionnal default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
+    :param returnRes: optional default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
     :type returnRes: bool
-    :param addSrAndFwhm: optionnal default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
+    :param addSrAndFwhm: optional default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
     :type addSrAndFwhm: bool
     :param verbose: optional default: False, If you want all messages set this to True
     :type verbose: bool
