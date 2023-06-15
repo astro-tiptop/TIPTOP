@@ -13,7 +13,8 @@ from datetime import datetime
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
-                      doPlot=False, verbose=False, returnRes=False, addSrAndFwhm=False):
+                      doPlot=False, returnRes=False, addSrAndFwhm=False,
+                      verbose=False, getHoErrorBreakDown=False):
     """
     function to run the entire tiptop simulation based on the imput file
 
@@ -27,12 +28,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :type doConvolve: bool
     :param doPlot: optional default: False, if you want to see the result in python set this to True
     :type doPlot: bool
+    :param returnRes: optional default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
+    :type returnRes: bool
+    :param addSrAndFwhm: optional default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
+    :type addSrAndFwhm: bool
     :param verbose: optional default: False, If you want all messages set this to True
     :type verbose: bool
-    :param returnRes: optionnal default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
-    :type returnRes: bool
-    :param addSrAndFwhm: optionnal default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
-    :type addSrAndFwhm: bool
+    :param getHoErrorBreakDown: optional default: False, If you want HO error breakdosn set this to True
+    :type getHoErrorBreakDown: bool
 
     :return: TBD
     :rtype: TBD
@@ -82,9 +85,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if 'jitter_FWHM' in my_yaml_dict['telescope'].keys():
             jitter_FWHM = my_yaml_dict['telescope']['jitter_FWHM']
 
-        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False
+        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=verbose
                            , display=False, getPSDatNGSpositions=True
-                           , computeFocalAnisoCov=False, TiltFilter=LOisOn)
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                           , getErrorBreakDown=getHoErrorBreakDown)
 
     elif os.path.exists(fullPathFilename_ini):
         parser           = ConfigParser()
@@ -120,9 +124,11 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if parser.has_option('telescope', 'jitter_FWHM'):
             jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
 
-        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False
+        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=verbose
                            , display=False, getPSDatNGSpositions=True
-                           , computeFocalAnisoCov=False, TiltFilter=LOisOn)
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                           , getErrorBreakDown=getHoErrorBreakDown)
+        
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
@@ -180,7 +186,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             SR             = np.exp(-computedPSD.sum()* scaleFactor) # Strehl-ratio at the sensing wavelength
             NGS_SR.append(SR)
             FWHMx,FWHMy    = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
-            FWHM           = max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
+            FWHM           = np.sqrt(FWHMx*FWHMy) #max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             NGS_FWHM_mas.append(FWHM)
             if verbose:
@@ -238,7 +244,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                     print('cov_ellipses #',n,': ',cov_ellipses[n,:], ' (unit: rad, mas, mas)')
             # FINAl CONVOLUTION
             if verbose:
-                print('******** FINAl CONVOLUTION')
+                print('******** FINAL CONVOLUTION')
             results = []
             for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
                 results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl
