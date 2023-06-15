@@ -1,8 +1,8 @@
 import os
 import numpy as np
 from matplotlib import rc
-from p3.aoSystem.fourierModel import *
-from p3.aoSystem.FourierUtils import *
+from P3.p3.aoSystem.fourierModel import *
+from P3.p3.aoSystem.FourierUtils import *
 from configparser import ConfigParser
 import yaml
 
@@ -13,7 +13,8 @@ from datetime import datetime
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
-                      doPlot=False, verbose=False, returnRes=False, addSrAndFwhm=False):
+                      doPlot=False, returnRes=False, addSrAndFwhm=False,
+                      verbose=False, getHoErrorBreakDown=False):
     """
     function to run the entire tiptop simulation based on the imput file
 
@@ -27,12 +28,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :type doConvolve: bool
     :param doPlot: optional default: False, if you want to see the result in python set this to True
     :type doPlot: bool
-    :param verbose: optional default: False, If you want all messages set this to True
-    :type verbose: bool
     :param returnRes: optionnal default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
     :type returnRes: bool
     :param addSrAndFwhm: optionnal default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
     :type addSrAndFwhm: bool
+    :param verbose: optional default: False, If you want all messages set this to True
+    :type verbose: bool
+    :param getHoErrorBreakDown: optional default: False, If you want HO error breakdosn set this to True
+    :type getHoErrorBreakDown: bool
 
     :return: TBD
     :rtype: TBD
@@ -82,8 +85,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if 'jitter_FWHM' in my_yaml_dict['telescope'].keys():
             jitter_FWHM = my_yaml_dict['telescope']['jitter_FWHM']
 
-        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=False
-                           , display=False, getPSDatNGSpositions=True)
+        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=verbose
+                           , display=False, getPSDatNGSpositions=True
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                           , getErrorBreakDown=getHoErrorBreakDown)
 
     elif os.path.exists(fullPathFilename_ini):
         parser           = ConfigParser()
@@ -119,8 +124,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if parser.has_option('telescope', 'jitter_FWHM'):
             jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
 
-        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=False
-                           , display=False, getPSDatNGSpositions=True, computeFocalAnisoCov=False)
+        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=verbose
+                           , display=False, getPSDatNGSpositions=True
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                           , getErrorBreakDown=getHoErrorBreakDown)
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
@@ -178,7 +185,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             SR             = np.exp(-computedPSD.sum()* scaleFactor) # Strehl-ratio at the sensing wavelength
             NGS_SR.append(SR)
             FWHMx,FWHMy    = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
-            FWHM           = max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
+            FWHM           = np.sqrt(FWHMx*FWHMy) #max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             NGS_FWHM_mas.append(FWHM)
             if verbose:
@@ -236,7 +243,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                     print('cov_ellipses #',n,': ',cov_ellipses[n,:], ' (unit: rad, mas, mas)')
             # FINAl CONVOLUTION
             if verbose:
-                print('******** FINAl CONVOLUTION')
+                print('******** FINAL CONVOLUTION')
             results = []
             for ellp, psfLongExp in zip(cov_ellipses, psfLongExpPointingsArr):
                 results.append(convolve(psfLongExp, residualToSpectrum(ellp, wvl
@@ -278,6 +285,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             fig, ax1 = plt.subplots(1,1)
             im = ax1.imshow(np.log(np.abs(psfOL.sampling) + 1e-20), cmap='hot')
             ax1.set_title('open loop PSF', color='black')
+            
+        # DIFFRACTION LIMITED PSD
+        psdDL = Field(wvl, N, freq_range, 'rad')
+        psfDL = longExposurePsf(mask, psdDL)
+        if doPlot:
+            fig, ax2 = plt.subplots(1,1)
+            im = ax2.imshow(np.log(np.abs(psfDL.sampling) + 1e-20), cmap='hot')
+            ax2.set_title('diffraction limited PSF', color='black')
 
         # save PSF cube in fits
         hdul1 = fits.HDUList()
@@ -289,6 +304,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         cube = np.array(cube)
         hdul1.append(fits.ImageHDU(data=cube))
         hdul1.append(fits.ImageHDU(data=psfOL.sampling)) # append open-loop PSF
+        hdul1.append(fits.ImageHDU(data=psfDL.sampling)) # append diffraction limited PSF
 
         #############################
         # header
@@ -324,11 +340,17 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             for i in range(cube.shape[0]):
                 hdr1['FWHM'+str(i).zfill(4)] = getFWHM(cube[i,:,:], fao.freq.psInMas[0], method='contour', nargout=1)
 
-        # header of the coordinates
+        # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
         hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr2['CONTENT'] = "OPEN-LOOP PSF"
         hdr2['SIZE'] = str(psfOL.sampling.shape)
+        
+        # header of the DIFFRACTION LIMITED PSF
+        hdr3 = hdul1[3].header
+        hdr3['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr3['CONTENT'] = "DIFFRACTION LIMITED PSF"
+        hdr3['SIZE'] = str(psfDL.sampling.shape)
         #############################
 
         hdul1.writeto( os.path.join(outputDir, outputFile + '.fits'), overwrite=True)
