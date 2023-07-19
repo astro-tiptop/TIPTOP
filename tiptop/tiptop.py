@@ -14,12 +14,7 @@ from datetime import datetime
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
-<<<<<<< Updated upstream
-                      doPlot=False, returnRes=False, addSrAndFwhm=False,
-                      verbose=False, getHoErrorBreakDown=False):
-=======
                       doPlot=False, verbose=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False, **kwargs):
->>>>>>> Stashed changes
     """
     function to run the entire tiptop simulation based on the imput file
 
@@ -33,16 +28,12 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :type doConvolve: bool
     :param doPlot: optional default: False, if you want to see the result in python set this to True
     :type doPlot: bool
-<<<<<<< Updated upstream
-    :param returnRes: optional default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
-=======
     :param verbose: optional default: False, If you want all messages set this to True
     :type verbose: bool
     :param returnRes: optional default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
     :type returnRes: bool
     :param returnMetrics: optional default: False, The function will return Strehl Ratio, fwhm and encircled energy within 50mas if set to True
->>>>>>> Stashed changes
-    :type returnRes: bool
+    :type returnMetrics: bool
     :param addSrAndFwhm: optional default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
     :type addSrAndFwhm: bool
     :param verbose: optional default: False, If you want all messages set this to True
@@ -98,14 +89,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if 'jitter_FWHM' in my_yaml_dict['telescope'].keys():
             jitter_FWHM = my_yaml_dict['telescope']['jitter_FWHM']
 
-        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=verbose
-<<<<<<< Updated upstream
-                           , display=False, getPSDatNGSpositions=True
-                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
-                           , getErrorBreakDown=getHoErrorBreakDown)
-=======
-                           , display=False, getPSDatNGSpositions=True, **kwargs)
->>>>>>> Stashed changes
+        fao = fourierModel(fullPathFilename_yml, calcPSF=False, verbose=verbose,
+                           display=False, getPSDatNGSpositions=True, **kwargs)
 
     elif os.path.exists(fullPathFilename_ini):
         parser           = ConfigParser()
@@ -141,15 +126,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if parser.has_option('telescope', 'jitter_FWHM'):
             jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
 
-        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=verbose
-<<<<<<< Updated upstream
-                           , display=False, getPSDatNGSpositions=True
-                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
-                           , getErrorBreakDown=getHoErrorBreakDown)
-        
-=======
-                           , display=False, getPSDatNGSpositions=True, computeFocalAnisoCov=False, **kwargs)
->>>>>>> Stashed changes
+        fao = fourierModel(fullPathFilename_ini, calcPSF=False, verbose=verbose,
+                           display=False, getPSDatNGSpositions=True, computeFocalAnisoCov=False, **kwargs)
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
@@ -369,17 +347,12 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                 hdr1['SR'+str(i).zfill(4)]   = getStrehl(cube[i,:,:], fao.ao.tel.pupil, fao.freq.sampRef, method='max')
             for i in range(cube.shape[0]):
                 hdr1['FWHM'+str(i).zfill(4)] = getFWHM(cube[i,:,:], fao.freq.psInMas[0], method='contour', nargout=1)
-<<<<<<< Updated upstream
-
-        # header of the OPEN-LOOP PSF
-=======
             for i in range(cube.shape[0]):
                 ee,rr = getEncircledEnergy(cube[i,:,:], pixelscale=fao.freq.psInMas[0], center=(fao.ao.cam.fovInPix/2,fao.ao.cam.fovInPix/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
                 hdr1['EE50'+str(i).zfill(4)] = ee_at_radius_fn(50.0)
         
         # header of the coordinates
->>>>>>> Stashed changes
         hdr2 = hdul1[2].header
         hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr2['CONTENT'] = "OPEN-LOOP PSF"
