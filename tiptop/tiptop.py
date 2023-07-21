@@ -2,8 +2,8 @@ import os
 import numpy as np
 from scipy.interpolate import interp1d
 from matplotlib import rc
-from p3.aoSystem.fourierModel import *
-from p3.aoSystem.FourierUtils import *
+from P3.p3.aoSystem.fourierModel import *
+from P3.p3.aoSystem.FourierUtils import *
 from configparser import ConfigParser
 import yaml
 
@@ -14,7 +14,9 @@ from datetime import datetime
 rc("text", usetex=False)
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
-                      doPlot=False, verbose=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False, **kwargs):
+                      doPlot=False, verbose=False, returnRes=False, returnMetrics=False, 
+                      addSrAndFwhm=False, getHoErrorBreakDown=False, eeRadiusInMas = 50,
+                      **kwargs):
     """
     function to run the entire tiptop simulation based on the imput file
 
@@ -40,6 +42,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :type verbose: bool
     :param getHoErrorBreakDown: optional default: False, If you want HO error breakdosn set this to True
     :type getHoErrorBreakDown: bool
+    :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy
+    :type eeRadiusInMas: float
 
     :return: TBD
     :rtype: TBD
@@ -91,7 +95,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
 
         fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=verbose
                            , display=False, getPSDatNGSpositions=True
-                           , computeFocalAnisoCov=False, TiltFilter=LOisOn, **kwargs)
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                           , getErrorBreakDown=getHoErrorBreakDown, **kwargs)
 
     elif os.path.exists(fullPathFilename_ini):
         parser           = ConfigParser()
@@ -127,9 +132,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if parser.has_option('telescope', 'jitter_FWHM'):
             jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
 
-        fao = fourierModel(fullPathFilename_yml, calcPSF=False, verbose=verbose
+        fao = fourierModel( fullPathFilename_ini, calcPSF=False, verbose=verbose
                            , display=False, getPSDatNGSpositions=True
-                           , computeFocalAnisoCov=False, TiltFilter=LOisOn, **kwargs)
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                           , getErrorBreakDown=getHoErrorBreakDown, **kwargs)
         
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
@@ -283,13 +289,15 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         else:
             return HO_res
     elif returnMetrics:
+        if verbose:
+            print('EE is computed for a radius of ',eeRadiusInMas,' mas')
         sr, fwhm, ee = [], [], []
         for img in results:
             sr.append(getStrehl(img.sampling, fao.ao.tel.pupil, fao.freq.sampRef, method='max'))
             fwhm.append(getFWHM(img.sampling, fao.freq.psInMas[0], method='contour', nargout=1))
             ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=fao.freq.psInMas[0], center=(fao.ao.cam.fovInPix/2,fao.ao.cam.fovInPix/2), nargout=2)
             ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-            ee.append(ee_at_radius_fn(50.0))
+            ee.append(ee_at_radius_fn(eeRadiusInMas))
         return sr, fwhm, ee
     else:
         # OPEN-LOOP PSD
