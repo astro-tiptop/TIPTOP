@@ -89,8 +89,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if 'jitter_FWHM' in my_yaml_dict['telescope'].keys():
             jitter_FWHM = my_yaml_dict['telescope']['jitter_FWHM']
 
-        fao = fourierModel(fullPathFilename_yml, calcPSF=False, verbose=verbose,
-                           display=False, getPSDatNGSpositions=True, **kwargs)
+        fao = fourierModel( fullPathFilename_yml, calcPSF=False, verbose=verbose
+                           , display=False, getPSDatNGSpositions=True
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn, **kwargs)
 
     elif os.path.exists(fullPathFilename_ini):
         parser           = ConfigParser()
@@ -126,8 +127,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if parser.has_option('telescope', 'jitter_FWHM'):
             jitter_FWHM = eval(parser.get('telescope', 'jitter_FWHM'))
 
-        fao = fourierModel(fullPathFilename_ini, calcPSF=False, verbose=verbose,
-                           display=False, getPSDatNGSpositions=True, computeFocalAnisoCov=False, **kwargs)
+        fao = fourierModel(fullPathFilename_yml, calcPSF=False, verbose=verbose
+                           , display=False, getPSDatNGSpositions=True
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn, **kwargs)
+        
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
 
@@ -153,6 +156,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
 
     PSD           = PSD.transpose()
     N             = PSD[0].shape[0]
+    nPixPSF       = int(fao.freq.nOtf /fao.freq.kRef_)
     freq_range    = fao.ao.cam.fovInPix*fao.freq.PSDstep
     pitch         = 1/freq_range
     grid_diameter = pitch*N
@@ -165,9 +169,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     mask.sampling = zeroPad(mask.sampling, (N-sx)//2)
     if verbose:
         print('fao.samp:', fao.freq.samp)
+        print('fao.PSD.shape:', fao.PSD.shape)
         print('fao.freq.psInMas:', fao.freq.psInMas)
 
-    def psdSetToPsfSet(inputPSDs,wavelength,pixelscale,scaleFactor=1,verbose=False):
+    def psdSetToPsfSet(inputPSDs,wavelength,pixelscale,npixel,scaleFactor=1,verbose=False):
         NGS_SR = []
         psdArray = []
         psfLongExpArr = []
@@ -180,6 +185,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             psdArray.append(psd)
             # Get the PSF
             psfLE          = longExposurePsf(mask, psd )
+            # It cuts the PSF if the PSF is larger than the requested dimension
+            if psfLE.sampling.shape[0] > npixel:
+                psfLE.sampling = psfLE.sampling[int(psfLE.sampling.shape[0]/2-npixel/2):int(psfLE.sampling.shape[0]/2+npixel/2),
+                                                int(psfLE.sampling.shape[1]/2-npixel/2):int(psfLE.sampling.shape[1]/2+npixel/2)]
             psfLongExpArr.append(psfLE)
             # Get SR and FWHM in mas at the NGSs positions at the sensing wavelength
             SR             = np.exp(-computedPSD.sum()* scaleFactor) # Strehl-ratio at the sensing wavelength
@@ -197,9 +206,11 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     # HO PSF
     if verbose:
         print('******** HO PSF')
+    
     pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = psdSetToPsfSet(PSD[0:nPointings],
                                                                                                  wvl,
                                                                                                  fao.freq.psInMas[0],
+                                                                                                 nPixPSF,
                                                                                                  scaleFactor=(2*np.pi*1e-9/wvl)**2,
                                                                                                  verbose=verbose)
 
@@ -222,7 +233,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         if verbose:
             print('******** HO PSF - NGS directions')
         NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD[-nNaturalGS:],
-                                                                   LO_wvl, psInMas_NGS,
+                                                                   LO_wvl, psInMas_NGS, nPixPSF,
                                                                    scaleFactor=(2*np.pi*1e-9/LO_wvl)**2,
                                                                    verbose=verbose)
 
@@ -289,6 +300,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         psdOL.sampling = cp.asarray(fao.ao.atm.spectrum(k) * pf * (fao.freq.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
         # Get the OPEN-LOOP PSF
         psfOL = longExposurePsf(mask, psdOL)
+        # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
+        if psfOL.sampling.shape[0] > nPixPSF:
+            psfOL.sampling = psfOL.sampling[int(psfOL.sampling.shape[0]/2-nPixPSF/2):int(psfOL.sampling.shape[0]/2+nPixPSF/2),
+                                            int(psfOL.sampling.shape[1]/2-nPixPSF/2):int(psfOL.sampling.shape[1]/2+nPixPSF/2)]
         if doPlot:
             fig, ax1 = plt.subplots(1,1)
             im = ax1.imshow(np.log(np.abs(psfOL.sampling) + 1e-20), cmap='hot')
@@ -297,6 +312,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         # DIFFRACTION LIMITED PSD
         psdDL = Field(wvl, N, freq_range, 'rad')
         psfDL = longExposurePsf(mask, psdDL)
+        # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
+        if psfDL.sampling.shape[0] > nPixPSF:
+            psfDL.sampling = psfDL.sampling[int(psfDL.sampling.shape[0]/2-nPixPSF/2):int(psfDL.sampling.shape[0]/2+nPixPSF/2),
+                                            int(psfDL.sampling.shape[1]/2-nPixPSF/2):int(psfDL.sampling.shape[1]/2+nPixPSF/2)]
         if doPlot:
             fig, ax2 = plt.subplots(1,1)
             im = ax2.imshow(np.log(np.abs(psfDL.sampling) + 1e-20), cmap='hot')
