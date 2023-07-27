@@ -41,7 +41,11 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :rtype: TBD
 
     """
-
+    
+    if returnRes and doPlot:
+        print('WARNING: returnRes and doPlot cannot both be True, setting doPlot to False.')
+        doPlot = False
+        
     # initiate the parser
     fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')
     fullPathFilename_yml = os.path.join(path, parametersFile + '.yml')

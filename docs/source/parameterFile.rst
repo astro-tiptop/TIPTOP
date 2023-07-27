@@ -355,7 +355,7 @@ Used regardless of the WFS, desired behaviour,
 
    **Required**, 
    *type: int*, 
-   Number of pixels on the detector. 
+   Number of pixels per subaperture. 
    TODOI : change this behaviour as it makes no sense. Guido found that this is divided by `NumberLenslet`. Used for the noise. 
    Warning: gives a confusing error message if missing 
 
