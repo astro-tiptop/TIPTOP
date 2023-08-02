@@ -155,7 +155,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         polarNGSCoordsList = []
         for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
             polarNGSCoordsList.append([aZen, aAz])
-            NGS_flux.append(LO_fluxes[0]*fr)
+            NGS_flux.append(aFlux*fr)
             polarNGSCoords     = np.asarray(polarNGSCoordsList)
             nNaturalGS         = polarNGSCoords.shape[0]
 
