@@ -20,8 +20,6 @@ The mandatory sections and their content are:
 
    In the current state, if the parameter file is not found, it raises ``NoSectionError: No section: 'telescope'``.
 
-
-
 [telescope]
 ^^^^^^^^^^^
 
@@ -31,7 +29,6 @@ The mandatory sections and their content are:
    *type : float*, 
    Set the outer diameter of the telescope pupil in unit of meters.
 
-
 .. option:: ObscurationRatio
 
    **Optionnal**, 
@@ -40,14 +37,11 @@ The mandatory sections and their content are:
    Defines the central obstruction due to the secondary as a ratio of the TelescopeDiameter
    *Warning* : MavisLO.py does not have a defualt value for this parameter 
 
-
 .. option:: Resolution
 
    **Required**, 
    *type : int*, 
    Number of pixels across the pupil diameter
-
-
 
 .. option:: ZenithAngle
 
@@ -115,6 +109,27 @@ The mandatory sections and their content are:
    place holder 
    (TBC) need to find how does the pathStatModes fits file work.
 
+.. option:: extraErrorNm
+   
+   **Optional**, 
+   *type : float*, 
+   *default: 0*, 
+   nm RMS of the additional error to be added (an error that is not otherwise considered)
+
+.. option:: extraErrorExp
+   
+   **Optional**, 
+   *type : float*, 
+   *default: -2*, 
+   exponent of the power of spatial frequencies used to generate the PSD associated with extraErrorNm
+
+.. option:: extraErrorMin
+   
+   **Optional**, 
+   *type : float*, 
+   *default: 0*, 
+   minimum spatial frequency for which PSD associated with extraErrorNm is > 0
+
 [atmosphere]
 ^^^^^^^^^^^^
 
@@ -122,10 +137,8 @@ The mandatory sections and their content are:
 
    **Required**, 
    *type : float*, 
-   Set the seeing at Zenith in arcsec. Might need fixing. seeing looks like it is converted to R0
-   note : has a confusing error message if absent
-
-
+   Set the seeing at Zenith in arcsec. 
+   If not set TIPTOP uses ``r0_value`` .
 
 .. option:: Wavelength
 
@@ -187,18 +200,14 @@ The mandatory sections and their content are:
    
    **Optionnal**, 
    *type : float*, 
-   set the atmospere Fried parameter. Might need fixing. 
-   temporary use: ``R0_Value`` =0 and the seeing to the wanted value.
-   If not set it is calculated with ``seeing`` .
+   set the atmospere Fried parameter.
+   If not set TIPTOP uses ``seeing`` .
 
 .. option:: testWindspeed
 
    **Optionnal**, 
    *type : float*, 
-   test variable that should not be here?
-   Required at the moment, for LO (which requires it) because the LO requires the average windspeed. If set to zero takes the average of WindSpeed weighted by the Cn2Weights. 
-   Update 19/09/2022: no longer required? it does not output a message when removed. Completely ignored if not set.
-
+   used only for tests
 
 [sources_science]
 ^^^^^^^^^^^^^^^^^
@@ -222,7 +231,6 @@ The mandatory sections and their content are:
    *Type : list of float*, 
    Azimuthal coordinate in degree of Wavelength sources given in ``Wavelength``.
    Must be the same length as ``Zenith``
-
 
 [sources_HO]
 ^^^^^^^^^^^^
@@ -261,13 +269,11 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    *Default : 0.0*, 
    altitude of the guide stars (0 if infinite). Consider that all guide star are at the same height.
 
-
 [sources_LO]
 ^^^^^^^^^^^^
 .. note::
 
    This section is completely optional (``[sensor_LO]`` section is required to have the LO part simulated)
-
 
 .. option:: Wavelength
 
@@ -309,21 +315,9 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
 
 .. note::
 
-    We have examples of the following parameters being set but we do not understand if they are used in the science sensor case. (none of these are used for the science detector, initialised for one specific class but has no effect.). 
-    Binning = 1
-    NumberPhotons = [1500]
-    SpotFWHM = [[0.0, 0.0, 0.0]]
-    SpectralBandwidth = 0
-    Transmittance = [1.0]
-    Dispersion = [[0.0],[0.0]]
-    SigmaRON = [0.1]
-    Dark = 0.0
-    SkyBackground = 0.0
-    Gain = 1.0
-    ExcessNoiseFactor = 1.0
-    Wavelength = [0.55e-06] if the wavelength is specified here it is ignored. 
-    FieldOfView = 1024
+    Following parameters was added to uniform all the sensor (HO and LO), but they are not used.
 
+    Binning, NumberPhotons, SpotFWHM, SpectralBandwidth, Transmittance, Dispersion, SigmaRON, Dark, SkyBackground, Gain, ExcessNoiseFactor, Wavelength, FieldOfView
 
 [sensor_HO]
 ^^^^^^^^^^^
@@ -356,7 +350,6 @@ Used regardless of the WFS, desired behaviour,
    **Required**, 
    *type: int*, 
    Number of pixels per subaperture. 
-   TODOI : change this behaviour as it makes no sense. Guido found that this is divided by `NumberLenslet`. Used for the noise. 
    Warning: gives a confusing error message if missing 
 
 .. option:: Binning
@@ -364,7 +357,7 @@ Used regardless of the WFS, desired behaviour,
    **Optional**, 
    *type: int*, 
    *default: 1*, 
-   Binning factor of the detector, only used in the pyramid case, optionnal for pyramid
+   Binning factor of the detector, only used in the pyramid case, optional for pyramid
 
 .. option:: WfsType
    
@@ -386,8 +379,7 @@ Used regardless of the WFS, desired behaviour,
    **Optional**, 
    *type: list of list of float*, 
    *defaut: [[0.0, 0.0, 0.0]]*, 
-   Not used
-   High Order spot scale in mili arcsec. Why list of list and why three?
+   High Order spot parameters: two axes scale values in milliarcsec (only max value is used) and angle (angle is not used). Why list?
 
 .. option:: SpectralBandwidth
    
@@ -410,9 +402,9 @@ Used regardless of the WFS, desired behaviour,
    **Optional**, 
    *type: apparently list of list of float?*, 
    *default: [[0.0,0.0]]*, 
-   Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. Chromatic dispertion for PSF computation only.  In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance... Also sorry for my ignorance: dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?
-
-
+   Dispersion x/y at the considered wavelength in pixel. Must be the same size than ``Transmittance``. Chromatic dispertion for PSF computation only.
+   In HarmoniSCAO_1 first the default and the thing given are not even the same shape but on top the default breaks the must be the same size as the transmitance...
+   Also sorry for my ignorance: dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?
 
 .. option:: Gain 
    
@@ -426,20 +418,15 @@ Used regardless of the WFS, desired behaviour,
    **Optional**, 
    *type: float*, 
    *default: 2.0*,
-   excess noise factor. Why the hell would you by default have excess noise?
+   excess noise factor.
+   TODO: default should be 1
 
 .. option:: NoiseVariance
 
    **Optional**, 
    *type: unknown*, 
    *Default : None*?, 
-   Noise Variance in rd2. If not empty, this value overwrites the analytical noise variance calculation.
-
-
-
-
-
-
+   Noise Variance in rad2. If not empty, this value overwrites the analytical noise variance calculation.
 
 Shack-Hartmann requirement
 """"""""""""""""""""""""""
@@ -449,7 +436,21 @@ Shack-Hartmann requirement
    **Required?**, 
    *type: float*, 
    read-out noise std in [e-], used only if the `NoiseVariance` is not set. 
-   Note: this is optionnal if the ``WfsType`` == ``'Pyramid'``
+   Note: this is optional if the ``WfsType`` == ``'Pyramid'``
+
+.. option:: Algorithm
+   
+   **not used**, 
+   *type: str*, 
+   *defaut:'wcog'*, 
+   other options: 'cog' (simple center-of-gravity), 'tcog' (center-of-gravity with threshold), 'qc' (quad-cell)
+    
+.. option:: WindowRadiusWCoG 
+   
+   **not used**, 
+   *type: int?*, 
+   *default: 2*, 
+   FWHM in pixel of the gaussian weighting function
 
 Pyramid requirement
 """""""""""""""""""
@@ -461,12 +462,6 @@ Pyramid requirement
    *default : None*, 
    If the chosen wavefront sensor is the ``'Pyramid'``, Spot modulation radius in lambda/D units. This is ignored if the WFS is `'Shack-Hartmann'`
    Warning : gives really confusing message if missing when required
-   
-
-
-
-
-
 
 Can be set but not used
 """""""""""""""""""""""
@@ -486,22 +481,6 @@ Can be set but not used
    *default: 0.0*, 
    Sky background [e-/s/pix]
 
-.. option:: Algorithm
-   
-   **not used**, 
-   *type: str*, 
-   *defaut:'wcog'*, 
-   not used, even if it actually has a default value. The default seems to be normal center of gravity.
-   CoG computation algorithm, What are the other options?
-
-    
-.. option:: WindowRadiusWCoG 
-   
-   **not used**, 
-   *type: int?*, 
-   *default: 2*, 
-   Number of pixels for ?windiwing? the low order WFS pixels
-
 .. option:: ThresholdWCoG
    
    **not used**, 
@@ -509,7 +488,6 @@ Can be set but not used
    *default: 0.0*, 
    Threshold Number of pixels for windowing the low order WFS pixels
 
- 
 .. option:: NewValueThrPix 
    
    **not used**, 
@@ -517,14 +495,12 @@ Can be set but not used
    *default: 0.0*, 
    New value for pixels lower than `ThresholdWCoG`. Is there a reason to want to force these values to something else?
 
-
 [sensor_LO]
 ^^^^^^^^^^^
 
 .. note::
 
    This section is optional, if this section is not present only the HO part will be used (for ex. to simulate a SCAO NGS).
-
 
 .. option:: PixelScale
 
@@ -637,7 +613,6 @@ Can be set but not used
    *default: 'wcog'*,
    CoG computation algorithm
 
-
 [DM]
 ^^^^
 
@@ -648,6 +623,7 @@ Can be set but not used
    Number of actuator on the pupil diameter. why a list of int?
    Must be the same length as DmPitchs
    Warning: gives a confusing error message if missing
+   Warning: not used in TIPTOP!
 
 .. option:: DmPitchs
 
@@ -656,8 +632,6 @@ Can be set but not used
    DM actuators pitch in meters, on the meta pupil at the conjugasion altitude, used for fitting error computation.
    Must be the same length as NumberActuators?
    Warning: gives a confusing error message if missing
-
-
 
 .. option:: InfModel
 
@@ -740,7 +714,7 @@ Can be set but not used
    *Type : float*, 
    *Default : 0.5*, 
    High Order Loop gain.
-   If system to be simulated is a multi-conjugate system this parameter is not used.
+   Warning: if system to be simulated is a multi-conjugate system this parameter is not used.
 
 .. option:: SensorFrameRate_HO
 
@@ -761,8 +735,8 @@ Can be set but not used
    **Optional**, 
    *type: float or string*, 
    *default: None*,
-   if set to 'optimize', gain is auto matically optimized by tiptop, otherwise the float value set is used.
    Low Order loop gain
+   Warning: if set to 'optimize', gain is automatically optimized by tiptop, otherwise the float value set is used.
 
 .. option:: SensorFrameRate_LO
 
@@ -787,5 +761,37 @@ Can be set but not used
    *Default: None*
    ?
 
+[COMPUTATION]
+^^^^^^^^^^^
+
+.. note::
+
+   This section is optional, if this section is not present the defaul values are used.
+
+.. option:: simpleVarianceComputation
+
+   **Optional**, 
+   *type : str*, 
+   Set to it to False to activate the more complex and slower MASTSEL LO noise computation.
 
 
+.. option:: platform
+
+   **Optional**, 
+   *type : str*, 
+   *default: 'GPU'*
+   Set to it to 'CPU' to forcy the library to use numpy instead of cupy.
+
+.. option:: integralDiscretization1
+
+   **Optional**, 
+   *type : float*, 
+   *default: 1000*
+   Discretization used in the integrals (astro-tiptop/SEEING library).
+
+.. option:: integralDiscretization2
+
+   **Optional**, 
+   *type : float*, 
+   *default: 4000*
+   Discretization used in the integrals (astro-tiptop/SEEING library).
