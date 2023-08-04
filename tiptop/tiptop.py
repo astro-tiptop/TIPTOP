@@ -7,11 +7,26 @@ from configparser import ConfigParser
 import yaml
 
 from mastsel import *
+from mastsel import gpuEnabled as gpuMastsel
+from p3.aoSystem import gpuEnabled as gpuP3
 
 from datetime import datetime
 
 rc("text", usetex=False)
 
+def arrayP3toMastsel(v):
+    if (gpuP3 and gpuMastsel) or (not gpuP3 and not gpuMastsel):
+        return v
+    elif not gpuP3 and gpuMastsel:
+        return cp.asarray(v)
+    elif gpuP3 and not gpuMastsel: 
+        return v.get()
+    
+def cpuArray(v):
+    if isinstance(v,np.ndarray):
+        return v
+    else:
+        return v.get()
 
 def psdSetToPsfSet(N, freq_range, dk, mask, inputPSDs,wavelength,pixelscale,npixel,scaleFactor=1,verbose=False):
     NGS_SR = []
@@ -32,10 +47,7 @@ def psdSetToPsfSet(N, freq_range, dk, mask, inputPSDs,wavelength,pixelscale,npix
                                             int(psfLE.sampling.shape[1]/2-npixel/2):int(psfLE.sampling.shape[1]/2+npixel/2)]
         psfLongExpArr.append(psfLE)
         # Get SR and FWHM in mas at the NGSs positions at the sensing wavelength
-        if np==cp:
-            s1=computedPSD.sum()
-        else:
-            s1=computedPSD.get().sum()
+        s1=cpuArray(computedPSD).sum()
         
         SR             = np.exp(-s1*scaleFactor) # Strehl-ratio at the sensing wavelength
         
@@ -182,12 +194,10 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     # Define the pupil shape
     mask = Field(wvl, N, grid_diameter)
 
-    if cp==np:
-        psInMas =  fao.freq.psInMas
-    else:
-        psInMas =  fao.freq.psInMas.get()
+    psInMas = cpuArray(fao.freq.psInMas)
 
-    mask.sampling = congrid(fao.ao.tel.pupil, [sx, sx])    
+    mask.sampling = congrid(arrayP3toMastsel(fao.ao.tel.pupil), [sx, sx])
+        
     mask.sampling = zeroPad(mask.sampling, (N-sx)//2)
     
     if verbose:
@@ -203,7 +213,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                                                                                                  freq_range, 
                                                                                                  dk,
                                                                                                  mask, 
-                                                                                                 PSD[0:nPointings],
+                                                                                                 arrayP3toMastsel(PSD[0:nPointings]),
                                                                                                  wvl,
                                                                                                  psInMas[0],
                                                                                                  nPixPSF,
@@ -232,7 +242,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                                                                    freq_range, 
                                                                    dk, 
                                                                    mask, 
-                                                                   PSD[-nNaturalGS:], 
+                                                                   arrayP3toMastsel(PSD[-nNaturalGS:]), 
                                                                    LO_wvl, 
                                                                    psInMas_NGS, 
                                                                    nPixPSF,
@@ -290,14 +300,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         pf  = FourierUtils.pistonFilter(fao.ao.tel.D,k)
         psdOL = Field(wvl, N, freq_range, 'rad')
         temp = fao.ao.atm.spectrum(k) * pf
-        psdOL.sampling = fao.ao.atm.spectrum(k) * pf * (fao.freq.wvlRef/np.pi)**2 # the PSD must be provided in m^2.m^2
+        psdOL.sampling = arrayP3toMastsel(fao.ao.atm.spectrum(k) * pf * (fao.freq.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
         # Get the OPEN-LOOP PSF
         psfOL = longExposurePsf(mask, psdOL)
         # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
 #        if psfOL.sampling.shape[0] > nPixPSF:
 #            psfOL.sampling = psfOL.sampling[int(psfOL.sampling.shape[0]/2-nPixPSF/2):int(psfOL.sampling.shape[0]/2+nPixPSF/2),
 #                                            int(psfOL.sampling.shape[1]/2-nPixPSF/2):int(psfOL.sampling.shape[1]/2+nPixPSF/2)]
-#        psfOL.sampling = psdOL.sampling.get()
+#        psfOL.sampling = cpuArray(psdOL.sampling)
 
         if doPlot:
             fig, ax1 = plt.subplots(1,1)
@@ -328,10 +338,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         hdul1.append(fits.ImageHDU(data=psfOL.sampling)) # append open-loop PSF
         hdul1.append(fits.ImageHDU(data=psfDL.sampling)) # append diffraction limited PSF
         if savePSDs:
-            if np==cp:
-                hdul1.append(fits.ImageHDU(data=PSD)) # append high order PSD
-            else:
-                hdul1.append(fits.ImageHDU(data=PSD.get())) # append high order PSD
+            hdul1.append(fits.ImageHDU(data=cpuArray(PSD))) # append high order PSD
+
 
         #############################
         # header
