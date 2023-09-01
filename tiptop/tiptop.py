@@ -401,7 +401,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             for i in range(cube.shape[0]):
                 ee,rr = getEncircledEnergy(cube[i,:,:], pixelscale=psInMas[0], center=(fao.ao.cam.fovInPix/2,fao.ao.cam.fovInPix/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
-                hdr1['EE50'+str(i).zfill(4)] = ee_at_radius_fn(50.0)
+                hdr1['EE50'+str(i).zfill(4)] = ee_at_radius_fn(50.0).take(0)
 
         # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
