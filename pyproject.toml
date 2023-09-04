@@ -10,21 +10,21 @@ authors = [
 description = ""
 readme = "README.md"
 urls = {repository = "https://github.com/astro-tiptop/TIPTOP"}
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 license = {text = "MIT License"}
 dependencies = [
-    "ipywidgets",
     "matplotlib",
     "numpy",
     "pyyaml",
-    "astro-p3",
-    "mastsel",
+    "astro-p3>=1.2",
+    "mastsel>=1.2",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 docs = ["sphinx"]
 gpu = ["mastsel[gpu]"]
+gui = ["ipywidgets"]
 
 [tool.setuptools.packages]
 find = {namespaces = false}

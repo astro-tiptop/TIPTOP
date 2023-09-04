@@ -259,14 +259,14 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Optional**, 
    *Type : float*, 
    *Default : 0.0*, 
-   altitude of the guide stars (0 if infinite). Consider that all guide star are at the same heigh.
+   altitude of the guide stars (0 if infinite). Consider that all guide star are at the same height.
 
 
 [sources_LO]
 ^^^^^^^^^^^^
 .. note::
 
-   This section is completely optional
+   This section is completely optional (``[sensor_LO]`` section is required to have the LO part simulated)
 
 
 .. option:: Wavelength
@@ -355,7 +355,7 @@ Used regardless of the WFS, desired behaviour,
 
    **Required**, 
    *type: int*, 
-   Number of pixels on the detector. 
+   Number of pixels per subaperture. 
    TODOI : change this behaviour as it makes no sense. Guido found that this is divided by `NumberLenslet`. Used for the noise. 
    Warning: gives a confusing error message if missing 
 
@@ -523,7 +523,7 @@ Can be set but not used
 
 .. note::
 
-   This section is optional
+   This section is optional, if this section is not present only the HO part will be used (for ex. to simulate a SCAO NGS).
 
 
 .. option:: PixelScale
@@ -739,7 +739,8 @@ Can be set but not used
    **Optional**, 
    *Type : float*, 
    *Default : 0.5*, 
-   High Order Loop gain
+   High Order Loop gain.
+   If system to be simulated is a multi-conjugate system this parameter is not used.
 
 .. option:: SensorFrameRate_HO
 
@@ -758,9 +759,9 @@ Can be set but not used
 .. option:: LoopGain_LO
 
    **Optional**, 
-   *type: float*?, 
+   *type: float or string*, 
    *default: None*,
-   not used, auto matically optimized by tiptop.
+   if set to 'optimize', gain is auto matically optimized by tiptop, otherwise the float value set is used.
    Low Order loop gain
 
 .. option:: SensorFrameRate_LO
@@ -769,7 +770,7 @@ Can be set but not used
    *type: float*, 
    *default: None*,
    Loop frequency in [Hz]
-   This is confusing : this is not optional if the ``[sensor_LO]`` is set.  
+   If ``[sensor_LO]`` section is present it must be set.  
 
 .. option:: LoopDelaySteps_LO
 
@@ -777,6 +778,7 @@ Can be set but not used
    *type: int*, 
    *default: None*,
    Low Order loop delays in [frames]
+   If ``[sensor_LO]`` section is present it must be set.
 
 .. option:: ResidualError
 
