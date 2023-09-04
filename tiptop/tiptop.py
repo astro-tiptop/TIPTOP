@@ -70,17 +70,17 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                       verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50,
                       savePSDs=False, **kwargs):
     """
-    function to run the entire tiptop simulation based on the imput file
+    function to run the entire tiptop simulation based on the input file
 
-    :param path2param: required, path to the parameter file
+    :param path2param: required, path to the parameter file.
     :type path2param: str
-    :param paramFileName: required, name of the parameter file to be used without the extention
+    :param paramFileName: required, name of the parameter file to be used without the extention.
     :type paramFileName: str
-    :param outpuDir: required, path to the folder in which to write the output
+    :param outpuDir: required, path to the folder in which to write the output.
     :type outputDir: str
-    :param doConvolve: optional default: False, if you want to use the natural convolution operation  set to True
+    :param doConvolve: optional default: False, if you want to use the natural convolution operation set to True.
     :type doConvolve: bool
-    :param doPlot: optional default: False, if you want to see the result in python set this to True
+    :param doPlot: optional default: False, if you want to see the result in python set this to True.
     :type doPlot: bool
     :param verbose: optional default: False, If you want all messages set this to True
     :type verbose: bool
@@ -90,12 +90,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :type returnMetrics: bool
     :param addSrAndFwhm: optional default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
     :type addSrAndFwhm: bool
-    :param verbose: optional default: False, If you want all messages set this to True
+    :param verbose: optional default: False, If you want all messages set this to True.
     :type verbose: bool
-    :param getHoErrorBreakDown: optional default: False, If you want HO error breakdosn set this to True
+    :param getHoErrorBreakDown: optional default: False, If you want HO error breakdown set this to True.
     :type getHoErrorBreakDown: bool
     :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy
     :type eeRadiusInMas: float
+    :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
+    :type savePSDs: bool
 
     :return: TBD
     :rtype: TBD

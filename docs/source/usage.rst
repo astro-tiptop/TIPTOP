@@ -8,17 +8,17 @@ Installation
 
 We recommend conda.
 
-Create a Anaconda environment for TIPTOP with python 3.X (below for example
-3.8)::
+Create a Anaconda environment for TIPTOP with python>=3.9 (below for example
+3.11)::
 
-   conda create -–name tiptop python=3.8
+   conda create -–name tiptop python=3.11
    conda activate tiptop
 
 Install cupy if you have a GPU::
 
    conda install -c conda-forge cupy
 
-Install other libraries::
+Install other libraries (this step can be skipped because it is managed by pip following libraries dependencies)::
 
    conda install ipython matplotlib scipy astropy sympy
 
