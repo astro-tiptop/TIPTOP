@@ -4,13 +4,13 @@ Wish List
 * Fix the behaviour of the pixelScale/FieldOfView/numberoflenslet/sizeoflenslet
 * adding the noise Variance computation for the pyramid in High Order
 * Computation for low Orders for the pyramid. 
-* Adding the center of gravity algorithms
-* (Done)for sensor_LO change the NumberPhotons to nph/frame/subaperture to be consistent with HO.
+* (Done) Adding the center of gravity algorithms
+* (Done) for sensor_LO change the NumberPhotons to nph/frame/subaperture to be consistent with HO.
 * Fix the FieldOfView/PixelScale/NumberOfLenslet behaviour to something that makes sense.
 * Discuss with Cedric the use of FieldOfView VS  WindowRadiusWCoG for LO sensor. Also the center of gravity algorithms
-* (Done: fixed now optional)NewValueThrPix: is this a really needed parameter or could we not parametrize this? 
+* (Done: fixed now optional) NewValueThrPix: is this a really needed parameter or could we not parametrize this? 
 * minimal parameter file example for configuring each of the type of AO
-* AoArea other shapes than 'circle' and square
+* AoArea other shapes than 'circle' and 'square'
 * Zenith and Azimuth: in ``[sources_science]`` and ``[sources_LO]`` they are required but optional in ``[sources_LO]``. Make this consistent : either all required or all optional. 
 * If an option in the parameter file is missing please choose between the custom message and the basic Python ``NoOptionError``. ALC would prefert the basic ``NoOptionError`` as it lets python deal with error management and lead to less confusing error messages (see below)
 * Is it normal that in ``[sensor_HO]`` , ``NumberLenslet`` ``SizeLenslet`` is optionnal? (similar question for ``[sensor_LO]``, and for the entire ``[RTC]`` section)
