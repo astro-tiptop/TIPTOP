@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from scipy.interpolate import interp1d
 from matplotlib import rc
 from p3.aoSystem.fourierModel import *
 from p3.aoSystem.FourierUtils import *
@@ -65,8 +66,9 @@ def psdSetToPsfSet(N, freq_range, dk, mask, inputPSDs,wavelength,pixelscale,npix
     return NGS_SR, psdArray, psfLongExpArr, NGS_FWHM_mas
 
 def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
-                      doPlot=False, returnRes=False, addSrAndFwhm=False,
-                      verbose=False, getHoErrorBreakDown=False, savePSDs=False):
+                      doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
+                      verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50,
+                      savePSDs=False, **kwargs):
     """
     function to run the entire tiptop simulation based on the input file
 
@@ -80,14 +82,20 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
     :type doConvolve: bool
     :param doPlot: optional default: False, if you want to see the result in python set this to True.
     :type doPlot: bool
+    :param verbose: optional default: False, If you want all messages set this to True
+    :type verbose: bool
     :param returnRes: optional default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
     :type returnRes: bool
+    :param returnMetrics: optional default: False, The function will return Strehl Ratio, fwhm and encircled energy within eeRadiusInMas if set to True
+    :type returnMetrics: bool
     :param addSrAndFwhm: optional default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
     :type addSrAndFwhm: bool
     :param verbose: optional default: False, If you want all messages set this to True.
     :type verbose: bool
     :param getHoErrorBreakDown: optional default: False, If you want HO error breakdown set this to True.
     :type getHoErrorBreakDown: bool
+    :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy
+    :type eeRadiusInMas: float
     :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
     :type savePSDs: bool
 
@@ -124,7 +132,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                 my_data_map[section].update({name:eval(value)})
     else:
         raise FileNotFoundError('No .yml or .ini can be found in '+ path)
-                  
+           
     # read main parameters
     tel_radius = my_data_map['telescope']['TelescopeDiameter']/2  # mas
     wvl_temp = my_data_map['sources_science']['Wavelength']
@@ -154,14 +162,14 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         LO_az      = my_data_map['sources_LO']['Azimuth']
         LO_fluxes  = my_data_map['sensor_LO']['NumberPhotons']
         fr         = my_data_map['RTC']['SensorFrameRate_LO']
+        
+        if 'jitter_FWHM' in my_data_map['telescope'].keys():
+            jitter_FWHM = my_data_map['telescope']['jitter_FWHM']
 
-    if 'jitter_FWHM' in my_data_map['telescope'].keys():
-        jitter_FWHM = my_data_map['telescope']['jitter_FWHM']
-
-    fao = fourierModel( fullPathFilename, calcPSF=False, verbose=verbose
-                       , display=False, getPSDatNGSpositions=True
-                       , computeFocalAnisoCov=False, TiltFilter=LOisOn
-                       , getErrorBreakDown=getHoErrorBreakDown)
+        fao = fourierModel( fullPathFilename, calcPSF=False, verbose=verbose
+                           , display=False, getPSDatNGSpositions=True
+                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                           , getErrorBreakDown=getHoErrorBreakDown, **kwargs)
 
     if LOisOn:
         # NGSs positions
@@ -170,8 +178,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         for aFlux, aZen, aAz in zip(LO_fluxes, LO_zen, LO_az):
             polarNGSCoordsList.append([aZen, aAz])
             NGS_flux.append(aFlux*fr)
-            polarNGSCoords     = np.asarray(polarNGSCoordsList)
-            nNaturalGS         = polarNGSCoords.shape[0]
+        polarNGSCoords     = np.asarray(polarNGSCoordsList)
+        nNaturalGS         = polarNGSCoords.shape[0]
 
     pp                 = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
     xxPointigs         = pp[0,:]
@@ -281,21 +289,31 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         else:
             results[0].standardPlot(True)
 
-    # save PSF cube in fits
-    hdul1 = fits.HDUList()
-    cube =[]
-    hdul1.append(fits.PrimaryHDU())
-    for img in results:
-        cube.append(img.sampling)
+    ## save PSF cube in fits
+    #hdul1 = fits.HDUList()
+    #cube =[]
+    #hdul1.append(fits.PrimaryHDU())
+    #for img in results:
+    #    cube.append(img.sampling)
 
     if returnRes:
         HO_res = np.sqrt(np.sum(PSD[:-nNaturalGS],axis=(1,2)))
         if LOisOn:
             LO_res = np.sqrt(np.trace(Ctot,axis1=1,axis2=2))
-
             return HO_res, LO_res
         else:
             return HO_res
+    elif returnMetrics:
+        if verbose:
+            print('EE is computed for a radius of ',eeRadiusInMas,' mas')
+        sr, fwhm, ee = [], [], []
+        for img in results:
+            sr.append(getStrehl(img.sampling, fao.ao.tel.pupil, fao.freq.sampRef, method='max'))
+            fwhm.append(getFWHM(img.sampling, psInMas[0], method='contour', nargout=1))
+            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=psInMas[0], center=(fao.ao.cam.fovInPix/2,fao.ao.cam.fovInPix/2), nargout=2)
+            ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
+            ee.append(ee_at_radius_fn(eeRadiusInMas))
+        return sr, fwhm, ee
     else:
         # OPEN-LOOP PSD
         k   = np.sqrt(fao.freq.k2_)
@@ -379,9 +397,13 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
             hdr1['CCY'+str(i).zfill(4)] = pp[1,i]
         if addSrAndFwhm:
             for i in range(cube.shape[0]):
-                hdr1['SR'+str(i).zfill(4)]   = getStrehl(cube[i,:,:], fao.ao.tel.pupil, fao.freq.sampRef)
+                hdr1['SR'+str(i).zfill(4)]   = getStrehl(cube[i,:,:], fao.ao.tel.pupil, fao.freq.sampRef, method='max')
             for i in range(cube.shape[0]):
                 hdr1['FWHM'+str(i).zfill(4)] = getFWHM(cube[i,:,:], psInMas[0], method='contour', nargout=1)
+            for i in range(cube.shape[0]):
+                ee,rr = getEncircledEnergy(cube[i,:,:], pixelscale=psInMas[0], center=(fao.ao.cam.fovInPix/2,fao.ao.cam.fovInPix/2), nargout=2)
+                ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
+                hdr1['EE50'+str(i).zfill(4)] = ee_at_radius_fn(50.0).take(0)
 
         # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
