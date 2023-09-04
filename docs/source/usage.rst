@@ -72,16 +72,48 @@ If you installed from the repository, open a command prompt (you need the anacon
    python TIPTOP-EXAMPLE.py
 
 If it executes without an error message your installation was sucessfull.
-
 If you installed from pypi either you download the example script from the repository with the example parameter files or you use the following minimal working example.
-
-first you need a minimum working parameter file.
-
-To try execute the project you can use ``tiptop.overallSimulation()``
+First you need a minimum working parameter file.
 Here is some example code to use it:
+
+First the parameter file if used in the .ini format should look like this::
+
+    [telescope]
+    TelescopeDiameter=8.
+    Resolution = 128
+    
+    [atmosphere]
+    Seeing = 0.6
+    
+    [sources_science]
+    Wavelength = [1.6e-6]
+    Zenith = [0.]
+    Azimuth = [0.]
+    
+    [sources_HO]
+    Wavelength = 750e-9
+    
+    [sensor_science]
+    PixelScale = 40
+    FieldOfView = 256 
+    
+    [sensor_HO]
+    PixelScale = 832
+    FieldOfView = 6
+    NumberPhotons = [200.]
+    SigmaRON = 0.
+    
+    [DM]
+    NumberActuators = [20]
+    DmPitchs = [0.25]
+
+You can simply copy paste the above in a text file which you rename minimalPar.ini.
+To run a simulation with these parameter run the following script in the same folder as your parameter file.
 
 .. code-block::
 
-   from tiptop import overallSimulation
-   overallSimulation("perfTest", HarmoniSCAO_1, "perfTest",
-                     "testPyramid", doPlot=False, doConvolve=False)
+    from tiptop.tiptop import *
+    plt.ion()
+    
+    overallSimulation("./", "minimalPar", './', 'test')
+

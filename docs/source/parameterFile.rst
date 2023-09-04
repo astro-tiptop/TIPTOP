@@ -29,6 +29,12 @@ The mandatory sections and their content are:
    *type : float*, 
    Set the outer diameter of the telescope pupil in unit of meters.
 
+.. option:: Resolution
+
+   **Required**, 
+   *type : int*, 
+   Number of pixels across the pupil diameter
+
 .. option:: ObscurationRatio
 
    **Optionnal**, 
@@ -37,12 +43,6 @@ The mandatory sections and their content are:
    Defines the central obstruction due to the secondary as a ratio of the TelescopeDiameter
    *Warning* : MavisLO.py does not have a defualt value for this parameter 
 
-.. option:: Resolution
-
-   **Required**, 
-   *type : int*, 
-   Number of pixels across the pupil diameter
-
 .. option:: ZenithAngle
 
    **Optional**, 
@@ -50,14 +50,12 @@ The mandatory sections and their content are:
    *Default: 0.0*, 
    Set the pointing direction of the telescope in degree
 
+.. option:: PupilAngle
 
-.. option:: TechnicalFoV
-
-   **Optional**, 
-   *type : float*, 
-   *default: ??*, 
-   set the size of the technical field of view
-   *Warning* : This is not optional in MavisLO.py
+   **Optional**,
+   *type : float*,
+   *default : 0.0*,
+   unknown effect
 
 .. option:: PathPupil
 
@@ -129,6 +127,15 @@ The mandatory sections and their content are:
    *type : float*, 
    *default: 0*, 
    minimum spatial frequency for which PSD associated with extraErrorNm is > 0
+
+.. option:: TechnicalFoV
+
+   **Not used?**, 
+   *type : float*, 
+   *default: ??*, 
+   set the size of the technical field of view
+   *Warning* : This is not optional in MavisLO.py
+
 
 [atmosphere]
 ^^^^^^^^^^^^
@@ -310,12 +317,12 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
 
    **Required**, 
    *type : float*, 
-   Field of view of the camera in pixel/spaxel. need confirmation on the optionality of this paramiter. 
+   Field of view of the camera in pixel/spaxel.
    Warning: confusing error massage if missing
 
 .. note::
 
-    Following parameters was added to uniform all the sensor (HO and LO), but they are not used.
+    Following parameters were added to uniformise all the sensor (HO and LO), but they are not used.
 
     Binning, NumberPhotons, SpotFWHM, SpectralBandwidth, Transmittance, Dispersion, SigmaRON, Dark, SkyBackground, Gain, ExcessNoiseFactor, Wavelength, FieldOfView
 
@@ -762,7 +769,7 @@ Can be set but not used
    ?
 
 [COMPUTATION]
-^^^^^^^^^^^
+^^^^^^^^^^^^^
 
 .. note::
 
