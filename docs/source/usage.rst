@@ -8,35 +8,44 @@ Installation
 
 We recommend conda.
 
-Create a Anaconda environment for TIPTOP with python>=3.9 (below for example
-3.11)::
+Create a Anaconda environment for TIPTOP ::
 
-   conda create -–name tiptop python=3.11
+   conda create -–name tiptop python
    conda activate tiptop
 
-Install cupy if you have a GPU::
+We only support python>=3.9.
+
+if you want to beneficiate from GPU acceleration, and you have a GPU, install cupy::
 
    conda install -c conda-forge cupy
 
-Install other libraries (this step can be skipped because it is managed by pip following libraries dependencies)::
+All other dependencies should be installed automatically wheather you choose to install through the pip packaging or by dowanloading the repository.
+If you require a more sofisticated user interface than a command prompt, any IDE that uses iPython or python command prompt will work.
 
-   conda install ipython matplotlib scipy astropy sympy
+Example of IDE you could use the team has tested:
 
-Optionally you can get Jupyter and Jupyter-lab (many files are Jupyter
-Notebooks)::
+Jupyter and Jupyter-lab (many files are Jupyter Notebooks)::
 
    conda install jupyter
    conda install -c conda-forge jupyterlab
 
-Install with pip
-^^^^^^^^^^^^^^^^
+If you do not wish to use the provided jupyter notebooks you can convert them using the jupyter library. ::
+   
+   jupyter nbconvert --to python targetNotebook.ipynb
+
+Spyder is another possibility::
+   
+   conda install spyder
+
+Install from pypi
+^^^^^^^^^^^^^^^^^
 
 To install the last release of TIPTOP with its dependencies::
 
    pip install astro-tiptop
 
-Install with git
-^^^^^^^^^^^^^^^^
+Install from git repo
+^^^^^^^^^^^^^^^^^^^^^
 
 First clone the repository::
 
@@ -47,8 +56,7 @@ Navigate to the folder in which you have cloned TIPTOP and install it (remove
 
    pip install -e --user .
 
-You may also want to clone and install the other repositories, otherwise their
-last release is installed as dependency of TIPTOP:
+Should you want to do your own developments, or fix bugs for us, you will need to download and install the following libraries.
 
 - https://github.com/astro-tiptop/MASTSEL
 - https://github.com/astro-tiptop/SYMAO
@@ -57,6 +65,17 @@ last release is installed as dependency of TIPTOP:
 
 Quickstart
 ----------
+We recommand you first try your instalation of tiptop with the provided example TIPTOP-EXAMPLE.py or TIPTOP-EXAMPLE.ipynb if you use jupyter
+If you installed from the repository, open a command prompt (you need the anaconda power shell in windows) and navigate to the repository ::
+   
+   conda activate tiptop
+   python TIPTOP-EXAMPLE.py
+
+If it executes without an error message your installation was sucessfull.
+
+If you installed from pypi either you download the example script from the repository with the example parameter files or you use the following minimal working example.
+
+first you need a minimum working parameter file.
 
 To try execute the project you can use ``tiptop.overallSimulation()``
 Here is some example code to use it:
