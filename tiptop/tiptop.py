@@ -163,13 +163,13 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         LO_fluxes  = my_data_map['sensor_LO']['NumberPhotons']
         fr         = my_data_map['RTC']['SensorFrameRate_LO']
         
-        if 'jitter_FWHM' in my_data_map['telescope'].keys():
-            jitter_FWHM = my_data_map['telescope']['jitter_FWHM']
+    if 'jitter_FWHM' in my_data_map['telescope'].keys():
+        jitter_FWHM = my_data_map['telescope']['jitter_FWHM']
 
-        fao = fourierModel( fullPathFilename, calcPSF=False, verbose=verbose
-                           , display=False, getPSDatNGSpositions=True
-                           , computeFocalAnisoCov=False, TiltFilter=LOisOn
-                           , getErrorBreakDown=getHoErrorBreakDown, **kwargs)
+    fao = fourierModel( fullPathFilename, calcPSF=False, verbose=verbose
+                       , display=False, getPSDatNGSpositions=True
+                       , computeFocalAnisoCov=False, TiltFilter=LOisOn
+                       , getErrorBreakDown=getHoErrorBreakDown, **kwargs)
 
     if LOisOn:
         # NGSs positions
