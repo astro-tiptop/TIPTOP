@@ -68,7 +68,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
                       doPlot=False, returnRes=False, addSrAndFwhm=False,
                       verbose=False, getHoErrorBreakDown=False, savePSDs=False):
     """
-    function to run the entire tiptop simulation based on the imput file
+    function to run the entire tiptop simulation based on the input file
 
     :param path2param: required, path to the parameter file
     :type path2param: str
@@ -347,6 +347,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         now = datetime.now()
         hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         # parameters in the header
+
         for key_primary in my_data_map:
             for key_secondary in my_data_map[key_primary]:
                 temp = my_data_map[key_primary][key_secondary]
