@@ -26,7 +26,7 @@ jobs:
 #        continue-on-error: true  
       - name: Test with pytest  
         run: |  
-          pip install pytest coverage astro-tiptop
+          pip install pytest coverage tiptop
           coverage run tests/allTests.py -v -s
 #          coverage run -m pytest  -v -s  
       - name: Generate Coverage Report  
