@@ -132,6 +132,13 @@ class TiptopSimulation(object):
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
             
         # header
+        
+        def add_hdr_keyword(hdr, key, val):
+            if len(key)>8:
+               hdr[key] = "{}".format(val)[:80-len(key)-len("HIERARCH")-5] 
+            else:
+               hdr[key] = val
+            
         hdr0 = hdul1[0].header
         now = datetime.now()
         hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
@@ -145,14 +152,17 @@ class TiptopSimulation(object):
                         if isinstance(elem, list):
                             jjj = 0
                             for elem2 in elem:
-                                hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)+' '+str(jjj)] = elem2
+                                key = '{} {} {} {}'.format(key_primary,key_secondary, str(iii),str(jjj))
+                                add_hdr_keyword(hdr0, key, elem2)
                                 jjj += 1
-                        else:                        
-                            hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)] = elem
+                        else:
+                            key = '{} {} {}'.format(key_primary,key_secondary, str(iii))
+                            add_hdr_keyword(hdr0, key, elem)
                     iii += 1
                 else:
-                    hdr0['HIERARCH '+key_primary+' '+key_secondary] = temp
-
+                    key = '{} {}'.format(key_primary,key_secondary)
+                    add_hdr_keyword(hdr0, key, temp)
+                    
         # header of the PSFs
         hdr1 = hdul1[1].header
         hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
