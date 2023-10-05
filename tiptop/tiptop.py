@@ -28,6 +28,35 @@ def cpuArray(v):
         return v
     else:
         return v.get()
+    
+def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
+    if iii != None and jjj != None:
+        key = 'HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)+' '+str(jjj)
+    if iii != None and jjj == None:
+        key = 'HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)
+    if iii == None and jjj == None:
+        key = 'HIERARCH '+key_primary+' '+key_secondary
+    nStep = 71
+    if (3*len(key)+len(str(val))+25)>240:
+        key1 = key+'+'
+        key2 = key+'++'
+        key3 = key+'+++'
+        hdr[key] = (str(val))[:nStep-len(key)]+"....."
+        hdr[key1] = (str(val))[nStep-len(key):2*nStep-1-2*len(key)]+"....."
+        hdr[key2] = (str(val))[2*nStep-1-2*len(key):3*nStep-3-3*len(key)]+"....."
+        hdr[key3] = (str(val))[3*nStep-3-3*len(key):]
+    elif (2*len(key)+len(str(val))+9)>160:
+        key1 = key+'+'
+        key2 = key+'++'
+        hdr[key] = (str(val))[:nStep-len(key)]+"....."
+        hdr[key1] = (str(val))[nStep-len(key):2*nStep-1-2*len(key)]+"....."
+        hdr[key2] = (str(val))[2*nStep-1-2*len(key):]
+    elif (len(key)+len(str(val))+4)>80:
+        key1 = key+'+'
+        hdr[key] = (str(val))[:nStep-len(key)]+"....."
+        hdr[key1] = (str(val))[nStep-len(key):]
+    else:
+        hdr[key] = val
 
 class TiptopSimulation(object):
     
@@ -120,7 +149,7 @@ class TiptopSimulation(object):
         self.jitter_FWHM = None
         if 'jitter_FWHM' in self.my_data_map['telescope'].keys():
             self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']
-
+                       
     def saveResults(self):
         # save PSF cube in fits
         hdul1 = fits.HDUList()
@@ -142,16 +171,27 @@ class TiptopSimulation(object):
                 if isinstance(temp, list):
                     iii = 0
                     for elem in temp:
+                #        if isinstance(elem, list):
+                #            jjj = 0
+                #            for elem2 in elem:
+                #                hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)+' '+str(jjj)] = elem2
+                #                jjj += 1
+                #        else:                        
+                #            hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)] = elem
+                #    iii += 1
+                #else:
+                #    hdr0['HIERARCH '+key_primary+' '+key_secondary] = temp
                         if isinstance(elem, list):
                             jjj = 0
                             for elem2 in elem:
-                                hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)+' '+str(jjj)] = elem2
+                                add_hdr_keyword(hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
                                 jjj += 1
-                        else:                        
-                            hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)] = elem
+                        else:
+                            add_hdr_keyword(hdr0,key_primary,key_secondary,elem,iii=str(iii))
                     iii += 1
                 else:
-                    hdr0['HIERARCH '+key_primary+' '+key_secondary] = temp
+                    add_hdr_keyword(hdr0, key_primary,key_secondary,temp)
+                    
 
         # header of the PSFs
         hdr1 = hdul1[1].header
