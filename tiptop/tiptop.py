@@ -58,6 +58,59 @@ def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
     else:
         hdr[key] = val
 
+def hdr2map(hdr):
+    hdr_keys = list(hdr.keys())
+    sections = list()
+    parameters = list()
+    values = list()
+    splits = list()
+    
+    for key in hdr_keys:
+        if key.find(' ') > 0:
+            sections.append(key[0:key.find(' ')])
+            parameters.append(key[key.find(' ')+1:])
+            values.append(hdr[key])
+            if parameters[-1][-3:] == '+++':
+                splits.append(3)
+            elif parameters[-1][-2:] == '++':
+                splits.append(2)
+            elif parameters[-1][-1:] == '+':
+                splits.append(1)
+            elif parameters[-1][-1] != '+' and len(str(values[-1])) >5:
+                if str(values[-1])[-5:] == '.....':
+                    splits.append(0)
+                else:
+                    splits.append(-1)    
+            else:
+                splits.append(-1)
+
+    my_data_map = {}
+    temp_parameter = ''
+
+    for (section, parameter, value, split) in zip(sections, parameters, values, splits):
+        if not section in my_data_map:
+            my_data_map[section] = {}
+
+        if split <= 0 and temp_parameter != '':
+            my_data_map[temp_section].update({temp_parameter:temp_value})
+            temp_section = ''
+            temp_parameter = ''
+            temp_value = ''
+
+        if split >= 0:
+            if split == 0:
+                temp_section = section
+                temp_parameter = parameter
+                temp_value = str(value)[:str(value).find('.....')]
+            if split > 0:
+                if str(value).find('.....') > 0:
+                    temp_value = temp_value + str(value)[:str(value).find('.....')]
+                else:
+                    temp_value = temp_value + str(value)
+        else:
+            my_data_map[section].update({parameter:value})
+    return my_data_map
+        
 class TiptopSimulation(object):
     
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=False,
