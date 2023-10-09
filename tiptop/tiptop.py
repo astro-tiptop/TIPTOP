@@ -29,6 +29,51 @@ def cpuArray(v):
     else:
         return v.get()
 
+MAX_VALUE_CHARS = 80
+APPEND_TOKEN = '&&&'
+
+def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
+    val_string = str(val)
+    key = 'HIERARCH '+ key_primary +' '+ key_secondary
+    if not iii is None:
+        key += ' '+str(iii)    
+    if not jjj is None:
+        key +=  ' '+str(jjj)    
+    margin = 4
+    key = key
+    current_val_string = val_string
+    if len(key) + margin > MAX_VALUE_CHARS:
+        print("Error, keywork is not acceptable due to string length.")
+        return
+    while not len(key) + 1 + len(current_val_string) + margin < MAX_VALUE_CHARS:
+        max_char_index = MAX_VALUE_CHARS-len(key)-1-len(APPEND_TOKEN)-margin
+        hdr[key+'+'] = current_val_string[:max_char_index]+APPEND_TOKEN        
+        current_val_string = current_val_string[max_char_index:]        
+    hdr[key] = current_val_string
+
+def hdr2map(hdr):
+    hdr_keys = list(hdr.keys())
+    my_data_map = {}
+    curr_value = ''
+    curr_key = ''
+    for key in hdr_keys:
+        separator_index = key.find(' ')
+        if separator_index > 0:            
+            section = key[0:separator_index]
+            if not section in my_data_map:
+                my_data_map[section] = {}
+            ext_indx = key.find('+')
+            curr_key += key[separator_index+1:ext_indx]
+            val_str = str(hdr[key])
+            val_last_index = val_str.find(APPEND_TOKEN)            
+            curr_value += val_str[:val_last_index]            
+            if ext_indx==-1:
+                my_data_map[section].update({curr_key:curr_value})
+                curr_value = ''
+                curr_key = ''                   
+    return my_data_map
+
+
 class TiptopSimulation(object):
     
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=False,
@@ -145,13 +190,13 @@ class TiptopSimulation(object):
                         if isinstance(elem, list):
                             jjj = 0
                             for elem2 in elem:
-                                hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)+' '+str(jjj)] = elem2
+                                add_hdr_keyword(hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
                                 jjj += 1
                         else:                        
-                            hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)] = elem
+                            add_hdr_keyword(hdr0,key_primary,key_secondary,elem,iii=str(iii))
                     iii += 1
                 else:
-                    hdr0['HIERARCH '+key_primary+' '+key_secondary] = temp
+                    add_hdr_keyword(hdr0, key_primary,key_secondary,temp)
 
         # header of the PSFs
         hdr1 = hdul1[1].header
