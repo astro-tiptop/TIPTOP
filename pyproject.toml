@@ -16,8 +16,8 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pyyaml",
-    "astro-p3>=1.2.2",
-    "mastsel>=1.2.3",
+    "astro-p3>=1.2.4",
+    "mastsel>=1.2.4",
 ]
 dynamic = ["version"]
 
