@@ -106,26 +106,27 @@ class baseSimulation(object):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
 
         self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)            
-        self.currentAsterismIndices = [0,1,2]            
+        self.currentAsterismIndices = list(range(len(self.LO_zen_field)))
         self.setAsterismData()
 
 
     def setAsterismData(self):
-        self.LO_zen_asterism        = [self.LO_zen_field[self.currentAsterismIndices[0]], 
-                                       self.LO_zen_field[self.currentAsterismIndices[1]], 
-                                       self.LO_zen_field[self.currentAsterismIndices[2]]]
-        self.LO_az_asterism         = [self.LO_az_field[self.currentAsterismIndices[0]],
-                                       self.LO_az_field[self.currentAsterismIndices[1]],
-                                       self.LO_az_field[self.currentAsterismIndices[2]]]
-        self.LO_fluxes_asterism     = [self.LO_fluxes_field[self.currentAsterismIndices[0]],
-                                       self.LO_fluxes_field[self.currentAsterismIndices[1]],
-                                       self.LO_fluxes_field[self.currentAsterismIndices[2]]]
-        self.NGS_fluxes_asterism    = [self.NGS_fluxes_field[self.currentAsterismIndices[0]],
-                                       self.NGS_fluxes_field[self.currentAsterismIndices[1]],
-                                       self.NGS_fluxes_field[self.currentAsterismIndices[2]]]
-        self.cartNGSCoords_asterism = np.array([self.cartNGSCoords_field[self.currentAsterismIndices[0]],
-                                       self.cartNGSCoords_field[self.currentAsterismIndices[1]],
-                                       self.cartNGSCoords_field[self.currentAsterismIndices[2]]])
+        self.LO_zen_asterism = []
+        for iid in self.currentAsterismIndices:
+            self.LO_zen_asterism.append(self.LO_zen_field[iid])
+        self.LO_az_asterism = []
+        for iid in self.currentAsterismIndices:
+            self.LO_az_asterism.append(self.LO_az_field[iid])
+        self.LO_fluxes_asterism = []
+        for iid in self.currentAsterismIndices:
+            self.LO_fluxes_asterism.append(self.LO_fluxes_field[iid])
+        self.NGS_fluxes_asterism = []
+        for iid in self.currentAsterismIndices:
+            self.NGS_fluxes_asterism.append(self.NGS_fluxes_field[iid])
+        self.cartNGSCoords_asterism = []
+        for iid in self.currentAsterismIndices:
+            self.cartNGSCoords_asterism.append(self.cartNGSCoords_field[iid])
+
 
     def saveResults(self):
         # save PSF cube in fits
@@ -217,6 +218,7 @@ class baseSimulation(object):
             # Get the PSF
             psfLE          = longExposurePsf(mask, psd )
             # It cuts the PSF if the PSF is larger than the requested dimension
+            
             if psfLE.sampling.shape[0] > npixel:
                 psfLE.sampling = psfLE.sampling[int(psfLE.sampling.shape[0]/2-npixel/2):int(psfLE.sampling.shape[0]/2+npixel/2),
                                                 int(psfLE.sampling.shape[1]/2-npixel/2):int(psfLE.sampling.shape[1]/2+npixel/2)]
@@ -281,7 +283,7 @@ class baseSimulation(object):
         # FINAl CONVOLUTION
         # Optimization: Non NEED to perform this convolutions if this is the asterism selection procedure ???
         for ellp, psfLongExp in zip(self.cov_ellipses, self.psfLongExpPointingsArr):
-            resSpec = residualToSpectrum(ellp, self.wvl, self.N, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))
+            resSpec = residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))
             self.results.append(convolve(psfLongExp, resSpec))
 
 
@@ -360,7 +362,7 @@ class baseSimulation(object):
                 if self.jitter_FWHM is not None:
                     ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
                     self.results.append(convolve(psfLongExp,
-                                   residualToSpectrum(ellp, self.wvl, N, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
+                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
                 else:
                     self.results.append(psfLongExp)
         else:
@@ -401,7 +403,7 @@ class baseSimulation(object):
                                                          self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=False)
                 self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                           np.array(self.cartSciencePointingCoords),
-                                                                          self.cartNGSCoords_asterism, self.NGS_fluxes_asterism,
+                                                                          np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
                                                                           self.NGS_SR_asterism, self.NGS_FWHM_mas_asterism)
                 
             if self.doConvolve:
@@ -417,12 +419,10 @@ class baseSimulation(object):
             else:
                 self.results[0].standardPlot(True)
 
-        # TODO : WHAT IS THIS???
-        self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
-        if self.LOisOn:
-            self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
-
         if astIndex is None:
+            self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
+            if self.LOisOn:
+                self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
             self.computeOL_PSD()
             self.computeDL_PSD()
             self.cubeResults = []
