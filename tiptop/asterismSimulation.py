@@ -182,7 +182,7 @@ class asterismSimulation(baseSimulation):
                     self.polarTrianglesList.append(pTriangle)
                 if skipped_field:
                     self.nfieldsSizes.append(0)
-                    self.cumAstSizes.append(self.cumAstSizes[-1]+1)
+                    self.cumAstSizes.append(self.cumAstSizes[-1])
                 else:
                     self.nfieldsSizes.append(number_of_asterisms)
                     self.cumAstSizes.append(self.cumAstSizes[-1]+number_of_asterisms)
@@ -280,7 +280,7 @@ class asterismSimulation(baseSimulation):
         self.sr_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'sr.npy'))
 
 
-    def plotAsterisms(self, dd, istart=None, istop=None, min_id=None):
+    def plotAsterisms(self, dd, ind_sort, istart=None, istop=None, min_id=None):
         cmap = cm.get_cmap('rainbow')
         al = dd/600.0
         al = np.minimum(al, np.ones_like(dd))
@@ -302,23 +302,20 @@ class asterismSimulation(baseSimulation):
         plt.figure(figsize=(10, 10))
         plt.axvline(0, c='black', linewidth=0.5)
         plt.axhline(0, c='black', linewidth=0.5)        
-        for i in range(istart, istop):
-#            if i==min_id:
-#                cc = [1.0, 0, 0]
-#            else:
-            cc = cmap(al[i-istart])
+        for i in range(istop-1, istart-1, -1):
+            jj = ind_sort[i-istart]
+            cc = cmap(al[jj])
             aa = 1.0 # al[i-istart] * 0.9 + 0.1                
-            coords = np.transpose(X[i, :2, :])
-            xx = np.sum(X[i, 0, :])/3.0
-            yy = np.sum(X[i, 1, :])/3.0
-            px = X[i, 0, :]
-            py = X[i, 1, :]
-            plt.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cc, width=0.005, scale_units='xy', scale=1, alpha = aa )
+            coords = np.transpose(X[jj+istart, :2, :])
+            xx = np.sum(X[jj+istart, 0, :])/3.0
+            yy = np.sum(X[jj+istart, 1, :])/3.0
+            px = X[jj+istart, 0, :]
+            py = X[jj+istart, 1, :]
+            plt.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cc, width=0.003, scale_units='xy', scale=1, alpha = aa )
 #            t1 = plt.Polygon(coords), alpha = 0.1, color=( np.random.uniform(0, 1),
 #                                                                             np.random.uniform(0, 1), 
 #                                                                             np.random.uniform(0, 1)) )
 #            plt.gca().add_patch(t1)
-
         coords = np.transpose(X[min_id, :2, :])
         t1 = plt.Polygon(coords, alpha = 0.3, color='r')
         
@@ -332,7 +329,8 @@ class asterismSimulation(baseSimulation):
         
     def twoPlots(self, dd0, base):
         min_id = np.argmin(dd0)
-        plt.plot(dd0)
+        ind_sort = np.argsort(dd0, axis=0)
+        plt.plot(np.sort(dd0))
         plt.show()
-        self.plotAsterisms(dd0, base, base+dd0.shape[0], base+min_id)
+        self.plotAsterisms(dd0, ind_sort, base, base+dd0.shape[0], base+min_id)
 
