@@ -248,10 +248,14 @@ class asterismSimulation(baseSimulation):
         self.ee_Asterism = []
         self.cov_ellipses_Asterism = []
         for field in range(self.nfields):
+            if not isinstance(self.asterismsRecArray[field], np.recarray):
+                continue
             fieldsize = self.nfieldsSizes[field]
             self.getSourcesData(field)
             base = self.cumAstSizes[field]
             for ast in range(fieldsize):
+                if not isinstance(self.asterismsRecArray[field][ast], np.record):
+                    continue
                 flux = self.asterismsRecArray[field][ast]['FLUXJ'] + self.asterismsRecArray[field][ast]['FLUXH']
                 if np.allclose(flux[0],0) or np.allclose(flux[1],0) or np.allclose(flux[2],0):
                     self.sr_Asterism.append([])
@@ -331,6 +335,8 @@ class asterismSimulation(baseSimulation):
         min_id = np.argmin(dd0)
         ind_sort = np.argsort(dd0, axis=0)
         plt.plot(np.sort(dd0))
+        plt.gca().set_yscale("log")
         plt.show()
+#        plt.gca().set_yscale("linear")
         self.plotAsterisms(dd0, ind_sort, base, base+dd0.shape[0], base+min_id)
 
