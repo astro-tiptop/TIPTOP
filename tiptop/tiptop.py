@@ -56,7 +56,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         simulation.saveResults()
 
         
-def asterismSelection(path, parametersFile, outputDir, outputFile,
+def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50):
 
@@ -94,7 +94,7 @@ def asterismSelection(path, parametersFile, outputDir, outputFile,
         :rtype: TBD
 
     """
-    simulation = asterismSimulation(path, parametersFile, outputDir, outputFile,
+    simulation = asterismSimulation(simulName, path, parametersFile, outputDir, outputFile,
                       doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
 
     
@@ -114,5 +114,13 @@ def asterismSelection(path, parametersFile, outputDir, outputFile,
             return simulation
     else:
         return
-    
 
+
+def reloadAsterismSelection(simulName, path, parametersFile, outputDir, outputFile,
+                      doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
+                      verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50):
+
+    simulation = asterismSimulation(simulName, path, parametersFile, outputDir, outputFile,
+                                    doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
+    simulation.reloadResults()
+    return simulation.sr_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation

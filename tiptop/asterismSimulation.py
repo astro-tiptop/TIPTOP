@@ -2,16 +2,17 @@ from .baseSimulation import *
 
 class asterismSimulation(baseSimulation):
     
-        
-    def __init__(self, path, parametersFile, outputDir, outputFile,
-                          doPlot=False, addSrAndFwhm=False,
-                          verbose=False, getHoErrorBreakDown=False):
+
+    def __init__(self, simulName, path, parametersFile, outputDir,
+                 outputFile, doPlot=False, addSrAndFwhm=False, verbose=False,
+                 getHoErrorBreakDown=False):
 
         super().__init__(path, parametersFile, outputDir, outputFile, doConvolve=True,
                           doPlot=False, addSrAndFwhm=addSrAndFwhm,
                           verbose=verbose, getHoErrorBreakDown=False,
                           savePSDs=False)
 
+        self.simulName = simulName
         # store the parameters in data members
         self.asterismsInputDataCartesian = None       
         self.asterismsInputDataPolar = None       
@@ -47,7 +48,7 @@ class asterismSimulation(baseSimulation):
                                                      np.take(np.array(listP, dtype=np.float64), all_combos)] )
                 self.asterismsInputDataPolar = np.swapaxes(self.asterismsInputDataPolar, 0,1)                
             elif self.asterismMode=='Generate':
-                self.asterismsInputDataCartesian, self.asterismsInputDataPolar = self.generateTriangles(listZ[0], listZ[0], 10)
+                self.asterismsInputDataCartesian, self.asterismsInputDataPolar = self.generateTriangles(listZ[0], listZ[0], self.nfields)
             elif self.asterismMode=='File':
                 self.nfields = self.my_data_map['ASTERISM_SELECTION']['fieldsNumber']
                 # number of asterisms for each field
@@ -92,7 +93,7 @@ class asterismSimulation(baseSimulation):
                 cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
             self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)
 
-        self.currentAsterismIndices = self.currentFieldAsterismsIndices[astIndex]        
+        self.currentAsterismIndices = self.currentFieldAsterismsIndices[astIndex]
         super().setAsterismData()
        
             
@@ -164,19 +165,28 @@ class asterismSimulation(baseSimulation):
         self.polarTrianglesList = []
         self.nfieldsSizes = []
         self.cumAstSizes = [0]
-        for i in range(1,max_ast+1,1 ):
-            number_of_asterisms = len(self.asterismsRecArray[i])
-            print('number_of_asterisms:', number_of_asterisms)
-            self.nfieldsSizes.append(number_of_asterisms)
-            self.cumAstSizes.append(self.cumAstSizes[-1]+number_of_asterisms)
-            for j in range(number_of_asterisms):
-                xcoords = self.asterismsRecArray[i][j]['COORD'][0]
-                ycoords = self.asterismsRecArray[i][j]['COORD'][1]
-                flux = self.asterismsRecArray[i][j]['FLUXJ'] + self.asterismsRecArray[i][j]['FLUXH']
-                triangle = np.vstack( [xcoords, ycoords, flux] )
-                self.trianglesList.append(triangle)
-                pTriangle = np.vstack( (cartesianToPolar(triangle[0:2,:]), flux) )                
-                self.polarTrianglesList.append(pTriangle)                
+        for i in range(0, max_ast, 1):
+            skipped_field = False
+            if type(self.asterismsRecArray[i]) is np.int16:
+                print("Field " + str(i) + " SKIPPED")
+                skipped_field = True
+            else:
+                number_of_asterisms = len(self.asterismsRecArray[i])
+                for j in range(number_of_asterisms):
+                    xcoords = self.asterismsRecArray[i][j]['COORD'][0]
+                    ycoords = self.asterismsRecArray[i][j]['COORD'][1]
+                    flux = self.asterismsRecArray[i][j]['FLUXJ'] + self.asterismsRecArray[i][j]['FLUXH']
+                    triangle = np.vstack( [xcoords, ycoords, flux] )
+                    self.trianglesList.append(triangle)
+                    pTriangle = np.vstack( (cartesianToPolar(triangle[0:2,:]), flux) )
+                    self.polarTrianglesList.append(pTriangle)
+                if skipped_field:
+                    self.nfieldsSizes.append(0)
+                    self.cumAstSizes.append(self.cumAstSizes[-1])
+                else:
+                    self.nfieldsSizes.append(number_of_asterisms)
+                    self.cumAstSizes.append(self.cumAstSizes[-1]+number_of_asterisms)
+#        print('self.nfieldsSizes: ', self.nfieldsSizes)
         return np.array(self.trianglesList), np.array(self.polarTrianglesList)
 
 
@@ -220,34 +230,61 @@ class asterismSimulation(baseSimulation):
             self.currentFieldAsterismsIndices.append(astIndices)
 
 
+    def plotField(self, fieldIndex):
+        fieldsize = self.nfieldsSizes[fieldIndex]
+        print("*")
+        print("* Plotting Field " + str(fieldIndex) + " - number of asterisms :" + str(fieldsize))
+        print("*")
+        self.getSourcesData(fieldIndex)
+        base = self.cumAstSizes[fieldIndex]
+        covsarray = np.array(self.cov_ellipses_Asterism)[base:base+fieldsize, :,1]**2 + np.array(self.cov_ellipses_Asterism)[base:base+fieldsize, :,2]**2
+        dd = np.average(np.abs(covsarray), axis=1)
+        self.twoPlots(dd, base)
+
+
     def computeAsterisms(self, eeRadiusInMas):
         self.sr_Asterism = []
         self.fwhm_Asterism = []
         self.ee_Asterism = []
         self.cov_ellipses_Asterism = []
         for field in range(self.nfields):
+            if not isinstance(self.asterismsRecArray[field], np.recarray):
+                continue
             fieldsize = self.nfieldsSizes[field]
-            print("*")            
-            print("* Computing Field " + str(field) + " - number of asterisms :" + str(fieldsize))            
-            print("*")            
             self.getSourcesData(field)
             base = self.cumAstSizes[field]
             for ast in range(fieldsize):
-                print("*")
-                print("* Computing Asterism " + str(ast))
-                print("*")
+                if not isinstance(self.asterismsRecArray[field][ast], np.record):
+                    continue
+                flux = self.asterismsRecArray[field][ast]['FLUXJ'] + self.asterismsRecArray[field][ast]['FLUXH']
+                if np.allclose(flux[0],0) or np.allclose(flux[1],0) or np.allclose(flux[2],0):
+                    self.sr_Asterism.append([])
+                    self.fwhm_Asterism.append([])
+                    self.ee_Asterism.append([])
+                    self.cov_ellipses_Asterism.append(np.zeros((9,3)))
+                    continue
                 self.doOverallSimulation(ast)
                 self.computeMetrics(eeRadiusInMas)
-                self.sr_Asterism.append(self.sr) 
+                self.sr_Asterism.append(self.sr)
                 self.fwhm_Asterism.append(self.fwhm) 
                 self.ee_Asterism.append(self.ee) 
-                self.cov_ellipses_Asterism.append(self.cov_ellipses)            
-            covsarray = np.array(self.cov_ellipses_Asterism)[base:base+fieldsize, :,1]**2 + np.array(self.cov_ellipses_Asterism)[base:base+fieldsize, :,2]**2
-            dd = np.average(np.abs(covsarray), axis=1)            
-            self.twoPlots(dd, base)
+                self.cov_ellipses_Asterism.append(self.cov_ellipses)
+            if (field+1) % 100 == 0 or field==self.nfields-1:
+                print("Field " + str(field) + " DONE")
+                np.save(os.path.join(self.outputDir, self.simulName+'fw.npy'), np.array(self.fwhm_Asterism))
+                np.save(os.path.join(self.outputDir, self.simulName+'ee.npy'), np.array(self.ee_Asterism))
+                np.save(os.path.join(self.outputDir, self.simulName+'covs.npy'), np.array(self.cov_ellipses_Asterism))
+                np.save(os.path.join(self.outputDir, self.simulName+'sr.npy'), np.array(self.sr_Asterism))
 
 
-    def plotAsterisms(self, dd, istart=None, istop=None, min_id=None):
+    def reloadResults(self):
+        self.fwhm_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'fw.npy'))
+        self.ee_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'ee.npy'))
+        self.cov_ellipses_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'covs.npy'))
+        self.sr_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'sr.npy'))
+
+
+    def plotAsterisms(self, dd, ind_sort, istart=None, istop=None, min_id=None):
         cmap = cm.get_cmap('rainbow')
         al = dd/600.0
         al = np.minimum(al, np.ones_like(dd))
@@ -269,23 +306,20 @@ class asterismSimulation(baseSimulation):
         plt.figure(figsize=(10, 10))
         plt.axvline(0, c='black', linewidth=0.5)
         plt.axhline(0, c='black', linewidth=0.5)        
-        for i in range(istart, istop):
-#            if i==min_id:
-#                cc = [1.0, 0, 0]
-#            else:
-            cc = cmap(al[i-istart])
+        for i in range(istop-1, istart-1, -1):
+            jj = ind_sort[i-istart]
+            cc = cmap(al[jj])
             aa = 1.0 # al[i-istart] * 0.9 + 0.1                
-            coords = np.transpose(X[i, :2, :])
-            xx = np.sum(X[i, 0, :])/3.0
-            yy = np.sum(X[i, 1, :])/3.0
-            px = X[i, 0, :]
-            py = X[i, 1, :]
-            plt.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cc, width=0.005, scale_units='xy', scale=1, alpha = aa )
+            coords = np.transpose(X[jj+istart, :2, :])
+            xx = np.sum(X[jj+istart, 0, :])/3.0
+            yy = np.sum(X[jj+istart, 1, :])/3.0
+            px = X[jj+istart, 0, :]
+            py = X[jj+istart, 1, :]
+            plt.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cc, width=0.003, scale_units='xy', scale=1, alpha = aa )
 #            t1 = plt.Polygon(coords), alpha = 0.1, color=( np.random.uniform(0, 1),
 #                                                                             np.random.uniform(0, 1), 
 #                                                                             np.random.uniform(0, 1)) )
 #            plt.gca().add_patch(t1)
-
         coords = np.transpose(X[min_id, :2, :])
         t1 = plt.Polygon(coords, alpha = 0.3, color='r')
         
@@ -299,7 +333,10 @@ class asterismSimulation(baseSimulation):
         
     def twoPlots(self, dd0, base):
         min_id = np.argmin(dd0)
-        plt.plot(dd0)
+        ind_sort = np.argsort(dd0, axis=0)
+        plt.plot(np.sort(dd0))
+        plt.gca().set_yscale("log")
         plt.show()
-        self.plotAsterisms(dd0, base, base+dd0.shape[0], base+min_id)
+#        plt.gca().set_yscale("linear")
+        self.plotAsterisms(dd0, ind_sort, base, base+dd0.shape[0], base+min_id)
 

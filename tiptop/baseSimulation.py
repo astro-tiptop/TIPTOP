@@ -209,6 +209,7 @@ class baseSimulation(object):
         psdArray = []
         psfLongExpArr = []
         sources_FWHM_mas = []
+
         for computedPSD in inputPSDs:
             # Get the PSD at the NGSs positions at the sensing wavelength
             # computed PSD from fao are given in nm^2, i.e they are multiplied by dk**2 already
@@ -312,16 +313,19 @@ class baseSimulation(object):
             self.fao = fourierModel( self.fullPathFilename, calcPSF=False, verbose=self.verbose
                                , display=False, getPSDatNGSpositions=True
                                , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
-                               , getErrorBreakDown=self.getHoErrorBreakDown)
-            if 'sources_LO' in self.my_data_map.keys():
-                self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-                self.fao.ao.configLO()
-                self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-                self.fao.ao.configLOsensor()
+                               , getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False)
+
             if 'sensor_LO' in self.my_data_map.keys():
                 self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
                 self.fao.ao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
-            
+            if 'sources_LO' in self.my_data_map.keys():
+                self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
+                self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
+                self.fao.ao.configLOsensor()
+                self.fao.ao.configLO()
+                self.fao.ao.configLO_SC()
+
+            self.fao.initComputations()
             # High-order PSD caculations at the science directions and NGSs directions
             self.PSD           = self.fao.PSD # in nm^2
             self.nPointings    = self.pointings.shape[1]
@@ -373,6 +377,7 @@ class baseSimulation(object):
                 self.psInMas_NGS        = self.psInMas[0] * (self.LO_wvl/self.wvl) # airy pattern PSF FWHM
                 if self.verbose:
                     print('******** HO PSF - NGS directions')
+
                 NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(self.N, 
                                                                            self.freq_range, 
                                                                            self.dk, 
