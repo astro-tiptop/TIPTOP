@@ -396,12 +396,12 @@ class baseSimulation(object):
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                                          self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=True)
             else:
-                self.NGS_SR_asterism        = [self.NGS_SR_field[self.currentAsterismIndices[0]],
-                                               self.NGS_SR_field[self.currentAsterismIndices[1]],
-                                               self.NGS_SR_field[self.currentAsterismIndices[2]] ] 
-                self.NGS_FWHM_mas_asterism  = [self.NGS_FWHM_mas_field[self.currentAsterismIndices[0]],
-                                               self.NGS_FWHM_mas_field[self.currentAsterismIndices[1]],
-                                               self.NGS_FWHM_mas_field[self.currentAsterismIndices[2]] ]
+                self.NGS_SR_asterism = []
+                for iid in self.currentAsterismIndices:
+                    self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
+                self.NGS_FWHM_mas_asterism = []
+                for iid in self.currentAsterismIndices:
+                    self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
                 if astIndex==0:
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
