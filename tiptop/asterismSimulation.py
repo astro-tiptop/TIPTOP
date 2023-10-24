@@ -1,4 +1,5 @@
 from .baseSimulation import *
+import matplotlib
 
 class asterismSimulation(baseSimulation):
 
@@ -64,7 +65,7 @@ class asterismSimulation(baseSimulation):
                 field_simul_data = np.load(file_field_simul, allow_pickle=True)
                 self.asterismsRecArray = field_simul_data
                 print('Number of Fields:', len(self.asterismsRecArray))
-                self.asterismsRecArrayKeys = [x[0][1] for x in self.asterismsRecArray[0].dtype.descr]
+                # self.asterismsRecArrayKeys = [x[0][1] for x in self.asterismsRecArray[0].dtype.descr]
                 self.asterismsInputDataCartesian, self.asterismsInputDataPolar = self.generateFromRecArray(self.nfields)
             else:
                 self.asterismMode = 'INVALID'                
@@ -176,15 +177,18 @@ class asterismSimulation(baseSimulation):
         self.polarTrianglesList = []
         self.nfieldsSizes = []
         self.cumAstSizes = [0]
+        self.skippedFieldIndexes = []
+        self.skippedAsterismsIndexes = []
         total_skipped_fields = 0
         total_skipped_asterisms = 0
         for i in range(self.globalOffset, self.globalOffset+max_field, 1):
             skipped_field = False
-            if type(self.asterismsRecArray[i]) is np.int16:
+            if type(self.asterismsRecArray[i]) is np.int16 or type(self.asterismsRecArray[i]) is np.int64:
                 print("Field:" + str(i) + " SKIPPED")
                 total_skipped_fields += 1
                 self.nfields -=1
                 skipped_field = True
+                self.skippedFieldIndexes.append(i)
             else:
                 if skipped_field:
                     number_of_asterisms = 0
@@ -198,6 +202,7 @@ class asterismSimulation(baseSimulation):
 #                            print("Field:" + str(i) + "- Asterism:" + str(j) + " SKIPPED because of Flux 0 star")
                             total_skipped_asterisms += 1
                             number_of_asterisms -= 1
+                            self.skippedAsterismsIndexes.append(j+self.cumAstSizes[-1])
                             continue
                         asterism = np.vstack( [xcoords, ycoords, flux] )
                         self.trianglesList.append(asterism)
@@ -251,7 +256,7 @@ class asterismSimulation(baseSimulation):
                     s_index = len(self.currentFieldSourcesData['Zenith'])-1                    
                 astIndices.append(s_index)                
             self.currentFieldAsterismsIndices.append(astIndices)
-
+        
 
     def plotField(self, fieldIndex):
         fieldsize = self.nfieldsSizes[fieldIndex]
@@ -261,8 +266,9 @@ class asterismSimulation(baseSimulation):
         self.getSourcesData(fieldIndex)
         base = self.cumAstSizes[fieldIndex]
         covsarray = np.array(self.cov_ellipses_Asterism)[base:base+fieldsize, :,1]**2 + np.array(self.cov_ellipses_Asterism)[base:base+fieldsize, :,2]**2
-        dd = np.average(np.abs(covsarray), axis=1)
-        self.twoPlots(dd, base)
+        if covsarray.shape[0]!=0:
+            dd = np.average(np.abs(covsarray), axis=1)
+            self.twoPlots(dd, base)
         
 #            if not isinstance(self.asterismsRecArray[field], np.recarray):
 #                continue
@@ -308,7 +314,7 @@ class asterismSimulation(baseSimulation):
 
 
     def plotAsterisms(self, dd, ind_sort, istart=None, istop=None, min_id=None):
-        cmap = cm.get_cmap('rainbow')
+                
         al = dd/600.0
         al = np.minimum(al, np.ones_like(dd))
         al = np.maximum(al, np.zeros_like(dd))
@@ -326,42 +332,55 @@ class asterismSimulation(baseSimulation):
         print('Max flux star value: ', max_flux )
         scales = (3 *  np.log(fluxes)) ** 2
         ntriangles = X.shape[0]
-        plt.figure(figsize=(10, 10))
-        plt.axvline(0, c='black', linewidth=0.5)
-        plt.axhline(0, c='black', linewidth=0.5)        
+        
+        fig = plt.figure(figsize=(10, 10), dpi=90)
+        ax = fig.add_subplot(1,1,1)
+        ax.axvline(0, c='black', linewidth=0.5)
+        ax.axhline(0, c='black', linewidth=0.5)
+        
+        norm = matplotlib.colors.Normalize()
+        norm.autoscale(al)
+        cm1 = cm.get_cmap('rainbow')
+        sm = matplotlib.cm.ScalarMappable(cmap=cm1, norm=norm)
+        sm.set_array(al)
+        
         for i in range(istop-1, istart-1, -1):
             jj = ind_sort[i-istart]
-            cc = cmap(al[jj])
             aa = 1.0 # al[i-istart] * 0.9 + 0.1                
             coords = np.transpose(X[jj+istart, :2, :])
             xx = np.sum(X[jj+istart, 0, :])/3.0
             yy = np.sum(X[jj+istart, 1, :])/3.0
             px = X[jj+istart, 0, :]
             py = X[jj+istart, 1, :]
-            plt.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cc, width=0.003, scale_units='xy', scale=1, alpha = aa )
-#            t1 = plt.Polygon(coords), alpha = 0.1, color=( np.random.uniform(0, 1),
-#                                                                             np.random.uniform(0, 1), 
-#                                                                             np.random.uniform(0, 1)) )
-#            plt.gca().add_patch(t1)
+            ppp=ax.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cm1(norm(al[jj])), width=0.003, scale_units='xy', scale=1, alpha = aa )
+
+        # draw best asterism
         coords = np.transpose(X[min_id, :2, :])
-        t1 = plt.Polygon(coords, alpha = 0.3, color='r')
-        
-        plt.gca().add_patch(t1)
-        plt.scatter(xcoords, ycoords, s=scales, c='yellow', edgecolors='r', marker='*')
-        
-        plt.scatter(self.xxSciencePointigs, self.yySciencePointigs, c='blue', marker='x')
-        
+        t1 = plt.Polygon(coords, alpha = 0.3, color='r')        
+        ax.add_patch(t1)
+        ax.scatter(xcoords, ycoords, s=scales, c='yellow', edgecolors='r', marker='*', label='Natural Guide Stars')
+
+        # draw science targets
+        ax.scatter(self.xxSciencePointigs, self.yySciencePointigs, c='blue', marker='x', label='Science Targets')
+
+
+        # draw LGSs
         zenithSrc  = self.my_data_map['sources_HO']['Zenith']
         azimuthSrc = self.my_data_map['sources_HO']['Azimuth']
         pointings = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
         self.xxLGSPointigs         = pointings[0,:]
         self.yyLGSPointigs         = pointings[1,:]
+        ax.scatter(self.xxLGSPointigs, self.yyLGSPointigs, s= 100.0, c='green', marker='*', edgecolors='green', label='Laser Guide Stars')
 
-        plt.scatter(self.xxLGSPointigs, self.yyLGSPointigs, s= 100.0, c='green', marker='*', edgecolors='green')
+        # Finalize plot
+        ax.legend()
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_xlim([-60,60]) 
+        ax.set_ylim([-60,60]) 
+        cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
+        cbar = fig.colorbar(sm, cax=cax) # Similar to fig.colorbar(im, cax = cax)
+        cbar.set_label('Asterim Rating')
 
-        plt.gca().set_aspect('equal', adjustable='box')
-        plt.gca().set_xlim([-60,60]) 
-        plt.gca().set_ylim([-60,60]) 
         plt.show()
 
         
