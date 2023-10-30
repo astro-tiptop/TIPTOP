@@ -715,6 +715,10 @@ Can be set but not used
 [RTC]
 ^^^^^
 
+.. note::
+
+   This section is optional, if this section is not present the defaul values are used.
+
 .. option:: LoopGain_HO
 
    **Optional**, 

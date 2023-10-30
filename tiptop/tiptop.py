@@ -1,6 +1,64 @@
 from .baseSimulation import *
 from .asterismSimulation import *
 
+# def checkParameterFile(data2check):
+#     '''
+#     This function can be used to verify that the parameters in the parameter file 
+#     fulfill basic requirements. Currently this only support the core requirements.
+#     TODO:
+#         verification of the type of optionnal parameter
+#         Verification of lists that need to be the same length
+#         Verification of the existance of parameters whan some other parameters are set
+#             For example when sensor_HO.WfsType == 'pyramid' the parameter Modulation must be set.
+
+#     Parameters
+#     ----------
+#     data2check : dict
+#         dictionnary containing the parameter file to be checked for requirement.
+
+#     Returns
+#     -------
+#     None.
+
+#     '''
+    
+#     myRequiredPar = {'telescope': {'TelescopeDiameter':8.,'Resolution': 128}, 
+#                      'atmosphere': {'Seeing': 0.6}, 
+#                      'sources_science': {'Wavelength': [1.6e-06], 'Zenith': [0.0], 
+#                                          'Azimuth': [0.0]}, 
+#                      'sources_HO': {'Wavelength': [7.5e-07]}, 
+#                      'sensor_science': {'PixelScale': 40, 'FieldOfView': 256}, 
+#                      'sensor_HO': {'PixelScale': 832, 'FieldOfView': 6, 
+#                                    'NumberPhotons': [200.0], 'SigmaRON': 0.0}, 
+#                      'DM': {'NumberActuators': [20], 'DmPitchs': [0.25]}}
+    
+#     for sec in myRequiredPar.keys():
+#         if sec in data2check:
+#             for opt in myRequiredPar[sec].keys():
+#                 if opt in data2check[sec]:
+#                     if type(data2check[sec][opt])!=type(myRequiredPar[sec][opt]):
+#                         if type(myRequiredPar[sec][opt])==list:
+#                             #If we want a list or an int it MUST be that
+#                             raise TypeError("Parameter '{}' in section '{}' must be a type '{}'"
+#                                             .format(opt,sec,type(myRequiredPar[sec][opt]).__name__))
+#                         elif (type(myRequiredPar[sec][opt])==float and type(data2check[sec][opt])==list 
+#                               or type(myRequiredPar[sec][opt])==int and type(data2check[sec][opt])==list):
+#                             # if we want a float and there is an int instead we do not care
+#                             # however it cannot be a list
+#                             raise TypeError("Parameter '{}' in section '{}' must be a type '{}'"
+#                                             .format(opt,sec,type(myRequiredPar[sec][opt]).__name__))
+#                     if type(myRequiredPar[sec][opt])==list and not data2check[sec][opt]:
+#                         raise ValueError("The list '{}' in section '{}' should not be empty"
+#                                          .format(opt,sec))
+#                 else:
+#                     #The option is missing
+#                     raise KeyError("parameter '{}' is missing from section '{}' in the parameter file"
+#                                    .format(opt,sec))
+#         else:
+#             #the section is missing
+#             raise KeyError("section '{}' is not present in the parameter file"
+#                            .format(sec))
+
 def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
                       verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50,
@@ -54,85 +112,6 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         return simulation.sr, simulation.fwhm, simulation.ee
     else:
         simulation.saveResults()
-
-        if doPlot:
-            fig, ax1 = plt.subplots(1,1)
-            im = ax1.imshow(np.log(np.abs(psfOL.sampling) + 1e-20), cmap='hot')
-            ax1.set_title('open loop PSF', color='black')
-            
-        # DIFFRACTION LIMITED PSD
-        psdDL = Field(wvl, N, freq_range, 'rad')
-        psfDL = longExposurePsf(mask, psdDL)
-        # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
-        if psfDL.sampling.shape[0] > nPixPSF:
-            psfDL.sampling = psfDL.sampling[int(psfDL.sampling.shape[0]/2-nPixPSF/2):int(psfDL.sampling.shape[0]/2+nPixPSF/2),
-                                            int(psfDL.sampling.shape[1]/2-nPixPSF/2):int(psfDL.sampling.shape[1]/2+nPixPSF/2)]
-        if doPlot:
-            fig, ax2 = plt.subplots(1,1)
-            im = ax2.imshow(np.log(np.abs(psfDL.sampling) + 1e-20), cmap='hot')
-            ax2.set_title('diffraction limited PSF', color='black')
-
-        # save PSF cube in fits
-        hdul1 = fits.HDUList()
-        cube =[]
-        hdul1.append(fits.PrimaryHDU())
-        for img in results:
-            cube.append(img.sampling)
-
-        cube = np.array(cube)
-        hdul1.append(fits.ImageHDU(data=cube))
-        hdul1.append(fits.ImageHDU(data=psfOL.sampling)) # append open-loop PSF
-        hdul1.append(fits.ImageHDU(data=psfDL.sampling)) # append diffraction limited PSF
-        if savePSDs:
-            hdul1.append(fits.ImageHDU(data=cpuArray(PSD))) # append high order PSD
-
-
-        #############################
-        # header
-        hdr0 = hdul1[0].header
-        now = datetime.now()
-        hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        # parameters in the header
-
-        for key_primary in my_data_map:
-            for key_secondary in my_data_map[key_primary]:
-                temp = my_data_map[key_primary][key_secondary]
-                if isinstance(temp, list):
-                    iii = 0
-                    for elem in temp:
-                        if isinstance(elem, list):
-                            jjj = 0
-                            for elem2 in elem:
-                                hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)+' '+str(jjj)] = elem2
-                                jjj += 1
-                        else:                        
-                            hdr0['HIERARCH '+key_primary+' '+key_secondary +' '+str(iii)] = elem
-                    iii += 1
-                else:
-                    hdr0['HIERARCH '+key_primary+' '+key_secondary] = temp
-                    
-        # header of the PSFs
-        hdr1 = hdul1[1].header
-        hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr1['CONTENT'] = "PSF CUBE"
-        hdr1['SIZE'] = str(cube.shape)
-        hdr1['WL_NM'] = str(int(wvl*1e9))
-        hdr1['PIX_MAS'] = str(psInMas[0])
-        hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(pp.shape[1])+" SOURCES"
-        for i in range(pp.shape[1]):
-            hdr1['CCX'+str(i).zfill(4)] = pp[0,i]
-            hdr1['CCY'+str(i).zfill(4)] = pp[1,i]
-        if addSrAndFwhm:
-            for i in range(cube.shape[0]):
-                hdr1['SR'+str(i).zfill(4)]   = getStrehl(cube[i,:,:], fao.ao.tel.pupil, fao.freq.sampRef)
-            for i in range(cube.shape[0]):
-                hdr1['FWHM'+str(i).zfill(4)] = getFWHM(cube[i,:,:], psInMas[0], method='contour', nargout=1)
-
-        # header of the OPEN-LOOP PSF
-        hdr2 = hdul1[2].header
-        hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr2['CONTENT'] = "OPEN-LOOP PSF"
-        hdr2['SIZE'] = str(psfOL.sampling.shape)
         
 def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
