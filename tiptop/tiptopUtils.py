@@ -32,10 +32,10 @@ APPEND_TOKEN = '&&&'
 def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
     val_string = str(val)
     key = 'HIERARCH '+ key_primary +' '+ key_secondary
-    if not iii is None:
+    if iii != None:
         key += ' '+str(iii)    
-    if not jjj is None:
-        key +=  ' '+str(jjj)    
+    if jjj != None:
+        key += ' '+str(jjj)    
     margin = 4
     key = key
     current_val_string = val_string

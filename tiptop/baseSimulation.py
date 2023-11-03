@@ -155,7 +155,7 @@ class baseSimulation(object):
                                 jjj += 1
                         else:                        
                             add_hdr_keyword(hdr0,key_primary,key_secondary,elem,iii=str(iii))
-                    iii += 1
+                        iii += 1
                 else:
                     add_hdr_keyword(hdr0, key_primary,key_secondary,temp)
 
