@@ -204,7 +204,7 @@ class baseSimulation(object):
             print("Output cube shape:", self.cubeResultsArray.shape)
 
 
-    def psdSetToPsfSet(self, N, freq_range, dk, mask, inputPSDs, wavelength, pixelscale, npixel, scaleFactor=1):
+    def psdSetToPsfSet(self, N, freq_range, dk, mask, inputPSDs, wavelength, pixelscale, npixel, scaleFactor=1, oversampling=1):
         sources_SR = []
         psdArray = []
         psfLongExpArr = []
@@ -218,8 +218,14 @@ class baseSimulation(object):
             psdArray.append(psd)
             # Get the PSF
             psfLE          = longExposurePsf(mask, psd )
-            # It cuts the PSF if the PSF is larger than the requested dimension
             
+            # It rebins the PSF if oversampling is greater than 1
+            if oversampling > 1:
+                temp = np.array(psfLE.sampling)
+                nTemp = int(oversampling)
+                nOut = int(temp.shape[0]/nTemp)
+                psfLE.sampling = temp.reshape((nOut,nTemp,nOut,nTemp)).mean(3).mean(1)
+            # It cuts the PSF if the PSF is larger than the requested dimension
             if psfLE.sampling.shape[0] > npixel:
                 psfLE.sampling = psfLE.sampling[int(psfLE.sampling.shape[0]/2-npixel/2):int(psfLE.sampling.shape[0]/2+npixel/2),
                                                 int(psfLE.sampling.shape[1]/2-npixel/2):int(psfLE.sampling.shape[1]/2+npixel/2)]
@@ -328,11 +334,12 @@ class baseSimulation(object):
             self.fao.initComputations()
             # High-order PSD caculations at the science directions and NGSs directions
             self.PSD           = self.fao.PSD # in nm^2
-            self.nPointings    = self.pointings.shape[1]
             self.PSD           = self.PSD.transpose()
             self.N             = self.PSD[0].shape[0]
+            self.nPointings    = self.pointings.shape[1]
             self.nPixPSF       = int(self.fao.freq.nOtf /self.fao.freq.kRef_)
-            self.freq_range    = self.fao.ao.cam.fovInPix*self.fao.freq.PSDstep
+            self.oversampling  = self.fao.freq.k_
+            self.freq_range    = self.fao.ao.cam.fovInPix*self.fao.freq.PSDstep*self.oversampling
             self.pitch         = 1/self.freq_range
             self.grid_diameter = self.pitch*self.N
             self.sx            = int(2*np.round(self.tel_radius/self.pitch))
@@ -357,7 +364,8 @@ class baseSimulation(object):
                                                                                                          self.wvl,
                                                                                                          self.psInMas[0],
                                                                                                          self.nPixPSF,
-                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2)
+                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
+                                                                                                         oversampling=self.oversampling)
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
             
         # old version: if not self.LOisOn or (not self.doConvolve and not self.returnRes):
@@ -386,7 +394,8 @@ class baseSimulation(object):
                                                                            self.LO_wvl, 
                                                                            self.psInMas_NGS, 
                                                                            self.nPixPSF,
-                                                                           scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2)
+                                                                           scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
+                                                                           oversampling=self.oversampling)
                 self.NGS_SR_field           = NGS_SR
                 self.NGS_FWHM_mas_field     = NGS_FWHM_mas
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
