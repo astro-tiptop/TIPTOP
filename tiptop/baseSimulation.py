@@ -57,6 +57,9 @@ class baseSimulation(object):
         wvl_temp = self.my_data_map['sources_science']['Wavelength']
         if isinstance(wvl_temp, list):
             self.wvl = wvl_temp[0]  # lambda
+            if len(wvl_temp) > 1:
+                print('WARNING: TIPTOP is not supporting multi-wavelength case, it will provide \
+                       PSF for the first wavelength of the list',wvl_temp,'.')
         else:
             self.wvl = wvl_temp     # lambda
         self.zenithSrc  = self.my_data_map['sources_science']['Zenith']
@@ -338,7 +341,10 @@ class baseSimulation(object):
             self.N             = self.PSD[0].shape[0]
             self.nPointings    = self.pointings.shape[1]
             self.nPixPSF       = int(self.fao.freq.nOtf /self.fao.freq.kRef_)
-            self.oversampling  = self.fao.freq.k_
+            if isinstance(self.fao.freq.k_, list):
+                self.oversampling = self.fao.freq.k_[0]
+            else:
+                self.oversampling  = self.fao.freq.k_
             self.freq_range    = self.fao.ao.cam.fovInPix*self.fao.freq.PSDstep*self.oversampling
             self.pitch         = 1/self.freq_range
             self.grid_diameter = self.pitch*self.N
