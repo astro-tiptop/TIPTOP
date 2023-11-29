@@ -175,7 +175,7 @@ class baseSimulation(object):
             hdr1['CCY'+str(i).zfill(4)] = self.pointings[1,i]
         if self.addSrAndFwhm:
             for i in range(self.cubeResultsArray.shape[0]):
-                hdr1['SR'+str(i).zfill(4)]   = getStrehl(self.cubeResultsArray[i,:,:], self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='max')
+                hdr1['SR'+str(i).zfill(4)]   = float(getStrehl(self.cubeResultsArray[i,:,:], self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='max'))
             for i in range(self.cubeResultsArray.shape[0]):
                 hdr1['FWHM'+str(i).zfill(4)] = getFWHM(self.cubeResultsArray[i,:,:], self.psInMas[0], method='contour', nargout=1)
             for i in range(self.cubeResultsArray.shape[0]):
