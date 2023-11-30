@@ -30,6 +30,9 @@ MAX_VALUE_CHARS = 80
 APPEND_TOKEN = '&&&'
 
 def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
+    '''
+    This functions add an element of the parmaters dictionary into the fits file header
+    '''
     val_string = str(val)
     key = 'HIERARCH '+ key_primary +' '+ key_secondary
     if iii != None:
@@ -49,6 +52,9 @@ def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
     hdr[key] = current_val_string
 
 def hdr2map(hdr):
+    '''
+    Conversion of a fits file header into a dictionary
+    '''
     hdr_keys = list(hdr.keys())
     my_data_map = {}
     curr_value = ''
@@ -72,7 +78,17 @@ def hdr2map(hdr):
 
 def plot_directions(parser, ticks_interval=5, labels=None):
     '''
-    Polar plot with science and GS directions
+    Polar plot with science and GS (sources_HO and sources_LO) directions
+
+    :param parser: required, parameters object
+    :type parser: configparser object
+    :param ticks_interval: optional default=5, size of interval for ticks in the figure 
+    :type ticks_interval: int
+    :param labels: optional default=None, list of strings to be plotted next to the science sources
+    :type labels: list
+    
+    :return: fig, ax
+    :rtype: objects
     '''
     # SCIENCE
     if 'PSF_DIRECTIONS' in parser.sections(): # For retro-compatibility
