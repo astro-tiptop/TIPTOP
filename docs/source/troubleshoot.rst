@@ -24,7 +24,7 @@ ValueError: ValueError: '[X1,X2,...]' in section 'Y' must have the same length
 As mentionned in the parameter file description there are some prameter that should be lists and should have the same length as other parameters.
 If you have defined at least one of them, and it contains more than one element, you need to define all the other associated parameter, and it must contain a list of the same length.
 
-For example in the 'atmosphere' section If you set 'Cn2Weights'=[0.8,0.2], then you must set 'Cn2Heights', 'WindSpeed', 'WindDirection' and they ned to contain a list with length 2.
+For example in the 'atmosphere' section If you set 'Cn2Weights'=[0.8,0.2], then you must set 'Cn2Heights', 'WindSpeed', 'WindDirection' and they need to contain a list with length 2.
 
 OutOfMemoryError: Out of memory allocating A bytes (allocated so far: B bytes).
 -------------------------------------------------------------------------------
