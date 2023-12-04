@@ -260,8 +260,8 @@ The High Order WaveFront Sensor can be a pyramid WFS or a Shack-Hartmann. Regard
 |WfsType                  |No       |string  |*default : 'Shack-Hartmann'*, type of wavefront sensor used for the High  |
 |                         |         |        |Order sensing. Other available option: 'Pyramid'                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|NumberPhotons            |Yes      |list of |Flux return in [nph/frame/subaperture]                                    |
-|                         |         |integer |Warning: confusing error message if missing                               |
+|NumberPhotons            |Yes if LO|list of |*default : [Inf]*, Flux return in [nph/frame/subaperture]                 |
+|                         |         |integer |                                                                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |SpotFWHM                 |No       |list of |*defaut: [[0.0, 0.0, 0.0]]*, High Order spot parameters: two axes scale   |
 |                         |         |list of |values in milliarcsec (only max value is used) and angle (angle is not    |
@@ -282,12 +282,15 @@ The High Order WaveFront Sensor can be a pyramid WFS or a Shack-Hartmann. Regard
 |                         |         |        |be the same size as the transmitance... Also sorry for my ignorance:      |
 |                         |         |        |dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|Gain                     |No       |float   |*default:1.0*, Pixel gain. do you mean camera gain or loop goin?          |
+|Gain                     |No       |float   |*default : 1.0*, Pixel gain. do you mean camera gain or loop goin?          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|ExcessNoiseFactor        |No       |float   |*default: 2.0*, excess noise factor. TODO: default should be 1            |
+|ExcessNoiseFactor        |No       |float   |*default : 2.0*, excess noise factor. TODO: default should be 1            |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NoiseVariance            |No       |unknown |*Default : None*?, Noise Variance in rad2. If not empty, this value       |
 |                         |         |        |overwrites the analytical noise variance calculation.                     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|SigmaRON                 |No       |float   |*Default : 0.0*, read-out noise std in [e-], used only if the               |
+|                         |         |        |`NoiseVariance` is not set.                                               |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 In the two following section we list the parameters that are specific to each wavefront sensor. If you define a parameter 
@@ -300,9 +303,6 @@ Shack-Hartmann requirement
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
-|SigmaRON                 |Yes      |float   |read-out noise std in [e-], used only if the `NoiseVariance` is not set.  |
-|                         |         |        |Note: this is optional if the ``WfsType`` == ``'Pyramid'``                |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+
 |Algorithm                |not used |string  |*defaut:'wcog'*, other options: 'cog' (simple center-of-gravity), 'tcog'  |
 |                         |         |        |(center-of-gravity with threshold), 'qc' (quad-cell)                      |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
