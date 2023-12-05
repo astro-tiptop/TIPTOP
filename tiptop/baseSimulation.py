@@ -124,7 +124,6 @@ class baseSimulation(object):
                     self.raiseMissingRequiredSec('RTC')
                 elif not self.check_config_key('RTC', 'SensorFrameRate_LO'):
                     self.raiseMissingRequiredOpt('RTC', 'SensorFrameRate_LO')
-                    
             
         else:
             raise FileNotFoundError('No .yml or .ini can be found in '+ self.path)
