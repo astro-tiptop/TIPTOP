@@ -102,6 +102,7 @@ class baseSimulation(object):
                 raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
             elif not self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
                 raise KeyError("'sources_LO' must be defined if 'sensor_LO' is defined.")
+            #If both are defined we can proceed.
             elif self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
                 if not self.check_config_key('sources_LO', 'Wavelength'):
                     self.raiseMissingRequiredOpt('sources_LO', 'Wavelength')
