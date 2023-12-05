@@ -102,7 +102,7 @@ class baseSimulation(object):
                 raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
             elif not self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
                 raise KeyError("'sources_LO' must be defined if 'sensor_LO' is defined.")
-            else:
+            elif self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
                 if not self.check_config_key('sources_LO', 'Wavelength'):
                     self.raiseMissingRequiredOpt('sources_LO', 'Wavelength')
                 
@@ -118,6 +118,12 @@ class baseSimulation(object):
                 
                 if not self.check_config_key('sensor_LO', 'NumberPhotons'):
                     raise self.raiseMissingRequiredOpt('sensor_LO', 'NumberPhotons')
+                
+                if not self.check_section_key('RTC'):
+                    self.raiseMissingRequiredSec('RTC')
+                elif not self.check_config_key('RTC', 'SensorFrameRate_LO'):
+                    self.raiseMissingRequiredOpt('RTC', 'SensorFrameRate_LO')
+                    
             
         else:
             raise FileNotFoundError('No .yml or .ini can be found in '+ self.path)
