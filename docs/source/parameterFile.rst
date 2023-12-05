@@ -17,31 +17,31 @@ Overview
 --------
 The following table resume the what the parameter file should contain and what is mandatory.
 
-+---------------+------------+
-|section        | required?  |
-+===============+============+
-|telescope      | Yes        |
-+---------------+------------+
-|atmosphere     | Yes        |
-+---------------+------------+
-|sources_science| Yes        |
-+---------------+------------+
-|source_HO      | Yes        |
-+---------------+------------+
-|sources_LO     | No         |
-+---------------+------------+
-|sensor_science | Yes        |
-+---------------+------------+
-|sensor_HO      | Yes        |
-+---------------+------------+
-|sensor_LO      | No         |
-+---------------+------------+
-|DM             | Yes        |
-+---------------+------------+
-|RTC            | No         |
-+---------------+------------+
-|Computation    | No         |
-+---------------+------------+
++---------------+-----------------------------+
+|section        | required?                   |
++===============+=============================+
+|telescope      | Yes                         |
++---------------+-----------------------------+
+|atmosphere     | Yes                         |
++---------------+-----------------------------+
+|sources_science| Yes                         |
++---------------+-----------------------------+
+|source_HO      | Yes                         |
++---------------+-----------------------------+
+|sources_LO     | No/Yes if sensor_LO defined |
++---------------+-----------------------------+
+|sensor_science | Yes                         |
++---------------+-----------------------------+
+|sensor_HO      | Yes                         |
++---------------+-----------------------------+
+|sensor_LO      | No/Yes if sources_LO defined|
++---------------+-----------------------------+
+|DM             | Yes                         |
++---------------+-----------------------------+
+|RTC            | No/Yes if sensor_LO defined |
++---------------+-----------------------------+
+|Computation    | No                          |
++---------------+-----------------------------+
 
 
 We now go more in detail for each section:
@@ -52,53 +52,55 @@ We now go more in detail for each section:
 
 [telescope]
 -----------
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-| Parameter               | Required| Type  | Description                                                              |
-+=========================+=========+=======+==========================================================================+
-|TelescopeDiameter        |Yes      |float  |Set the outer diameter of the telescope pupil in unit of meters.          |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|Resolution               |Yes      |integer|Number of pixels across the pupil diameter                                |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|ObscurationRatio         |No       |float  |*Default : 0.0*, Defines the central obstruction                          |
-|                         |         |       |due to the secondary as a ratio of the TelescopeDiameter                  |
-|                         |         |       |*Warning* : MavisLO.py does not have a default value for this parameter   |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|ZenithAngle              |No       |float  |*Default: 0.0*, Set the pointing direction of the telescope in degree     |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|PupilAngle               |No       |float  |*default : 0.0*, unknown effect                                           |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|PathPupil                |No       |string |*default: ''*, path to the pupil model in .fits file (if provided,        |
-|                         |         |       |the pupil model is interpolated).if absent or '', not used                |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|PathStaticOn             |No       |string |*default: None*, path to a map of static aberrations (nm) in              |
-|                         |         |       | .fits file. if absent or '', not used                                    |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|PathStaticOff            |No       |string |*default: None*, No clue what this does. if absent or '', not used        |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|PathStaticPos            |No       |string |*default: None*, No clue                                                  |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|PathApodizer             |No       |string |*default: ''*, Path to a fits file that contain a binary map corresponding|
-|                         |         |       |to a pupil apodizer (TBC). if absent or '', not used                      |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|PathStatModes            |No       |string |*default: ''*, path to a .fits file that contain a cube of map of mode    |
-|                         |         |       |in amplitude which lead to a rms of 1 in nanometer of static aberation.   |
-|                         |         |       |if absent or '', not used. Unsure how this works.                         |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|coeficientOfTheStaticMode|not used |string |*default: ''*, place holder                                               |
-|                         |         |       |(TBC) need to find how does the pathStatModes fits file work.             |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|extraErrorNm             |No       |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
-|                         |         |       |is not otherwise considered)                                              |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|extraErrorExp            |No       |float  |*default: -2*, exponent of the power of spatial frequencies used to       |
-|                         |         |       | generate the PSD associated with extraErrorNm                            |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|extraErrorMin            |No       |float  |*default: 0*, minimum spatial frequency for which PSD associated with     |
-|                         |         |       | extraErrorNm is > 0                                                      |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
-|TechnicalFoV             |Yes if LO|float  |*default: ??*, set the size of the technical field of view                |
-|                         |         |       |   *Warning* : This is not optional in MavisLO.py                         |
-+-------------------------+---------+-------+--------------------------------------------------------------------------+
+
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+| Parameter               | Required | Type  | Description                                                              |
++=========================+==========+=======+==========================================================================+
+|TelescopeDiameter        |Yes       |float  |Set the outer diameter of the telescope pupil in unit of meters.          |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|Resolution               |Yes       |integer|Number of pixels across the pupil diameter                                |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|ObscurationRatio         |No/Yes if |float  |*Default : 0.0*, Defines the central obstruction                          |
+|                         |LO        |       |due to the secondary as a ratio of the TelescopeDiameter                  |
+|                         |          |       |*Warning* : MavisLO.py does not have a default value for this parameter   |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|ZenithAngle              |No/Yes if |float  |*Default: 0.0*, Set the pointing direction of the telescope in degree     |
+|                         |LO        |       |                                                                          |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|PupilAngle               |No        |float  |*default : 0.0*, unknown effect                                           |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathPupil                |No        |string |*default: ''*, path to the pupil model in .fits file (if provided,        |
+|                         |          |       |the pupil model is interpolated).if absent or '', not used                |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStaticOn             |No        |string |*default: None*, path to a map of static aberrations (nm) in              |
+|                         |          |       | .fits file. if absent or '', not used                                    |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStaticOff            |No        |string |*default: None*, No clue what this does. if absent or '', not used        |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStaticPos            |No        |string |*default: None*, No clue                                                  |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathApodizer             |No        |string |*default: ''*, Path to a fits file that contain a binary map corresponding|
+|                         |          |       |to a pupil apodizer (TBC). if absent or '', not used                      |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStatModes            |No        |string |*default: ''*, path to a .fits file that contain a cube of map of mode    |
+|                         |          |       |in amplitude which lead to a rms of 1 in nanometer of static aberation.   |
+|                         |          |       |if absent or '', not used. Unsure how this works.                         |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|coeficientOfTheStaticMode|not used  |string |*default: ''*, place holder                                               |
+|                         |          |       |(TBC) need to find how does the pathStatModes fits file work.             |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorNm             |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
+|                         |          |       |is not otherwise considered)                                              |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorExp            |No        |float  |*default: -2*, exponent of the power of spatial frequencies used to       |
+|                         |          |       | generate the PSD associated with extraErrorNm                            |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorMin            |No        |float  |*default: 0*, minimum spatial frequency for which PSD associated with     |
+|                         |          |       | extraErrorNm is > 0                                                      |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
+|TechnicalFoV             |No/Yes if |float  |*default: ??*, set the size of the technical field of view                |
+|                         |LO        |       |   *Warning* : This is not optional in MavisLO.py                         |
++-------------------------+----------+-------+--------------------------------------------------------------------------+
 
 
 
@@ -110,38 +112,38 @@ We now go more in detail for each section:
 +=========================+=========+=======+==========================================================================+
 |Seeing                   |Yes      |float  |Set the seeing at Zenith in arcsec. If not set TIPTOP uses ``r0_value`` . |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|Wavelength               |Yes if LO|float  |*Default : 500e-9*, Wavelength of definition of the atmosphere statistics |
-|                         |         |       |   Warning: not optional in MavisLO.py                                    |
+|Wavelength               |No/Yes if|float  |*Default : 500e-9*, Wavelength of definition of the atmosphere statistics |
+|                         |LO       |       |   Warning: not optional in MavisLO.py                                    |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|L0                       |Yes if LO|float  |*Default : 25.0*, Outer Scale of the atmosphere  in meters                |
-|                         |         |       |Warning: not optionnal in MavisLO.py                                      |
+|L0                       |No/Yes if|float  |*Default : 25.0*, Outer Scale of the atmosphere  in meters                |
+|                         |LO       |       |Warning: not optionnal in MavisLO.py                                      |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|Cn2Weights               |No\*     |list of|*Default : [1.0]*, Relative contribution of each layer. The sum of all the|
-|                         |         |float  |list element must be 1. Must have the same length as ``Cn2Heights``,      |
+|Cn2Weights               |No\*/Yes |list of|*Default : [1.0]*, Relative contribution of each layer. The sum of all the|
+|                         |if LO    |float  |list element must be 1. Must have the same length as ``Cn2Heights``,      |
 |                         |         |       |``WindSpeed`` and ``WindDirection``.                                      |
 |                         |         |       |\*Warning : required if ``Cn2Heights``, ``WindSpeed`` or ``WindDirection``|
 |                         |         |       |are defined                                                               |
 |                         |         |       |Warning : extremly confusing error message if absent when it must be      |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|Cn2Heights               |No\*     |list of|*Default : [0.0]*, altitude of layers in meters.                          |
-|                         |         |float  |Must have the same length as ``Cn2Weights``, ``WindSpeed`` and            |
+|Cn2Heights               |No\*/Yes |list of|*Default : [0.0]*, altitude of layers in meters.                          |
+|                         |if LO    |float  |Must have the same length as ``Cn2Weights``, ``WindSpeed`` and            |
 |                         |         |       |``WindDirection``.                                                        |
 |                         |         |       |\*Warning : required if ``Cn2Weights``, ``WindSpeed`` or ``WindDirection``|
 |                         |         |       |are defined                                                               |
 |                         |         |       |Warning : extremly confusing error message if absent when it must be      |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|WindSpeed                |No\*     |list of|*Default : [10.0]*, Wind speed values for each layer in m/s.              |
-|                         |         |float  |Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and           |
+|WindSpeed                |No\*/Yes |list of|*Default : [10.0]*, Wind speed values for each layer in m/s.              |
+|                         |if LO    |float  |Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and           |
 |                         |         |       |``WindDirection``.                                                        |
 |                         |         |       |\*Warning : required if ``Cn2Weights``, ``Cn2Heights`` or                 |
 |                         |         |       |``WindDirection`` are defined                                             |
 |                         |         |       |Warning : extremly confusing error message if absent when it must be      |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|WindDirection            |No\*     |list of|*Default : [0.0]*, wind direction for each layer in degrees. 0 degree is  |
-|                         |         |float  |?? then anticlockwise.                                                    |
+|WindDirection            |No\*/Yes |list of|*Default : [0.0]*, wind direction for each layer in degrees. 0 degree is  |
+|                         |if LO    |float  |?? then anticlockwise.                                                    |
 |                         |         |       |Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and           |
 |                         |         |       |``WindSpeed``.                                                            |
 |                         |         |       |\*Warning : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindSpeed``   |
@@ -260,7 +262,7 @@ The High Order WaveFront Sensor can be a pyramid WFS or a Shack-Hartmann. Regard
 |WfsType                  |No       |string  |*default : 'Shack-Hartmann'*, type of wavefront sensor used for the High  |
 |                         |         |        |Order sensing. Other available option: 'Pyramid'                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|NumberPhotons            |Yes if LO|list of |*default : [Inf]*, Flux return in [nph/frame/subaperture]                 |
+|NumberPhotons            |No       |list of |*default : [Inf]*, Flux return in [nph/frame/subaperture]                 |
 |                         |         |integer |                                                                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |SpotFWHM                 |No       |list of |*defaut: [[0.0, 0.0, 0.0]]*, High Order spot parameters: two axes scale   |
@@ -282,14 +284,14 @@ The High Order WaveFront Sensor can be a pyramid WFS or a Shack-Hartmann. Regard
 |                         |         |        |be the same size as the transmitance... Also sorry for my ignorance:      |
 |                         |         |        |dispersion of what? Isn't this maybe redundant with `SpotFWHM` ?          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|Gain                     |No       |float   |*default : 1.0*, Pixel gain. do you mean camera gain or loop goin?          |
+|Gain                     |No       |float   |*default : 1.0*, Pixel gain. do you mean camera gain or loop goin?        |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|ExcessNoiseFactor        |No       |float   |*default : 2.0*, excess noise factor. TODO: default should be 1            |
+|ExcessNoiseFactor        |No       |float   |*default : 2.0*, excess noise factor. TODO: default should be 1           |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NoiseVariance            |No       |unknown |*Default : None*?, Noise Variance in rad2. If not empty, this value       |
 |                         |         |        |overwrites the analytical noise variance calculation.                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|SigmaRON                 |No       |float   |*Default : 0.0*, read-out noise std in [e-], used only if the               |
+|SigmaRON                 |No       |float   |*Default : 0.0*, read-out noise std in [e-], used only if the             |
 |                         |         |        |`NoiseVariance` is not set.                                               |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
@@ -360,24 +362,24 @@ Can be set but not used
 |NumberPhotons            |Yes      |list of |Detected flux in [nph/frame/subaperture], Must be the same length as      |
 |                         |         |integer |NumberLenslet                                                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|NumberLenslets           |No       |list of |*Default : [1]*, number of WFS lenslets, Must be the same length as       |
+|NumberLenslets           |Yes      |list of |*Default : [1]*, number of WFS lenslets, Must be the same length as       |
 |                         |         |integer |NumberPhotons                                                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|SigmaRON                 |No       |float   |*default: 0.0*, read out noise in [e-]                                    |
+|SigmaRON                 |Yes      |float   |*default: 0.0*, read out noise in [e-]                                    |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|Dark                     |No       |float   |*default: 0.0*, dark current[e-/s/pix]                                    |
+|Dark                     |Yes      |float   |*default: 0.0*, dark current[e-/s/pix]                                    |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|SkyBackground            |No       |float   |*default: 0.0*, Sky background [e-/s/pix]                                 |
+|SkyBackground            |Yes      |float   |*default: 0.0*, Sky background [e-/s/pix]                                 |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|ExcessNoiseFactor        |No       |float   |*default: 2.0*, excess noise factor                                       |
+|ExcessNoiseFactor        |Yes      |float   |*default: 2.0*, excess noise factor                                       |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|WindowRadiusWCoG         |No       |integer |*default: 1*,2 Used instead of field of view, Number of pixels for        |
+|WindowRadiusWCoG         |Yes      |integer |*default: 1*,2 Used instead of field of view, Number of pixels for        |
 |                         |         |        |windiwing the low order WFS pixels                                        |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+    
-|ThresholdWCoG            |No       |float   |*default: 0.0*, Threshold Number of pixels for windowing the low order WFS|
+|ThresholdWCoG            |Yes      |float   |*default: 0.0*, Threshold Number of pixels for windowing the low order WFS|
 |                         |         |        |pixels                                                                    |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|NewValueThrPix           |No       |float   |*default: 0.0*, New value for pixels lower than threshold.                |
+|NewValueThrPix           |Yes      |float   |*default: 0.0*, New value for pixels lower than threshold.                |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 Can be set but not used
@@ -418,8 +420,8 @@ Can be set but not used
 |                         |         |float   |the psf reconstruction. Unclear what this does. Must be the same length as|
 |                         |         |        |NumberActuators?                                                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|DmHeights                |No       |list of |*default: [0.0]*, DM altitude in meters, Must be the same length as       |
-|                         |         |float   |NumberActuators and DmPitchs                                              |
+|DmHeights                |No/Yes if|list of |*default: [0.0]*, DM altitude in meters, Must be the same length as       |
+|                         |LO       |float   |NumberActuators and DmPitchs                                              |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+   
 |OptimizationZenith       |No       |float   |*default: [0.0]*, Zenith position in arcsec of the direction in which the |
 |                         |         |        |AO correction is optimized.   Must be the same length as                  |
@@ -463,15 +465,15 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |LoopDelaySteps_HO        |No       |integer |*Default : 2*, High Order loop delay in [frame]                           |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|LoopGain_LO              |No       |float or|*default: None*, Low Order loop gain, Warning: if set to 'optimize', gain |
-|                         |         |string  |is automatically optimized by tiptop, otherwise the float value set is    |
+|LoopGain_LO              |No/Yes if|float or|*default: None*, Low Order loop gain, Warning: if set to 'optimize', gain |
+|                         |LO       |string  |is automatically optimized by tiptop, otherwise the float value set is    |
 |                         |         |        |used.                                                                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+   
-|SensorFrameRate_LO       |Yes      |float   |*default: None*, Loop frequency in [Hz]. If ``[sensor_LO]`` section is    |
-|                         |         |        |present it must be set.                                                   |
+|SensorFrameRate_LO       |No/Yes if|float   |*default: None*, Loop frequency in [Hz]. If ``[sensor_LO]`` section is    |
+|                         |LO       |        |present it must be set.                                                   |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|LoopDelaySteps_LO        |No       |integer |*default: None*, Low Order loop delays in [frames]. If ``[sensor_LO]``    |
-|                         |         |        |section is present it must be set.                                        |
+|LoopDelaySteps_LO        |No/Yes if|integer |*default: None*, Low Order loop delays in [frames]. If ``[sensor_LO]``    |
+|                         |LO       |        |section is present it must be set.                                        |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |ResidualError            |No       |?       |*Default: None*, ?                                                        |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
