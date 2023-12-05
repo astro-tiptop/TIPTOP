@@ -1,7 +1,7 @@
 from .baseSimulation import *
 from .asterismSimulation import *
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
+def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=True,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
                       verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50,
                       savePSDs=False):
