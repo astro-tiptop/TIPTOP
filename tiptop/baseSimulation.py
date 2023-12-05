@@ -9,7 +9,6 @@ import matplotlib as mpl
 norm = mpl.colors.Normalize(vmin=0, vmax=1)
 rc("text", usetex=False)
 
-
 class baseSimulation(object):
     
     def raiseMissingRequiredOpt(self,sec,opt):
@@ -99,7 +98,26 @@ class baseSimulation(object):
                 self.raiseNotSameLength('sources_science', ['Zenith','Azimuth'])
             
             #TODO should an error be raised if sensor_LO is defined but not source_LO or vice versa?
-            # if self.check_section_key('sources_LO') and not 
+            if self.check_section_key('sources_LO') and not self.check_section_key('sensor_LO'):
+                raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
+            elif not self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
+                raise KeyError("'sources_LO' must be defined if 'sensor_LO' is defined.")
+            else:
+                if not self.check_config_key('sources_LO', 'Wavelength'):
+                    self.raiseMissingRequiredOpt('sources_LO', 'Wavelength')
+                
+                if not self.check_config_key('sources_LO','Zenith'):
+                    self.my_data_map['sources_LO']['Zenith'] = [0.0]
+                    
+                if not self.check_config_key('sources_LO','Azimuth'):
+                    self.my_data_map['sources_LO']['Azimuth'] = [0.0]
+                
+                if (len(self.my_data_map['sources_LO']['Zenith']) != 
+                    len(self.my_data_map['sources_LO']['Azimuth'])):
+                    self.raiseNotSameLength('sources_LO', ['Zenith','Azimuth'])
+                
+                if not self.check_config_key('sensor_LO', 'NumberPhotons'):
+                    raise self.raiseMissingRequiredOpt('sensor_LO', 'NumberPhotons')
             
         else:
             raise FileNotFoundError('No .yml or .ini can be found in '+ self.path)
