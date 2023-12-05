@@ -86,11 +86,11 @@ class baseSimulation(object):
                 self.raiseMissingRequiredOpt('sources_science', 'Wavelength')
             
             if not self.check_config_key('sources_science','Zenith'):
-                #In P3.aoSystem this is optionnel, to remains consistent it is optionnal here too
+                #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
                 self.my_data_map['sources_science']['Zenith'] = [0.0]
                 
             if not self.check_config_key('sources_science','Azimuth'):
-                #In P3.aoSystem this is optionnel, to remains consistent it is optionnal here too
+                #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
                 self.my_data_map['sources_science']['Azimuth'] = [0.0]
             
             if (len(self.my_data_map['sources_science']['Zenith']) != 
