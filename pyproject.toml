@@ -18,6 +18,7 @@ dependencies = [
     "pyyaml",
     "astro-p3>=1.2.7",
     "mastsel>=1.2.5",
+    "sphinx_tabs"
 ]
 dynamic = ["version"]
 
