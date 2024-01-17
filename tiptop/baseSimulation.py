@@ -378,7 +378,11 @@ class baseSimulation(object):
         if not self.LOisOn:
             for psfLongExp in self.psfLongExpPointingsArr:
                 if self.jitter_FWHM is not None:
-                    ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                    if isinstance(self.jitter_FWHM, list):
+                        ellp = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                    else:
+                        ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                        
                     self.results.append(convolve(psfLongExp,
                                    residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
                 else:
