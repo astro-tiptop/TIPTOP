@@ -9,8 +9,28 @@ import matplotlib as mpl
 norm = mpl.colors.Normalize(vmin=0, vmax=1)
 rc("text", usetex=False)
 
-
 class baseSimulation(object):
+    
+    def raiseMissingRequiredOpt(self,sec,opt):
+        raise ValueError("'{}' is missing from section '{}'"
+                         .format(opt,sec))
+        
+    def raiseMissingRequiredSec(self,sec):
+        raise ValueError("The section '{}' is missing from the parameter file"
+                         .format(sec))
+        
+    def raiseNotSameLength(self,sec,opt):
+        raise ValueError("'{}' in section '{}' must have the same length"
+                         .format(opt,sec))
+    
+    def check_section_key(self, primary):        
+        return primary in self.my_data_map.keys()
+    
+    def check_config_key(self, primary, secondary):
+        if primary in self.my_data_map.keys():
+            return secondary in self.my_data_map[primary].keys()
+        else:
+            return False
     
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=False,
                           doPlot=False, addSrAndFwhm=False,
@@ -50,6 +70,61 @@ class baseSimulation(object):
                 self.my_data_map[section] = {}
                 for name,value in config.items(section):
                     self.my_data_map[section].update({name:eval(value)})
+            
+            #Verify the presence of parameters called in TIPTOP before they are verified 
+            #in P3 or in MASTSEL
+            if not self.check_section_key('telescope'):
+                self.raiseMissingRequiredSec('telescope')
+                
+            if not self.check_config_key('telescope','TelescopeDiameter'):
+                self.raiseMissingRequiredOpt('telescope','TelescopeDiameter')
+                
+            if not self.check_section_key('sources_science') :
+                self.raiseMissingRequiredSec('sources_science') 
+                
+            if not self.check_config_key('sources_science','Wavelength'):
+                self.raiseMissingRequiredOpt('sources_science', 'Wavelength')
+            
+            if not self.check_config_key('sources_science','Zenith'):
+                #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
+                self.my_data_map['sources_science']['Zenith'] = [0.0]
+                
+            if not self.check_config_key('sources_science','Azimuth'):
+                #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
+                self.my_data_map['sources_science']['Azimuth'] = [0.0]
+            
+            if (len(self.my_data_map['sources_science']['Zenith']) != 
+                len(self.my_data_map['sources_science']['Azimuth'])):
+                self.raiseNotSameLength('sources_science', ['Zenith','Azimuth'])
+            
+            #TODO should an error be raised if sensor_LO is defined but not source_LO or vice versa?
+            if self.check_section_key('sources_LO') and not self.check_section_key('sensor_LO'):
+                raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
+            elif not self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
+                raise KeyError("'sources_LO' must be defined if 'sensor_LO' is defined.")
+            #If both are defined we can proceed.
+            elif self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
+                if not self.check_config_key('sources_LO', 'Wavelength'):
+                    self.raiseMissingRequiredOpt('sources_LO', 'Wavelength')
+                
+                if not self.check_config_key('sources_LO','Zenith'):
+                    self.my_data_map['sources_LO']['Zenith'] = [0.0]
+                    
+                if not self.check_config_key('sources_LO','Azimuth'):
+                    self.my_data_map['sources_LO']['Azimuth'] = [0.0]
+                
+                if (len(self.my_data_map['sources_LO']['Zenith']) != 
+                    len(self.my_data_map['sources_LO']['Azimuth'])):
+                    self.raiseNotSameLength('sources_LO', ['Zenith','Azimuth'])
+                
+                if not self.check_config_key('sensor_LO', 'NumberPhotons'):
+                    raise self.raiseMissingRequiredOpt('sensor_LO', 'NumberPhotons')
+                
+                if not self.check_section_key('RTC'):
+                    self.raiseMissingRequiredSec('RTC')
+                elif not self.check_config_key('RTC', 'SensorFrameRate_LO'):
+                    self.raiseMissingRequiredOpt('RTC', 'SensorFrameRate_LO')
+            
         else:
             raise FileNotFoundError('No .yml or .ini can be found in '+ self.path)
 
