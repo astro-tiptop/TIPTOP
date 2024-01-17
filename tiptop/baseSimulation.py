@@ -431,6 +431,9 @@ class baseSimulation(object):
                     self.finalConvolution()
                 else:
                     self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
+            else:
+                for psfLongExp in self.psfLongExpPointingsArr:
+                    self.results.append(psfLongExp)
  
         if self.doPlot:
             if self.LOisOn and self.doConvolve:
