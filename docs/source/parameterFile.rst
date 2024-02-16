@@ -130,6 +130,43 @@ The mandatory sections and their content are:
    *default: 0*, 
    minimum spatial frequency for which PSD associated with extraErrorNm is > 0
 
+.. option:: extraErrorMax
+   
+   **Optional**, 
+   *type : float*, 
+   *default: 0*, 
+   maximum spatial frequency for which PSD associated with extraErrorNm is > 0
+
+.. option:: extraErrorLoNm
+   
+   **Optional**, 
+   *type : float*, 
+   *default: 0*, 
+   nm RMS of the additional error to be added (an error that is not otherwise considered) on LO directions only
+   Note: (1) only makes sense if [sensor_LO] is present (2) if not present extraErrorNm is used on LO directions
+
+.. option:: extraErrorLoExp
+   
+   **Optional**, 
+   *type : float*, 
+   *default: -2*, 
+   exponent of the power of spatial frequencies used to generate the PSD associated with extraErrorLoNm
+
+.. option:: extraErrorLoMin
+   
+   **Optional**, 
+   *type : float*, 
+   *default: 0*, 
+   minimum spatial frequency for which PSD associated with extraErrorLoNm is > 0
+
+.. option:: extraErrorLoMax
+   
+   **Optional**, 
+   *type : float*, 
+   *default: 0*, 
+   maximum spatial frequency for which PSD associated with extraErrorLoNm is > 0
+   Note: 0 means maximum frequency is the one present in the spatial frequncy array of the PSDs 
+
 [atmosphere]
 ^^^^^^^^^^^^
 
