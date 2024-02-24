@@ -287,15 +287,19 @@ class baseSimulation(object):
         psdArray = []
         psfLongExpArr = []
         sources_FWHM_mas = []
-
+        
+        i = 0
         for computedPSD in inputPSDs:
             # Get the PSD at the NGSs positions at the sensing wavelength
             # computed PSD from fao are given in nm^2, i.e they are multiplied by dk**2 already
-            psd            = Field(wavelength, N, freq_range, 'rad')
-            psd.sampling   = computedPSD / dk**2 # the PSD must be provided in m^2.m^2
+            psd          = Field(wavelength, N, freq_range, 'rad')
+            psd.sampling = computedPSD / dk**2 # the PSD must be provided in m^2.m^2
             psdArray.append(psd)
             # Get the PSF
-            psfLE          = longExposurePsf(mask, psd )
+            if isinstance(mask, list):
+                psfLE = longExposurePsf(mask[i], psd )
+            else:
+                psfLE = longExposurePsf(mask, psd )
             
             # It rebins the PSF if oversampling is greater than 1
             if oversampling > 1:
@@ -309,18 +313,19 @@ class baseSimulation(object):
                                                 int(psfLE.sampling.shape[1]/2-npixel/2):int(psfLE.sampling.shape[1]/2+npixel/2)]
             psfLongExpArr.append(psfLE)
             # Get SR and FWHM in mas at the NGSs positions at the sensing wavelength
-            s1=cpuArray(computedPSD).sum()
-            SR             = np.exp(-s1*scaleFactor) # Strehl-ratio at the sensing wavelength
+            s1           = cpuArray(computedPSD).sum()
+            SR           = np.exp(-s1*scaleFactor) # Strehl-ratio at the sensing wavelength
 
             sources_SR.append(SR)
-            FWHMx,FWHMy    = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
-            FWHM           = np.sqrt(FWHMx*FWHMy) #max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
+            FWHMx,FWHMy  = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
+            FWHM         = np.sqrt(FWHMx*FWHMy) #max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
 
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             sources_FWHM_mas.append(FWHM)
             if self.verbose:
                 print('SR(@',int(wavelength*1e9),'nm)  :', SR)
                 print('FWHM(@',int(wavelength*1e9),'nm):', FWHM)
+            i += 1
 
         return sources_SR, psdArray, psfLongExpArr, sources_FWHM_mas
 
@@ -434,30 +439,34 @@ class baseSimulation(object):
             if self.LOisOn:
                 # Define the LO sub-aperture shape
                 nSA    = self.my_data_map['sensor_LO']['NumberLenslets']
-                if nSA[0] == 1:
-                    self.maskLO = self.mask
-                else:
-                    self.maskLO = Field(self.wvl, self.N, self.grid_diameter)
-                    saSideM = 2*self.tel_radius/nSA[0]
-                    pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
-                    saSidePix = int(pupilSidePix/nSA[0])
-                    saMask = np.zeros((pupilSidePix,pupilSidePix))
-                    if nSA[0] == 2:
-                        saMask[0:saSidePix,0:saSidePix] = 1
-                        saMask *= self.fao.ao.tel.pupil
-                    elif nSA[0] == 3:
-                        saMask[0:saSidePix,pupilSidePix/2-saSidePix/2:pupilSidePix/2+saSidePix/2] = 1
-                        saMask *= self.fao.ao.tel.pupil
+                pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
+                saMask = np.zeros((pupilSidePix,pupilSidePix))
+                self.maskLO = []
+                for i in range(self.nNaturalGS_field):
+                    saSideM = 2*self.tel_radius/nSA[i]
+                    saSidePix = int(pupilSidePix/nSA[i])
+                    if nSA[i] == 1:
+                        self.maskLO.append(self.mask)
                     else:
-                        saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
-                               int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
-                    fig, ax = plt.subplots(1)
-                    im = ax.imshow(saMask)
-                    if gpuMastsel:
-                        self.maskLO.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
-                    else:
-                        self.maskLO.sampling = congrid(saMask, [self.sx, self.sx])
-                    self.maskLO.sampling = zeroPad(self.maskLO.sampling, (self.N-self.sx)//2)
+                        maskLO = Field(self.wvl, self.N, self.grid_diameter)
+                        if nSA[0] == 2:
+                            saMask[0:saSidePix,0:saSidePix] = 1
+                            saMask *= self.fao.ao.tel.pupil
+                        elif nSA[0] == 3:
+                            saMask[0:saSidePix,pupilSidePix/2-saSidePix/2:pupilSidePix/2+saSidePix/2] = 1
+                            saMask *= self.fao.ao.tel.pupil
+                        else:
+                            saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
+                                   int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                        fig, (ax1, ax2) = plt.subplots(1,2)
+                        im = ax1.imshow(saMask)
+                        im = ax2.imshow(cpuArray(self.fao.ao.tel.pupil))
+                        if gpuMastsel:
+                            maskLO.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
+                        else:
+                            maskLO.sampling = congrid(saMask, [self.sx, self.sx])
+                        maskLO.sampling = zeroPad(maskLO.sampling, (self.N-self.sx)//2)
+                        self.maskLO.append(maskLO)
             
             if self.verbose:
                 print('fao.samp:', self.fao.freq.samp)
@@ -476,6 +485,9 @@ class baseSimulation(object):
                                                                                                          self.nPixPSF,
                                                                                                          scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
                                                                                                          oversampling=self.oversampling)
+            print('psfLongExpPointingsArr.shape',psfLongExpPointingsArr[0].sampling.shape)
+            fig, ax = plt.subplots(1)
+            im = ax.imshow(cpuArray(psfLongExpPointingsArr[0].sampling))
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
             
         # old version: if not self.LOisOn or (not self.doConvolve and not self.returnRes):
@@ -510,6 +522,9 @@ class baseSimulation(object):
                                                                            self.nPixPSF,
                                                                            scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
                                                                            oversampling=self.oversampling)
+                print('psfLE_NGS.shape',psfLE_NGS[0].sampling.shape)
+                fig, ax = plt.subplots(1)
+                im = ax.imshow(cpuArray(psfLE_NGS[0].sampling))
                 self.NGS_SR_field           = NGS_SR
                 self.NGS_FWHM_mas_field     = NGS_FWHM_mas
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
