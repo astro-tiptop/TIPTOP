@@ -157,7 +157,7 @@ class baseSimulation(object):
             self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']            
 
 
-    def configLO(self, astIndex=None):
+    def configLO(self, astIndex=None):      
         self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
         self.fr         = self.my_data_map['RTC']['SensorFrameRate_LO']
         # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
@@ -430,6 +430,35 @@ class baseSimulation(object):
             self.psInMas = cpuArray(self.fao.freq.psInMas)
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
+            
+            if self.LOisOn:
+                # Define the LO sub-aperture shape
+                nSA    = self.my_data_map['sensor_LO']['NumberLenslets']
+                if nSA[0] == 1:
+                    self.maskLO = self.mask
+                else:
+                    self.maskLO = Field(self.wvl, self.N, self.grid_diameter)
+                    saSideM = 2*self.tel_radius/nSA[0]
+                    pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
+                    saSidePix = int(pupilSidePix/nSA[0])
+                    saMask = np.zeros((pupilSidePix,pupilSidePix))
+                    if nSA[0] == 2:
+                        saMask[0:saSidePix,0:saSidePix] = 1
+                        saMask *= self.fao.ao.tel.pupil
+                    elif nSA[0] == 3:
+                        saMask[0:saSidePix,pupilSidePix/2-saSidePix/2:pupilSidePix/2+saSidePix/2] = 1
+                        saMask *= self.fao.ao.tel.pupil
+                    else:
+                        saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
+                               int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                    fig, ax = plt.subplots(1)
+                    im = ax.imshow(saMask)
+                    if gpuMastsel:
+                        self.maskLO.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
+                    else:
+                        self.maskLO.sampling = congrid(saMask, [self.sx, self.sx])
+                    self.maskLO.sampling = zeroPad(self.maskLO.sampling, (self.N-self.sx)//2)
+            
             if self.verbose:
                 print('fao.samp:', self.fao.freq.samp)
                 print('fao.PSD.shape:', self.fao.PSD.shape)
@@ -474,7 +503,7 @@ class baseSimulation(object):
                 NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(self.N, 
                                                                            self.freq_range, 
                                                                            self.dk, 
-                                                                           self.mask, 
+                                                                           self.maskLO, 
                                                                            arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:]), 
                                                                            self.LO_wvl, 
                                                                            self.psInMas_NGS, 
