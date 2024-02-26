@@ -1,7 +1,7 @@
 from .baseSimulation import *
 from .asterismSimulation import *
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=True,
+def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve=True,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
                       verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50,
                       savePSDs=False):
@@ -39,7 +39,7 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Tr
         :rtype: TBD
 
     """
-    simulation = baseSimulation(path, parametersFile, outputDir, outputFile, doConvolve,
+    simulation = baseSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve,
                       doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, savePSDs)
     
     simulation.doOverallSimulation()
@@ -56,12 +56,12 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Tr
         simulation.saveResults()
 
         
-def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
+def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50):
 
     """
-        function to run the entire tiptop simulation based on the input file
+        function to run the entire tiptop asterism evaluation on the input file
 
         :param path2param: required, path to the parameter file.
         :type path2param: str
@@ -94,7 +94,7 @@ def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
         :rtype: TBD
 
     """
-    simulation = asterismSimulation(simulName, path, parametersFile, outputDir, outputFile,
+    simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
 
     
@@ -116,11 +116,11 @@ def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
         return
 
 
-def reloadAsterismSelection(simulName, path, parametersFile, outputDir, outputFile,
+def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50):
 
-    simulation = asterismSimulation(simulName, path, parametersFile, outputDir, outputFile,
+    simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
                                     doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
     simulation.reloadResults()
     return simulation.sr_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation

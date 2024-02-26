@@ -159,7 +159,6 @@ class baseSimulation(object):
 
     def configLO(self, astIndex=None):      
         self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
-        self.fr         = self.my_data_map['RTC']['SensorFrameRate_LO']
         # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
         LO_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
 
@@ -171,12 +170,15 @@ class baseSimulation(object):
         self.LO_zen_field    = self.my_data_map['sources_LO']['Zenith']
         self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
         self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
+        self.LO_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_LO']
+        if not isinstance(self.SensorFrameRate_LO_array, list):
+            self.LO_freqs_field  = [self.LO_freqs_field] * len(self.LO_zen_field)
 
         self.NGS_fluxes_field = []
         polarNGSCoordsList = []
-        for aFlux, aZen, aAz in zip(self.LO_fluxes_field, self.LO_zen_field, self.LO_az_field):
+        for aFr, aFlux, aZen, aAz in zip(self.LO_freqs_field, self.LO_fluxes_field, self.LO_zen_field, self.LO_az_field):
             polarNGSCoordsList.append([aZen, aAz])
-            self.NGS_fluxes_field.append(aFlux*self.fr)
+            self.NGS_fluxes_field.append(aFlux*aFr)
         polarNGSCoords     = np.asarray(polarNGSCoordsList)
         self.nNaturalGS_field  = len(self.LO_zen_field)
         cartNGSCoordsList = []
@@ -198,6 +200,9 @@ class baseSimulation(object):
         self.LO_fluxes_asterism = []
         for iid in self.currentAsterismIndices:
             self.LO_fluxes_asterism.append(self.LO_fluxes_field[iid])
+        self.LO_freqs_asterism = []
+        for iid in self.currentAsterismIndices:
+            self.LO_freqs_asterism.append(self.LO_freqs_field[iid])
         self.NGS_fluxes_asterism = []
         for iid in self.currentAsterismIndices:
             self.NGS_fluxes_asterism.append(self.NGS_fluxes_field[iid])
@@ -532,7 +537,9 @@ class baseSimulation(object):
             if astIndex is None:
                 self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                         self.LO_freqs_field,
                                                                          self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=True)
+
             else:
                 self.NGS_SR_asterism = []
                 for iid in self.currentAsterismIndices:
@@ -542,11 +549,13 @@ class baseSimulation(object):
                     self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
                 if astIndex==0:
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                         self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=False)
+                                                        self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                        self.LO_freqs_field,
+                                                        self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=False)
                 self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                           np.array(self.cartSciencePointingCoords),
                                                                           np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
+                                                                          self.LO_freqs_asterism,
                                                                           self.NGS_SR_asterism, self.NGS_FWHM_mas_asterism)
                 
             if self.doConvolve:
