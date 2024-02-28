@@ -157,7 +157,7 @@ class baseSimulation(object):
             self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']            
 
 
-    def configLO(self, astIndex=None):
+    def configLO(self, astIndex=None):      
         self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
         # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
         LO_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
@@ -171,7 +171,7 @@ class baseSimulation(object):
         self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
         self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
         self.LO_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_LO']
-        if not isinstance(self.SensorFrameRate_LO_array, list):
+        if not isinstance(self.LO_freqs_field, list):
             self.LO_freqs_field  = [self.LO_freqs_field] * len(self.LO_zen_field)
 
         self.NGS_fluxes_field = []
@@ -292,15 +292,19 @@ class baseSimulation(object):
         psdArray = []
         psfLongExpArr = []
         sources_FWHM_mas = []
-
+        
+        i = 0
         for computedPSD in inputPSDs:
             # Get the PSD at the NGSs positions at the sensing wavelength
             # computed PSD from fao are given in nm^2, i.e they are multiplied by dk**2 already
-            psd            = Field(wavelength, N, freq_range, 'rad')
-            psd.sampling   = computedPSD / dk**2 # the PSD must be provided in m^2.m^2
+            psd          = Field(wavelength, N, freq_range, 'rad')
+            psd.sampling = computedPSD / dk**2 # the PSD must be provided in m^2.m^2
             psdArray.append(psd)
             # Get the PSF
-            psfLE          = longExposurePsf(mask, psd )
+            if isinstance(mask, list):
+                psfLE = longExposurePsf(mask[i], psd )
+            else:
+                psfLE = longExposurePsf(mask, psd )
             
             # It rebins the PSF if oversampling is greater than 1
             if oversampling > 1:
@@ -314,18 +318,19 @@ class baseSimulation(object):
                                                 int(psfLE.sampling.shape[1]/2-npixel/2):int(psfLE.sampling.shape[1]/2+npixel/2)]
             psfLongExpArr.append(psfLE)
             # Get SR and FWHM in mas at the NGSs positions at the sensing wavelength
-            s1=cpuArray(computedPSD).sum()
-            SR             = np.exp(-s1*scaleFactor) # Strehl-ratio at the sensing wavelength
+            s1           = cpuArray(computedPSD).sum()
+            SR           = np.exp(-s1*scaleFactor) # Strehl-ratio at the sensing wavelength
 
             sources_SR.append(SR)
-            FWHMx,FWHMy    = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
-            FWHM           = np.sqrt(FWHMx*FWHMy) #max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
+            FWHMx,FWHMy  = getFWHM( psfLE.sampling, pixelscale, method='contour', nargout=2)
+            FWHM         = np.sqrt(FWHMx*FWHMy) #max(FWHMx, FWHMy) #0.5*(FWHMx+FWHMy) #average over major and minor axes
 
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             sources_FWHM_mas.append(FWHM)
             if self.verbose:
                 print('SR(@',int(wavelength*1e9),'nm)  :', SR)
                 print('FWHM(@',int(wavelength*1e9),'nm):', FWHM)
+            i += 1
 
         return sources_SR, psdArray, psfLongExpArr, sources_FWHM_mas
 
@@ -435,6 +440,36 @@ class baseSimulation(object):
             self.psInMas = cpuArray(self.fao.freq.psInMas)
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
+            
+            if self.LOisOn:
+                # Define the LO sub-aperture shape
+                nSA    = self.my_data_map['sensor_LO']['NumberLenslets']
+                pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
+                saMask = np.zeros((pupilSidePix,pupilSidePix))
+                self.maskLO = []
+                for i in range(self.nNaturalGS_field):
+                    saSideM = 2*self.tel_radius/nSA[i]
+                    saSidePix = int(pupilSidePix/nSA[i])
+                    if nSA[i] == 1:
+                        self.maskLO.append(self.mask)
+                    else:
+                        maskLO = Field(self.wvl, self.N, self.grid_diameter)
+                        if nSA[0] == 2:
+                            saMask[0:saSidePix,0:saSidePix] = 1
+                            saMask *= cpuArray(self.fao.ao.tel.pupil)
+                        elif nSA[0] == 3:
+                            saMask[0:saSidePix,int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                            saMask *= cpuArray(self.fao.ao.tel.pupil)
+                        else:
+                            saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
+                                   int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                        if gpuMastsel:
+                            maskLO.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
+                        else:
+                            maskLO.sampling = congrid(saMask, [self.sx, self.sx])
+                        maskLO.sampling = zeroPad(maskLO.sampling, (self.N-self.sx)//2)
+                        self.maskLO.append(maskLO)
+            
             if self.verbose:
                 print('fao.samp:', self.fao.freq.samp)
                 print('fao.PSD.shape:', self.fao.PSD.shape)
@@ -479,7 +514,7 @@ class baseSimulation(object):
                 NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(self.N, 
                                                                            self.freq_range, 
                                                                            self.dk, 
-                                                                           self.mask, 
+                                                                           self.maskLO, 
                                                                            arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:]), 
                                                                            self.LO_wvl, 
                                                                            self.psInMas_NGS, 
@@ -488,13 +523,21 @@ class baseSimulation(object):
                                                                            oversampling=self.oversampling)
                 self.NGS_SR_field           = NGS_SR
                 self.NGS_FWHM_mas_field     = NGS_FWHM_mas
+                self.NGS_EE_field = []
+                idx = 0
+                for img in psfLE_NGS:
+                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                    ee_ *= 1/np.max(ee_)
+                    ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
+                    self.NGS_EE_field.append(ee_at_radius_fn(NGS_FWHM_mas[idx]/2))
+                    idx += 1
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
             if astIndex is None:
                 self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                                          self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=True)
+                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
 
             else:
                 self.NGS_SR_asterism = []
@@ -512,7 +555,7 @@ class baseSimulation(object):
                                                                           np.array(self.cartSciencePointingCoords),
                                                                           np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
                                                                           self.LO_freqs_asterism,
-                                                                          self.NGS_SR_asterism, self.NGS_FWHM_mas_asterism)
+                                                                          self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
                 
             if self.doConvolve:
                 if astIndex is None:
