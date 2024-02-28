@@ -171,7 +171,7 @@ class baseSimulation(object):
         self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
         self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
         self.LO_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_LO']
-        if not isinstance(self.SensorFrameRate_LO_array, list):
+        if not isinstance(self.LO_freqs_field, list):
             self.LO_freqs_field  = [self.LO_freqs_field] * len(self.LO_zen_field)
 
         self.NGS_fluxes_field = []
@@ -456,16 +456,13 @@ class baseSimulation(object):
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
                         if nSA[0] == 2:
                             saMask[0:saSidePix,0:saSidePix] = 1
-                            saMask *= self.fao.ao.tel.pupil
+                            saMask *= cpuArray(self.fao.ao.tel.pupil)
                         elif nSA[0] == 3:
-                            saMask[0:saSidePix,pupilSidePix/2-saSidePix/2:pupilSidePix/2+saSidePix/2] = 1
-                            saMask *= self.fao.ao.tel.pupil
+                            saMask[0:saSidePix,int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                            saMask *= cpuArray(self.fao.ao.tel.pupil)
                         else:
                             saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
                                    int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
-                        fig, (ax1, ax2) = plt.subplots(1,2)
-                        im = ax1.imshow(saMask)
-                        im = ax2.imshow(cpuArray(self.fao.ao.tel.pupil))
                         if gpuMastsel:
                             maskLO.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
                         else:
@@ -490,9 +487,6 @@ class baseSimulation(object):
                                                                                                          self.nPixPSF,
                                                                                                          scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
                                                                                                          oversampling=self.oversampling)
-            print('psfLongExpPointingsArr.shape',psfLongExpPointingsArr[0].sampling.shape)
-            fig, ax = plt.subplots(1)
-            im = ax.imshow(cpuArray(psfLongExpPointingsArr[0].sampling))
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
             
         # old version: if not self.LOisOn or (not self.doConvolve and not self.returnRes):
@@ -527,18 +521,23 @@ class baseSimulation(object):
                                                                            self.nPixPSF,
                                                                            scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
                                                                            oversampling=self.oversampling)
-                print('psfLE_NGS.shape',psfLE_NGS[0].sampling.shape)
-                fig, ax = plt.subplots(1)
-                im = ax.imshow(cpuArray(psfLE_NGS[0].sampling))
                 self.NGS_SR_field           = NGS_SR
                 self.NGS_FWHM_mas_field     = NGS_FWHM_mas
+                self.NGS_EE_field = []
+                idx = 0
+                for img in psfLE_NGS:
+                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                    ee_ *= 1/np.max(ee_)
+                    ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
+                    self.NGS_EE_field.append(ee_at_radius_fn(NGS_FWHM_mas[idx]/2))
+                    idx += 1
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
             if astIndex is None:
                 self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                                          self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=True)
+                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
 
             else:
                 self.NGS_SR_asterism = []
@@ -556,7 +555,7 @@ class baseSimulation(object):
                                                                           np.array(self.cartSciencePointingCoords),
                                                                           np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
                                                                           self.LO_freqs_asterism,
-                                                                          self.NGS_SR_asterism, self.NGS_FWHM_mas_asterism)
+                                                                          self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
                 
             if self.doConvolve:
                 if astIndex is None:
