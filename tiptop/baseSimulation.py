@@ -443,21 +443,25 @@ class baseSimulation(object):
             
             if self.LOisOn:
                 # Define the LO sub-aperture shape
-                nSA    = self.my_data_map['sensor_LO']['NumberLenslets']
+                nSA = self.my_data_map['sensor_LO']['NumberLenslets']
                 pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
                 saMask = np.zeros((pupilSidePix,pupilSidePix))
-                self.maskLO = []
-                for i in range(self.nNaturalGS_field):
+                if len(nSA) == self.nNaturalGS_field:
+                    self.maskLO = []
+                    nMaskLO = self.nNaturalGS_field
+                else:
+                    nMaskLO = 1
+                for i in range(nMaskLO):
                     saSideM = 2*self.tel_radius/nSA[i]
                     saSidePix = int(pupilSidePix/nSA[i])
                     if nSA[i] == 1:
                         self.maskLO.append(self.mask)
                     else:
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
-                        if nSA[0] == 2:
+                        if nSA[i] == 2:
                             saMask[0:saSidePix,0:saSidePix] = 1
                             saMask *= cpuArray(self.fao.ao.tel.pupil)
-                        elif nSA[0] == 3:
+                        elif nSA[i] == 3:
                             saMask[0:saSidePix,int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
                             saMask *= cpuArray(self.fao.ao.tel.pupil)
                         else:
@@ -468,8 +472,10 @@ class baseSimulation(object):
                         else:
                             maskLO.sampling = congrid(saMask, [self.sx, self.sx])
                         maskLO.sampling = zeroPad(maskLO.sampling, (self.N-self.sx)//2)
-                        self.maskLO.append(maskLO)
-            
+                        if nMaskLO > 1:
+                            self.maskLO.append(maskLO)
+                        else:
+                            self.maskLO = maskLO
             if self.verbose:
                 print('fao.samp:', self.fao.freq.samp)
                 print('fao.PSD.shape:', self.fao.PSD.shape)
