@@ -535,7 +535,10 @@ class baseSimulation(object):
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                     ee_ *= 1/np.max(ee_)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-                    self.NGS_EE_field.append(ee_at_radius_fn(NGS_FWHM_mas[idx]/2))
+                    self.NGS_EE_field.append(ee_at_radius_fn(NGS_FWHM_mas[idx]))
+                    if self.verbose:
+                        print('ee:', ee_at_radius_fn(NGS_FWHM_mas[idx]))
+                        print('fwhm:',NGS_FWHM_mas[idx])
                     idx += 1
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
@@ -556,7 +559,7 @@ class baseSimulation(object):
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                         self.LO_freqs_field,
-                                                        self.NGS_SR_field, self.NGS_FWHM_mas_field, doAll=False)
+                                                        self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
                 self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                           np.array(self.cartSciencePointingCoords),
                                                                           np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,

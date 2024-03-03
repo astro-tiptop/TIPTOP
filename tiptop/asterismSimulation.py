@@ -91,6 +91,7 @@ class asterismSimulation(baseSimulation):
 
     def configLO(self, astIndex=None):
         if astIndex==0:
+            self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
             # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
             LO_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
             if isinstance(LO_wvl_temp, list):
@@ -254,9 +255,7 @@ class asterismSimulation(baseSimulation):
                             magnitude += self.asterismsRecArray[i][j][b+'MAG']
                         magnitude /= float(len(bands))
                         freqs = self.freqsFromMagnitudes(magnitude)
-#                        print('magnitude, flux, scaledd flux', magnitude, flux, flux*fluxScaling )
                         fluxScaling = ((TelescopeDiameter/2.0)**2 * np.pi * (1-ObscurationRatio**2) * transmissionFactor / N_sa_tot_LO)
-
                         flux = flux * fluxScaling / freqs
                         if np.min(flux)<=0.0:
 #                            print("Field:" + str(i) + "- Asterism:" + str(j) + " SKIPPED because of Flux 0 star")
@@ -383,7 +382,7 @@ class asterismSimulation(baseSimulation):
         print('self.cov_ellipses_Asterism.shape', self.cov_ellipses_Asterism.shape)
 
         if covsarray.shape[0]!=0:
-            dd = np.average(np.abs(covsarray), axis=1)
+            dd = np.sqrt(np.average(np.abs(covsarray), axis=1))
             self.twoPlots(dd, base)
         
 #            if not isinstance(self.asterismsRecArray[field], np.recarray):
@@ -460,7 +459,7 @@ class asterismSimulation(baseSimulation):
         
         for i in range(istop-1, istart-1, -1):
             jj = ind_sort[i-istart]
-            aa = 1.0 # al[i-istart] * 0.9 + 0.1                
+            aa = 1.0 # al[i-istart] * 0.9 + 0.1
             coords = np.transpose(X[jj+istart, :2, :])
             xx = np.sum(X[jj+istart, 0, :])/float(X.shape[2])
             yy = np.sum(X[jj+istart, 1, :])/float(X.shape[2])
@@ -583,11 +582,20 @@ class asterismSimulation(baseSimulation):
     def twoPlots(self, dd0, base):
         min_id = np.argmin(dd0)
         ind_sort = np.argsort(dd0, axis=0)
-        plt.plot(np.sort(dd0))
-        plt.gca().set_yscale("log")
+        RR = self.asterismsInputDataPolar[ind_sort, 0, 0]
+        FF = self.asterismsInputDataPolar[ind_sort, 2, 0]
+        # print(dd0)
+        # print(ind_sort)
+        # print(dd0[ind_sort])       
+        # print(RR)
+        # print(FF)
+        plt.plot(dd0[ind_sort])
+        # plt.plot(RR)
+        # plt.plot(FF)
+        # plt.gca().set_yscale("log")
+        # plt.gca().set_yscale("linear")
         plt.show()
-#        plt.gca().set_yscale("linear")
-        print('base, min_id ', base, min_id)
+        #print('base, min_id ', base, min_id)
         self.plotAsterisms(dd0, ind_sort, base, base+dd0.shape[0], base+min_id)
         self.computeHeuristic(dd0, ind_sort, base, base+dd0.shape[0], base+min_id)
 
