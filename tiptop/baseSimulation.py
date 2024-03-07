@@ -455,7 +455,10 @@ class baseSimulation(object):
                     saSideM = 2*self.tel_radius/nSA[i]
                     saSidePix = int(pupilSidePix/nSA[i])
                     if nSA[i] == 1:
-                        self.maskLO.append(self.mask)
+                        if nMaskLO > 1:
+                            self.maskLO.append(self.mask)
+                        else:
+                            self.maskLO = self.mask
                     else:
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
                         if nSA[i] == 2:
