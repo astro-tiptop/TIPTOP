@@ -601,9 +601,8 @@ Can be set but not used
 
    **Optional**, 
    *type: int*, 
-   *default: 1*,2
-   used instead of field of view
-   Number of pixels for windiwing the low order WFS pixels
+   Radius in pixel of the HWHM of the weights map of the weighted CoG the low order WFS pixels
+   Warning: if set to 'optimize', gain is automatically optimized by TIPTOP (closest int to half of PSF FWHM), otherwise the float value set is used.
     
 .. option:: ThresholdWCoG
 
@@ -675,7 +674,7 @@ Can be set but not used
    **Optional**, 
    *type: str*, 
    *default: 'gaussian'*,
-   DM influence function model. Not used in tiptop but used in the psf reconstruction. What are the other possible one?
+   DM influence function model. Not used in TIPTOP but used in the psf reconstruction. What are the other possible one?
 
 .. option:: InfCoupling
 
