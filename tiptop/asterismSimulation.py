@@ -623,7 +623,7 @@ class asterismSimulation(baseSimulation):
         print("* Plotting Field " + str(fieldIndex1) + " - number of asterisms :" + str(self.currentFieldsize))
         print("*")
         print('self.covsarray.shape', self.covsarray.shape)
-        print('self.cov_ellipses_Asterism.shape', self.cov_ellipses_Asterism.shape)
+        print('len(self.cov_ellipses_Asterism)', len(self.cov_ellipses_Asterism))
         if self.covsarray.shape[0]!=0:
             self.twoPlots()
 
