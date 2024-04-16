@@ -176,7 +176,7 @@ The mandatory sections and their content are:
    **Optional**, 
    *type : float*, 
    *default: None*, 
-   additional kernel to be convolved with PSF, it could be a scalar (FWHM in arcsec) for a round kernel or a list of three values [FWHM_asec_max, FWHM_asec_min, angle_rad]
+   additional kernel to be convolved with PSF, it could be a scalar (FWHM in mas) for a round kernel or a list of three values [FWHM_mas_max, FWHM_mas_min, angle_rad]
 
 [atmosphere]
 ^^^^^^^^^^^^
