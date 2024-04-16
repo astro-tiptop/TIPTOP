@@ -37,6 +37,8 @@ class baseSimulation(object):
                           verbose=False, getHoErrorBreakDown=False,
                           savePSDs=False):
 
+        if verbose: np.set_printoptions(precision=3)
+        
         # copy the parameters in state vars
         self.path = path
         self.parametersFile = parametersFile
@@ -78,17 +80,20 @@ class baseSimulation(object):
                 
             if not self.check_config_key('telescope','TelescopeDiameter'):
                 self.raiseMissingRequiredOpt('telescope','TelescopeDiameter')
-                
+            
+            if not self.check_config_key('telescope','glFocusOnNGS'):
+                self.my_data_map['telescope']['glFocusOnNGS'] = False
+            
             if not self.check_section_key('sources_science') :
                 self.raiseMissingRequiredSec('sources_science') 
-                
+            
             if not self.check_config_key('sources_science','Wavelength'):
                 self.raiseMissingRequiredOpt('sources_science', 'Wavelength')
             
             if not self.check_config_key('sources_science','Zenith'):
                 #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
                 self.my_data_map['sources_science']['Zenith'] = [0.0]
-                
+            
             if not self.check_config_key('sources_science','Azimuth'):
                 #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
                 self.my_data_map['sources_science']['Azimuth'] = [0.0]
@@ -154,7 +159,11 @@ class baseSimulation(object):
         # initialize self.jitter_FWHM variable with a default value
         self.jitter_FWHM = None
         if 'jitter_FWHM' in self.my_data_map['telescope'].keys():
-            self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']            
+            self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']  
+            
+        self.addFocusError = self.my_data_map['telescope']['glFocusOnNGS']
+        if self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
+            raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS WFSs have more than one sub-aperture")
 
 
     def configLO(self, astIndex=None):      
@@ -328,8 +337,8 @@ class baseSimulation(object):
             # note : the uncertainities on the FWHM seems to create a bug in mavisLO
             sources_FWHM_mas.append(FWHM)
             if self.verbose:
-                print('SR(@',int(wavelength*1e9),'nm)  :', SR)
-                print('FWHM(@',int(wavelength*1e9),'nm):', FWHM)
+                print('SR(@',int(wavelength*1e9),'nm)        :', "%.5f" % SR)
+                print('FWHM(@',int(wavelength*1e9),'nm) [mas]:', "%.3f" % FWHM)
             i += 1
 
         return sources_SR, psdArray, psfLongExpArr, sources_FWHM_mas
@@ -408,6 +417,8 @@ class baseSimulation(object):
             self.configLO(astIndex)
         
         self.results = []
+        
+        # ------------------------------------------------------------------------
         # HO Part with P3 PSDs
         if self.verbose:
             print('******** HO PSD science and NGSs directions')
@@ -426,8 +437,9 @@ class baseSimulation(object):
                 self.fao.ao.configLOsensor()
                 self.fao.ao.configLO()
                 self.fao.ao.configLO_SC()
-
+            
             self.fao.initComputations()
+                 
             # High-order PSD caculations at the science directions and NGSs directions
             self.PSD           = self.fao.PSD # in nm^2
             self.PSD           = self.PSD.transpose()
@@ -449,7 +461,16 @@ class baseSimulation(object):
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
             
+            if self.verbose:
+                print('fao.samp:', self.fao.freq.samp)
+                print('fao.PSD.shape:', self.fao.PSD.shape)
+                print('fao.freq.psInMas:', self.psInMas)
+            
+            # ------------------------------------------------------------------------
+            # optional LO part
             if self.LOisOn:
+                if self.verbose:
+                    print('******** LO PART')
                 # Define the LO sub-aperture shape
                 nSA = self.my_data_map['sensor_LO']['NumberLenslets']
                 pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
@@ -487,54 +508,18 @@ class baseSimulation(object):
                             self.maskLO.append(maskLO)
                         else:
                             self.maskLO = maskLO
-            if self.verbose:
-                print('fao.samp:', self.fao.freq.samp)
-                print('fao.PSD.shape:', self.fao.PSD.shape)
-                print('fao.freq.psInMas:', self.psInMas)
-            # HO PSF
-            if self.verbose:
-                print('******** HO PSF')
-            pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
-                                                                                                         self.freq_range, 
-                                                                                                         self.dk,
-                                                                                                         self.mask, 
-                                                                                                         arrayP3toMastsel(self.PSD[0:self.nPointings]),
-                                                                                                         self.wvl,
-                                                                                                         self.psInMas[0],
-                                                                                                         self.nPixPSF,
-                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
-                                                                                                         oversampling=self.oversampling)
-            self.psfLongExpPointingsArr = psfLongExpPointingsArr
-            
-        # old version: if not self.LOisOn or (not self.doConvolve and not self.returnRes):
-        if not self.LOisOn:
-            for psfLongExp in self.psfLongExpPointingsArr:
-                if self.jitter_FWHM is not None:
-                    if isinstance(self.jitter_FWHM, list):
-                        ellp = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
-                    else:
-                        ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                        
-                    self.results.append(convolve(psfLongExp,
-                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
-                else:
-                    self.results.append(psfLongExp)
-        else:
-            if astIndex is None or astIndex==0:
-                # LOW ORDER PART
-                if self.verbose:
-                    print('******** LO PART')
+
                 self.psInMas_NGS        = self.psInMas[0] * (self.LO_wvl/self.wvl) # airy pattern PSF FWHM
                 if self.verbose:
-                    print('******** HO PSF - NGS directions')
+                    print('******** HO PSF - NGS directions (1 sub-aperture)')
 
-                NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(self.N, 
-                                                                           self.freq_range, 
-                                                                           self.dk, 
-                                                                           self.maskLO, 
-                                                                           arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:]), 
-                                                                           self.LO_wvl, 
-                                                                           self.psInMas_NGS, 
+                NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(self.N,
+                                                                           self.freq_range,
+                                                                           self.dk,
+                                                                           self.maskLO,
+                                                                           arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:]),
+                                                                           self.LO_wvl,
+                                                                           self.psInMas_NGS,
                                                                            self.nPixPSF,
                                                                            scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
                                                                            oversampling=self.oversampling)
@@ -548,8 +533,7 @@ class baseSimulation(object):
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     self.NGS_EE_field.append(ee_at_radius_fn(NGS_FWHM_mas[idx]))
                     if self.verbose:
-                        print('ee:', ee_at_radius_fn(NGS_FWHM_mas[idx]))
-                        print('fwhm:',NGS_FWHM_mas[idx])
+                        print('EE                   :', "%.5f" % ee_at_radius_fn(NGS_FWHM_mas[idx]))
                     idx += 1
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
@@ -558,6 +542,16 @@ class baseSimulation(object):
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                                          self.LO_freqs_field,
                                                                          self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
+                if self.addFocusError:
+                    # compute focus error
+                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                         self.LO_freqs_field,
+                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field)
+                    # add focus error to PSD using P3 FocusFilter
+                    for PSDho in self.PSD:
+                        FocusFilter = self.fao.FocusFilter()
+                        FocusFilter *= 1/FocusFilter.sum()
+                        PSDho += self.CtotFocus[0] * FocusFilter
 
             else:
                 self.NGS_SR_asterism = []
@@ -576,7 +570,40 @@ class baseSimulation(object):
                                                                           np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
                                                                           self.LO_freqs_asterism,
                                                                           self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
-                
+                #TODO add self.CtotFocus computation only for the best asterism
+                #if self.addFocusError:
+                #    ...
+        
+        # ------------------------------------------------------------------------
+        # HO PSF
+        if self.verbose:
+            print('******** HO PSF')
+        pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
+                                                                                                     self.freq_range, 
+                                                                                                     self.dk,
+                                                                                                     self.mask, 
+                                                                                                     arrayP3toMastsel(self.PSD[0:self.nPointings]),
+                                                                                                     self.wvl,
+                                                                                                     self.psInMas[0],
+                                                                                                     self.nPixPSF,
+                                                                                                     scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
+                                                                                                     oversampling=self.oversampling)
+        self.psfLongExpPointingsArr = psfLongExpPointingsArr
+        
+        # ------------------------------------------------------------------------
+        # final results computation after optional convolution with jitter kernels
+        if not self.LOisOn:
+            for psfLongExp in self.psfLongExpPointingsArr:
+                if self.jitter_FWHM is not None:
+                    if isinstance(self.jitter_FWHM, list):
+                        ellp = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                    else:
+                        ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                    self.results.append(convolve(psfLongExp,
+                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
+                else:
+                    self.results.append(psfLongExp)
+        else:
             if self.doConvolve:
                 if astIndex is None:
                     self.finalConvolution()
@@ -585,7 +612,8 @@ class baseSimulation(object):
             else:
                 for psfLongExp in self.psfLongExpPointingsArr:
                     self.results.append(psfLongExp)
- 
+        # ------------------------------------------------------------------------
+        
         if self.doPlot:
             if self.LOisOn and self.doConvolve:
                 tiledDisplay(self.results)
