@@ -31,10 +31,11 @@ The mandatory sections and their content are:
 
 .. option:: ObscurationRatio
 
-   **Optionnal**, 
+   **Optional**, 
    *type : float*, 
    *Default : 0.0*,
    Defines the central obstruction due to the secondary as a ratio of the TelescopeDiameter
+
    *Warning* : MavisLO.py does not have a defualt value for this parameter 
 
 .. option:: Resolution
@@ -57,6 +58,7 @@ The mandatory sections and their content are:
    *type : float*, 
    *default: ??*, 
    set the size of the technical field of view
+
    *Warning* : This is not optional in MavisLO.py
 
 .. option:: PathPupil
@@ -101,7 +103,7 @@ The mandatory sections and their content are:
    *default: ''*, 
    path to a .fits file that contain a cube of map of mode in amplitude which lead to a rms of 1 in nanometer of static aberation. if absent or '', not used. Unsure how this works.
 
-.. option:: coeficientOfTheStaticMode
+.. option:: coefficientOfTheStaticMode
    
    **not used**, 
    *type : str*, 
@@ -143,6 +145,7 @@ The mandatory sections and their content are:
    *type : float*, 
    *default: 0*, 
    nm RMS of the additional error to be added (an error that is not otherwise considered) on LO directions only
+
    Note: (1) only makes sense if [sensor_LO] is present (2) if not present extraErrorNm is used on LO directions
 
 .. option:: extraErrorLoExp
@@ -165,7 +168,15 @@ The mandatory sections and their content are:
    *type : float*, 
    *default: 0*, 
    maximum spatial frequency for which PSD associated with extraErrorLoNm is > 0
+
    Note: 0 means maximum frequency is the one present in the spatial frequncy array of the PSDs 
+
+.. option:: jitter_FWHM
+
+   **Optional**, 
+   *type : float*, 
+   *default: None*, 
+   additional kernel to be convolved with PSF, it could be a scalar (FWHM in arcsec) for a round kernel or a list of three values [FWHM_asec_max, FWHM_asec_min, angle_rad]
 
 [atmosphere]
 ^^^^^^^^^^^^
@@ -183,7 +194,8 @@ The mandatory sections and their content are:
    *type : float*, 
    *Default : 500e-9*, 
    Wavelength of definition of the atmosphere statistics
-   Warning: not optional in MavisLO.py
+
+   *Warning* : not optional in MavisLO.py
 
 .. option:: L0
 
@@ -191,7 +203,8 @@ The mandatory sections and their content are:
    *type : float*, 
    *Default : 25.0*, 
    Outer Scale of the atmosphere  in meters
-   Warning: not optionnal in MavisLO.py
+
+   *Warning* : not optionnal in MavisLO.py
 
 .. option:: Cn2Weights
 
@@ -200,8 +213,10 @@ The mandatory sections and their content are:
    *Default : [1.0]*, 
    Relative contribution of each layer. The sum of all the list element must be 1. 
    Must have the same length as ``Cn2Heights``, ``WindSpeed`` and ``WindDirection``.
-   Warning : required if ``Cn2Heights``, ``WindSpeed`` or ``WindDirection`` are defined
-   Warning : extremly confusing error message if absent when it must be defined
+
+   *Warning* : required if ``Cn2Heights``, ``WindSpeed`` or ``WindDirection`` are defined
+
+   *Warning* : extremly confusing error message if absent when it must be defined
 
 .. option:: Cn2Heights
 
@@ -210,8 +225,10 @@ The mandatory sections and their content are:
    *Default : [0.0]*, 
    altitude of layers in meters.
    Must have the same length as ``Cn2Weights``, ``WindSpeed`` and ``WindDirection``.
-   Warning : required if ``Cn2Weights``, ``WindSpeed`` or ``WindDirection`` are defined
-   Warning : extremly confusing error message if absent when it must be defined
+
+   *Warning* : required if ``Cn2Weights``, ``WindSpeed`` or ``WindDirection`` are defined
+
+   *Warning* : extremly confusing error message if absent when it must be defined
 
 .. option:: WindSpeed
 
@@ -220,8 +237,10 @@ The mandatory sections and their content are:
    *Default : [10.0]*, 
    Wind speed values for each layer in m/s. 
    Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and ``WindDirection``.
-   Warning : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindDirection`` are defined
-   Warning : extremly confusing error message if absent when it must be defined
+
+   *Warning* : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindDirection`` are defined
+
+   *Warning* : extremly confusing error message if absent when it must be defined
 
 .. option:: WindDirection
 
@@ -230,8 +249,10 @@ The mandatory sections and their content are:
    *Default : [0.0]*, 
    wind direction for each layer in degrees. 0 degree is ?? then anticlockwise.
    Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and ``WindSpeed``.
-   Warning : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindSpeed`` are defined
-   Warning : extremly confusing error message if absent when it must be defined
+
+   *Warning* : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindSpeed`` are defined
+
+   *Warning* : extremly confusing error message if absent when it must be defined
 
 .. option:: r0_Value
    
@@ -279,7 +300,8 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Required**, 
    *type : float*, 
    Sensing wavelength for Hight Order modes in meters
-   Warning : gives a confusing error message if absent
+
+   *Warning* : gives a confusing error message if absent
 
 .. option:: Zenith
 
@@ -340,7 +362,8 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Required**, 
    *type : float*, 
    pixel/spaxel scale in mili arcsec
-   Warning: confusing error message if missing
+
+   *Warning* : confusing error message if missing
 
 
 .. option:: FieldOfView
@@ -348,7 +371,8 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Required**, 
    *type : float*, 
    Field of view of the camera in pixel/spaxel. need confirmation on the optionality of this paramiter. 
-   Warning: confusing error massage if missing
+
+   *Warning* : confusing error massage if missing
 
 .. note::
 
@@ -380,14 +404,16 @@ Used regardless of the WFS, desired behaviour,
    **Required**, 
    *type: int*, 
    High Order WFS pixel scale in [mas], unclear what are the units if we chose a pyramid wavefront sensor
-   Warning: gives a confusing error message if missing 
+
+   *Warning* : gives a confusing error message if missing 
 
 .. option:: FieldOfView
 
    **Required**, 
    *type: int*, 
    Number of pixels per subaperture. 
-   Warning: gives a confusing error message if missing 
+
+   *Warning* : gives a confusing error message if missing 
 
 .. option:: Binning
    
@@ -409,7 +435,8 @@ Used regardless of the WFS, desired behaviour,
    **Required**, 
    *type: list of int*, 
    Flux return in [nph/frame/subaperture]
-   Warning: extremly confusing error message if missing
+
+   *Warning* : extremly confusing error message if missing
 
 .. option:: SpotFWHM    
    
@@ -498,7 +525,8 @@ Pyramid requirement
    *type: float*, 
    *default : None*, 
    If the chosen wavefront sensor is the ``'Pyramid'``, Spot modulation radius in lambda/D units. This is ignored if the WFS is `'Shack-Hartmann'`
-   Warning : gives really confusing message if missing when required
+
+   *Warning* : gives really confusing message if missing when required
 
 Can be set but not used
 """""""""""""""""""""""
@@ -544,7 +572,8 @@ Can be set but not used
    **Required**, 
    *type: float*, 
    LO WFS pixel scale in [mas]
-   Warning: gives a confusing error message if missing
+
+   *Warning* : gives a confusing error message if missing
 
 .. option:: FieldOfView 
 
@@ -552,7 +581,8 @@ Can be set but not used
    *type: int*, 
    not used. 
    Number of pixels per subaperture
-   Warning: gives a confusing error message if missing
+
+   *Warning* : gives a confusing error message if missing
 
 .. option:: NumberPhotons 
 
@@ -602,7 +632,8 @@ Can be set but not used
    **Optional**, 
    *type: int*, 
    Radius in pixel of the HWHM of the weights map of the weighted CoG the low order WFS pixels
-   Warning: if set to 'optimize', gain is automatically optimized by TIPTOP (closest int to half of PSF FWHM), otherwise the float value set is used.
+
+   *Warning* : if set to 'optimize', gain is automatically optimized by TIPTOP (closest int to half of PSF FWHM), otherwise the float value set is used.
     
 .. option:: ThresholdWCoG
 
@@ -658,8 +689,9 @@ Can be set but not used
    *type: list of int*, 
    Number of actuator on the pupil diameter. why a list of int?
    Must be the same length as DmPitchs
-   Warning: gives a confusing error message if missing
-   Warning: not used in TIPTOP!
+
+   *Warning* : gives a confusing error message if missing
+   *Warning* : not used in TIPTOP!
 
 .. option:: DmPitchs
 
@@ -667,7 +699,8 @@ Can be set but not used
    *type: list of float*, 
    DM actuators pitch in meters, on the meta pupil at the conjugasion altitude, used for fitting error computation.
    Must be the same length as NumberActuators?
-   Warning: gives a confusing error message if missing
+
+   *Warning* : gives a confusing error message if missing
 
 .. option:: InfModel
 
@@ -750,7 +783,8 @@ Can be set but not used
    *Type : float*, 
    *Default : 0.5*, 
    High Order Loop gain.
-   Warning: if system to be simulated is a multi-conjugate system this parameter is not used.
+
+   *Warning* : if system to be simulated is a multi-conjugate system this parameter is not used.
 
 .. option:: SensorFrameRate_HO
 
@@ -772,7 +806,8 @@ Can be set but not used
    *type: float or string*, 
    *default: None*,
    Low Order loop gain
-   Warning: if set to 'optimize', gain is automatically optimized by tiptop, otherwise the float value set is used.
+
+   *Warning* : if set to 'optimize', gain is automatically optimized by tiptop, otherwise the float value set is used.
 
 .. option:: SensorFrameRate_LO
 

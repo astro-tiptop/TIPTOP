@@ -379,7 +379,15 @@ class baseSimulation(object):
         # Optimization: Non NEED to perform this convolutions if this is the asterism selection procedure ???
         for ellp, psfLongExp in zip(self.cov_ellipses, self.psfLongExpPointingsArr):
             resSpec = residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))
-            self.results.append(convolve(psfLongExp, resSpec))
+            temp = convolve(psfLongExp, resSpec)
+            if self.jitter_FWHM is not None:
+                if isinstance(self.jitter_FWHM, list):
+                    ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                else:
+                    ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                resSpecJ = residualToSpectrum(ellpJ, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))
+                temp = convolve(temp, resSpecJ)
+            self.results.append(temp)
 
 
     def computeMetrics(self, eeRadiusInMas=50):
