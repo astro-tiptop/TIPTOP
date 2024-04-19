@@ -537,42 +537,44 @@ class baseSimulation(object):
                     idx += 1
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
-            if astIndex is None:
-                self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                                         self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
-                if self.addFocusError:
-                    # compute focus error
-                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                                         self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field)
-                    # add focus error to PSD using P3 FocusFilter
-                    for PSDho in self.PSD:
-                        FocusFilter = self.fao.FocusFilter()
-                        FocusFilter *= 1/FocusFilter.sum()
-                        PSDho += self.CtotFocus[0] * FocusFilter
+        if astIndex is None:
+            self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
+                                                                     self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                     self.LO_freqs_field,
+                                                                     self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
+            if self.addFocusError:
+                # compute focus error
+                self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                     self.LO_freqs_field,
+                                                                     self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field)
+                # add focus error to PSD using P3 FocusFilter
+                for PSDho in self.PSD:
+                    FocusFilter = self.fao.FocusFilter()
+                    FocusFilter *= 1/FocusFilter.sum()
+                    PSDho += self.CtotFocus[0] * FocusFilter
 
-            else:
-                self.NGS_SR_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
-                self.NGS_FWHM_mas_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
-                if astIndex==0:
-                    self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                        self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                        self.LO_freqs_field,
-                                                        self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
-                self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
-                                                                          np.array(self.cartSciencePointingCoords),
-                                                                          np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
-                                                                          self.LO_freqs_asterism,
-                                                                          self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
-                #TODO add self.CtotFocus computation only for the best asterism
-                #if self.addFocusError:
-                #    ...
+        else:
+            self.NGS_SR_asterism = []
+            for iid in self.currentAsterismIndices:
+                self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
+            self.NGS_FWHM_mas_asterism = []
+            for iid in self.currentAsterismIndices:
+                self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
+            if astIndex==0:
+                self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
+                                                    self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                    self.LO_freqs_field,
+                                                    self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+            self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
+                                                                      np.array(self.cartSciencePointingCoords),
+                                                                      np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
+                                                                      self.LO_freqs_asterism,
+                                                                      self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
+            print('Asterism:', astIndex)
+            print('self.Ctot:', self.Ctot)
+            #TODO add self.CtotFocus computation only for the best asterism
+            #if self.addFocusError:
+            #    ...
         
         # ------------------------------------------------------------------------
         # HO PSF
