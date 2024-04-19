@@ -548,9 +548,9 @@ class baseSimulation(object):
                                                                          self.LO_freqs_field,
                                                                          self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field)
                     # add focus error to PSD using P3 FocusFilter
+                    FocusFilter = self.fao.FocusFilter()
+                    FocusFilter *= 1/FocusFilter.sum()
                     for PSDho in self.PSD:
-                        FocusFilter = self.fao.FocusFilter()
-                        FocusFilter *= 1/FocusFilter.sum()
                         PSDho += self.CtotFocus[0] * FocusFilter
 
             else:
