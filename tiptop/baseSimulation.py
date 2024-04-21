@@ -404,7 +404,7 @@ class baseSimulation(object):
             print('EE is computed for a radius of ', eeRadiusInMas,' mas')            
         self.sr, self.fwhm, self.ee = [], [], []
         for img in self.results:
-            self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='max'))
+            self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
             self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
             ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
             ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
