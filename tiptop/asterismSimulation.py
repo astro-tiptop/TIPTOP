@@ -38,12 +38,14 @@ class asterismSimulation(baseSimulation):
 
     def __init__(self, simulName, path, parametersFile, outputDir,
                  outputFile, doPlot=False, addSrAndFwhm=False, verbose=False,
-                 getHoErrorBreakDown=False):
+                 getHoErrorBreakDown=False, ensquaredEnergy=False,
+                 eeRadiusInMas=50):
 
         super().__init__(path, parametersFile, outputDir, outputFile, doConvolve=True,
                           doPlot=False, addSrAndFwhm=addSrAndFwhm,
                           verbose=verbose, getHoErrorBreakDown=False,
-                          savePSDs=False)
+                          savePSDs=False, ensquaredEnergy=ensquaredEnergy,
+                          eeRadiusInMas=eeRadiusInMas)
 
         self.simulName = simulName
         # store the parameters in data members
