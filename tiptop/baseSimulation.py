@@ -273,8 +273,7 @@ class baseSimulation(object):
             for i in range(self.cubeResultsArray.shape[0]):
                 if self.ensquaredEnergy:
                     ee = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
-                    rr = np.arange(1, ee.shape[0]*2)
-                    rr = np.array(rr[rr%2==1]) * self.psInMas[0] * 0.5
+                    rr = np.arange(1, ee.shape[0]*2, 2) * self.psInMas[0] * 0.5
                 else:
                     ee,rr = getEncircledEnergy(self.cubeResultsArray[i,:,:], pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
@@ -416,8 +415,7 @@ class baseSimulation(object):
             self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
             if self.ensquaredEnergy:
                 ee_ = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
-                rr_ = np.arange(1, ee.shape[0]*2)
-                rr_ = np.array(rr_[rr_%2==1]) * self.psInMas[0] * 0.5
+                rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas[0] * 0.5
             else:
                 ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
             ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
