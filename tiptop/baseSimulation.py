@@ -35,7 +35,8 @@ class baseSimulation(object):
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=False,
                           doPlot=False, addSrAndFwhm=False,
                           verbose=False, getHoErrorBreakDown=False,
-                          savePSDs=False):
+                          savePSDs=False, ensquaredEnergy=False,
+                          eeRadiusInMas=50):
 
         if verbose: np.set_printoptions(precision=3)
         
@@ -49,7 +50,9 @@ class baseSimulation(object):
         self.addSrAndFwhm = addSrAndFwhm
         self.verbose = verbose
         self.getHoErrorBreakDown = getHoErrorBreakDown
-        self.savePSDs = savePSDs        
+        self.savePSDs = savePSDs
+        self.ensquaredEnergy = ensquaredEnergy
+        self.eeRadiusInMas = eeRadiusInMas
 #        if self.returnRes and self.doPlot:
 #            print('WARNING: returnRes and doPlot cannot both be True, setting doPlot to False.')
 #            self.doPlot = False
@@ -268,9 +271,14 @@ class baseSimulation(object):
             for i in range(self.cubeResultsArray.shape[0]):
                 hdr1['FWHM'+str(i).zfill(4)] = getFWHM(self.cubeResultsArray[i,:,:], self.psInMas[0], method='contour', nargout=1)
             for i in range(self.cubeResultsArray.shape[0]):
-                ee,rr = getEncircledEnergy(self.cubeResultsArray[i,:,:], pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                if self.ensquaredEnergy:
+                    ee = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
+                    rr = np.arange(1, ee.shape[0]*2)
+                    rr = np.array(rr[rr%2==1]) * self.psInMas[0] * 0.5
+                else:
+                    ee,rr = getEncircledEnergy(self.cubeResultsArray[i,:,:], pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
-                hdr1['EE50'+str(i).zfill(4)] = ee_at_radius_fn(50.0).take(0)
+                hdr1['EE'+str(np.round(self.eeRadiusInMas))+str(i).zfill(4)] = ee_at_radius_fn(self.eeRadiusInMas).take(0)
 
         # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
@@ -399,16 +407,21 @@ class baseSimulation(object):
             self.results.append(temp)
 
 
-    def computeMetrics(self, eeRadiusInMas=50):
+    def computeMetrics(self):
         if self.verbose:
-            print('EE is computed for a radius of ', eeRadiusInMas,' mas')            
+            print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
         self.sr, self.fwhm, self.ee = [], [], []
         for img in self.results:
             self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
             self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
-            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+            if self.ensquaredEnergy:
+                ee_ = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
+                rr_ = np.arange(1, ee.shape[0]*2)
+                rr_ = np.array(rr_[rr_%2==1]) * self.psInMas[0] * 0.5
+            else:
+                ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
             ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-            self.ee.append(ee_at_radius_fn(eeRadiusInMas))
+            self.ee.append(ee_at_radius_fn(self.eeRadiusInMas))
 
 
     def doOverallSimulation(self, astIndex=None):
