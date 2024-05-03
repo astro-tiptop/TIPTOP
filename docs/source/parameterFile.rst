@@ -49,7 +49,7 @@ The mandatory sections and their content are:
    **Optional**, 
    *type : float*, 
    *Default: 0.0*, 
-   Set the pointing direction of the telescope in degree
+   Set the pointing direction of the telescope in degree with respect to the zenith. Used to compute airmass, to scale atmospheric layers and stars altitude.
 
 
 .. option:: TechnicalFoV
@@ -57,7 +57,7 @@ The mandatory sections and their content are:
    **Optional**, 
    *type : float*, 
    *default: ??*, 
-   set the size of the technical field of view
+   Set the size of the technical field of view (diameter) in arczec. Used in multi-conjugate AO systems.
 
    *Warning* : This is not optional in MavisLO.py
 
@@ -66,42 +66,42 @@ The mandatory sections and their content are:
    **Optional**, 
    *type : str*, 
    *default: ''*, 
-   path to the pupil model in .fits file (if provided, the pupil model is interpolated).if absent or '', not used
+   path to the pupil model in .fits file (if provided, the pupil model is interpolated). If absent or '', not used.
 
 .. option:: PathStaticOn
 
    **Optional**, 
    *type : str*, 
    *default: None*, 
-   path to a map of static aberrations (nm) in .fits file. if absent or '', not used
+   path to a map of static aberrations (nm) in .fits file. If absent or '', not used. From P3, not supported in TIPTOP.
 
 .. option:: PathStaticOff
 
    **Optional**, 
    *type : str*, 
    *default: None*, 
-   No clue what this does. if absent or '', not used
+   No clue what this does. if absent or '', not used. From P3, not supported in TIPTOP.
 
 .. option:: PathStaticPos
 
    **Optional**, 
    *type : str*, 
    *default: None*, 
-   No clue
+   No clue. From P3, not supported in TIPTOP.
 
 .. option::  PathApodizer
 
    **Optional**, 
    *type : str*, 
    *default: ''*, 
-   Path to a fits file that contain a binary map corresponding to a pupil apodizer (TBC). if absent or '', not used
+   Path to a fits file that contain a binary map corresponding to a pupil apodizer (TBC). if absent or '', not used. From P3, not supported in TIPTOP.
 
 .. option:: PathStatModes
    
    **Optional**, 
    *type : str*, 
    *default: ''*, 
-   path to a .fits file that contain a cube of map of mode in amplitude which lead to a rms of 1 in nanometer of static aberation. if absent or '', not used. Unsure how this works.
+   path to a .fits file that contain a cube of map of mode in amplitude which lead to a rms of 1 in nanometer of static aberation. if absent or '', not used. From P3, not supported in TIPTOP.
 
 .. option:: coefficientOfTheStaticMode
    
@@ -109,74 +109,74 @@ The mandatory sections and their content are:
    *type : str*, 
    *default: ''*, 
    place holder 
-   (TBC) need to find how does the pathStatModes fits file work.
+   (TBC) need to find how does the pathStatModes fits file work. From P3, not supported in TIPTOP.
 
 .. option:: extraErrorNm
    
    **Optional**, 
    *type : float*, 
    *default: 0*, 
-   nm RMS of the additional error to be added (an error that is not otherwise considered)
+   nm RMS of the additional error to be added (an error that is not otherwise considered).
 
 .. option:: extraErrorExp
    
    **Optional**, 
    *type : float*, 
    *default: -2*, 
-   exponent of the power of spatial frequencies used to generate the PSD associated with extraErrorNm
+   exponent of the power of spatial frequencies used to generate the PSD associated with extraErrorNm.
 
 .. option:: extraErrorMin
    
    **Optional**, 
    *type : float*, 
    *default: 0*, 
-   minimum spatial frequency for which PSD associated with extraErrorNm is > 0
+   minimum spatial frequency for which PSD associated with extraErrorNm is > 0.
 
 .. option:: extraErrorMax
    
    **Optional**, 
    *type : float*, 
    *default: 0*, 
-   maximum spatial frequency for which PSD associated with extraErrorNm is > 0
+   maximum spatial frequency for which PSD associated with extraErrorNm is > 0.
 
 .. option:: extraErrorLoNm
    
    **Optional**, 
    *type : float*, 
    *default: 0*, 
-   nm RMS of the additional error to be added (an error that is not otherwise considered) on LO directions only
+   nm RMS of the additional error to be added (an error that is not otherwise considered) on LO directions only.
 
-   Note: (1) only makes sense if [sensor_LO] is present (2) if not present extraErrorNm is used on LO directions
+   Note: (1) only makes sense if [sensor_LO] is present (2) if not present extraErrorNm is used on LO directions.
 
 .. option:: extraErrorLoExp
    
    **Optional**, 
    *type : float*, 
    *default: -2*, 
-   exponent of the power of spatial frequencies used to generate the PSD associated with extraErrorLoNm
+   exponent of the power of spatial frequencies used to generate the PSD associated with extraErrorLoNm.
 
 .. option:: extraErrorLoMin
    
    **Optional**, 
    *type : float*, 
    *default: 0*, 
-   minimum spatial frequency for which PSD associated with extraErrorLoNm is > 0
+   minimum spatial frequency for which PSD associated with extraErrorLoNm is > 0.
 
 .. option:: extraErrorLoMax
    
    **Optional**, 
    *type : float*, 
    *default: 0*, 
-   maximum spatial frequency for which PSD associated with extraErrorLoNm is > 0
+   maximum spatial frequency for which PSD associated with extraErrorLoNm is > 0.
 
-   Note: 0 means maximum frequency is the one present in the spatial frequncy array of the PSDs 
+   Note: 0 means maximum frequency is the one present in the spatial frequncy array of the PSDs.
 
 .. option:: jitter_FWHM
 
    **Optional**, 
    *type : float*, 
    *default: None*, 
-   additional kernel to be convolved with PSF, it could be a scalar (FWHM in mas) for a round kernel or a list of three values [FWHM_mas_max, FWHM_mas_min, angle_rad]
+   additional kernel to be convolved with PSF, it could be a scalar (FWHM in mas) for a round kernel or a list of three values [FWHM_mas_max, FWHM_mas_min, angle_rad].
 
 [atmosphere]
 ^^^^^^^^^^^^
@@ -186,7 +186,7 @@ The mandatory sections and their content are:
    **Required**, 
    *type : float*, 
    Set the seeing at Zenith in arcsec. 
-   If not set TIPTOP uses ``r0_value`` .
+   If not set TIPTOP uses ``r0_value``.
 
 .. option:: Wavelength
 
@@ -280,14 +280,14 @@ The mandatory sections and their content are:
 
    **Required**, 
    *Type : list of float*, 
-   Zenithal coordinate in arcsec of Wavelength sources given in ``Wavelength``.
+   Zenithal coordinate in arcsec (distance from axis) of science sources.
    Must be the same length as ``Azimuth``
 
 .. option:: Azimuth
 
    **Required**, 
    *Type : list of float*, 
-   Azimuthal coordinate in degree of Wavelength sources given in ``Wavelength``.
+   Azimuthal coordinate in degree (angle from the reference direction: polar axis is x-axis) of science sources.
    Must be the same length as ``Zenith``
 
 [sources_HO]
@@ -308,18 +308,18 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
    **Optional**, 
    *Type : list of float*, 
    *Default : [0.0]*
-   Zenithal coordinate of each guide stars in arcsec.
+   Zenithal coordinate of each guide stars in arcsec (distance from axis).
    Must be the same length as ``Azimuth``
-   Even if ``Azimutal`` is defined, this is optionnal.
+   Even if ``Azimutal`` is defined, this is optional.
    
 .. option:: Azimuth
 
    **Optional**, 
    *Type : list of float*, 
    *Default : [0.0]*
-   Azimuthal coordinate in degree of each guide stars.
+   Azimuthal coordinate in degree of each guide stars (angle from the reference direction: polar axis is x-axis).
    Must be the same length as ``Zenith``
-   Even if ``Zenith`` is defined, this is optionnal.
+   Even if ``Zenith`` is defined, this is optional.
 
 .. option:: Height
    
@@ -344,14 +344,14 @@ Typically the wavelength is the same for all guide star (at least in Laser guide
 
    **Required**, 
    *Type : list of float*, 
-   Zenithal coordinate of each guide stars in arcsec.
+   Zenithal coordinate of each guide stars in arcsec (distance from axis).
    Must be the same length as ``Azimuth``
    
 .. option:: Azimuth
 
    **Required**, 
    *Type : list of float*, 
-   Azimuthal coordinate in degree of each guide stars.
+   Azimuthal coordinate in degree of each guide stars (angle from the reference direction: polar axis is x-axis).
    Must be the same length as ``Zenith``
 
 [sensor_science]
