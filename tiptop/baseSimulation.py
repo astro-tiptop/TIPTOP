@@ -582,8 +582,6 @@ class baseSimulation(object):
                                                                       np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
                                                                       self.LO_freqs_asterism,
                                                                       self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
-            print('Asterism:', astIndex)
-            print('self.Ctot:', self.Ctot)
             #TODO add self.CtotFocus computation only for the best asterism
             #if self.addFocusError:
             #    ...
