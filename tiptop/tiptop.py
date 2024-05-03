@@ -101,13 +101,12 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
 
     """
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
-                      doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, ensquaredEnergy,
-                      eeRadiusInMas)
+                      doPlot, addSrAndFwhm, verbose)
 
     
     if simulation.hasAsterismSection and simulation.LOisOn:
  
-        simulation.computeAsterisms()
+        simulation.computeAsterisms(eeRadiusInMas)
         
         if returnRes:
             return simulation.HO_res_Asterism, simulation.LO_res_Asterism, simulation
@@ -128,7 +127,6 @@ def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, ou
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
                       eeRadiusInMas=50):
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
-                                    doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, ensquaredEnergy,
-                                    eeRadiusInMas)
+                                    doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
     simulation.reloadResults()
     return simulation.sr_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
