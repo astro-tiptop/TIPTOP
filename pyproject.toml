@@ -18,6 +18,7 @@ dependencies = [
     "pyyaml",
     "astro-p3>=1.2.11",
     "mastsel>=1.2.7",
+    "pytorch>=2.1.2",
 ]
 dynamic = ["version"]
 
