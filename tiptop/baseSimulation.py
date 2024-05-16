@@ -414,7 +414,7 @@ class baseSimulation(object):
             self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
             self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
             if self.ensquaredEnergy:
-                ee_ = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
+                ee_ = cpuArray(getEnsquaredEnergy(img.sampling))
                 rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas[0] * 0.5
             else:
                 ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
