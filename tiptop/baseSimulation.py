@@ -308,7 +308,14 @@ class baseSimulation(object):
         psdArray = []
         psfLongExpArr = []
         sources_FWHM_mas = []
-        
+
+        # Get the Telecope plus Static WFE OTF if defined in self
+        if hasattr(self, "otfStatic"):
+            otf_tel = self.otfStatic[0]
+            # above only 0 is used because this method does not yet support multi wavelength PSF generation
+        else:
+            otf_tel = None
+
         i = 0
         for computedPSD in inputPSDs:
             # Get the PSD at the NGSs positions at the sensing wavelength
@@ -316,12 +323,6 @@ class baseSimulation(object):
             psd          = Field(wavelength, N, freq_range, 'rad')
             psd.sampling = computedPSD / dk**2 # the PSD must be provided in m^2.m^2
             psdArray.append(psd)
-            # Get the Telecope plus Static WFE OTF if defined in self
-            if hasattr(self, "otfStatic"):
-                otf_tel = self.otfStatic[0]
-                # above only 0 is used because this method does not yet support multi wavelength PSF generation
-            else:
-                otf_tel = None
             # Get the PSF
             if isinstance(mask, list):
                 psfLE = longExposurePsf(mask[i], psd, otf_tel = otf_tel )
