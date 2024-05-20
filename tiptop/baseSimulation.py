@@ -316,11 +316,17 @@ class baseSimulation(object):
             psd          = Field(wavelength, N, freq_range, 'rad')
             psd.sampling = computedPSD / dk**2 # the PSD must be provided in m^2.m^2
             psdArray.append(psd)
+            # Get the Telecope plus Static WFE OTF if defined in self
+            if hasattr(self, "otfStatic"):
+                otf_tel = self.otfStatic[0]
+                # above only 0 is used because this method does not yet support multi wavelength PSF generation
+            else:
+                otf_tel = None
             # Get the PSF
             if isinstance(mask, list):
-                psfLE = longExposurePsf(mask[i], psd )
+                psfLE = longExposurePsf(mask[i], psd, otf_tel = otf_tel )
             else:
-                psfLE = longExposurePsf(mask, psd )
+                psfLE = longExposurePsf(mask, psd, otf_tel = otf_tel )
             
             # It rebins the PSF if oversampling is greater than 1
             if oversampling > 1:
@@ -477,6 +483,18 @@ class baseSimulation(object):
                 print('fao.PSD.shape:', self.fao.PSD.shape)
                 print('fao.freq.psInMas:', self.psInMas)
             
+            # ------------------------------------------------------------------------
+            # Update the instrumental OTF if static WFE is present:
+            #     [telescope] PathStaticOn key in params
+            if (self.fao.ao.tel.opdMap_on is not None):
+                self.otfStatic = []
+                # following lines come from SF2PSF method of P3/p3/aoSystem/FourierUtils.py
+                for jWvl in range(self.fao.freq.nWvl):
+                    otfStatic, otfDL, phaseMap = \
+                    getStaticOTF(self.fao.ao.tel,int(self.fao.freq.nOtf),self.fao.freq.samp[jWvl],
+                                 self.fao.freq.wvl[jWvl],spatialFilter=1)
+                    self.otfStatic.append(arrayP3toMastsel(otfStatic))
+
             # ------------------------------------------------------------------------
             # optional LO part
             if self.LOisOn:
@@ -643,3 +661,7 @@ class baseSimulation(object):
             for img in self.results:
                 self.cubeResults.append(img.sampling)
             self.cubeResultsArray = np.array(self.cubeResults)
+
+            if self.verbose:
+                print('HO_res [nm]:',self.HO_res)
+                print('LO_res [nm]:',self.LO_res)
