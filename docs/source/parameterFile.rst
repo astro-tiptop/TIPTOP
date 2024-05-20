@@ -73,14 +73,14 @@ The mandatory sections and their content are:
    **Optional**, 
    *type : str*, 
    *default: None*, 
-   path to a map of static aberrations (nm) in .fits file. If absent or '', not used. From P3, not supported in TIPTOP.
+   path to a map of static aberrations (nm) in .fits file. If absent or '', not used.
 
 .. option:: PathStaticOff
 
    **Optional**, 
    *type : str*, 
    *default: None*, 
-   No clue what this does. if absent or '', not used. From P3, not supported in TIPTOP.
+   No clue what this does. if absent or '', not used. WARNING: from P3, not supported in TIPTOP.
 
 .. option:: PathStaticPos
 
@@ -94,14 +94,14 @@ The mandatory sections and their content are:
    **Optional**, 
    *type : str*, 
    *default: ''*, 
-   Path to a fits file that contain a binary map corresponding to a pupil apodizer (TBC). if absent or '', not used. From P3, not supported in TIPTOP.
+   Path to a fits file that contain a binary map corresponding to a pupil apodizer (TBC). if absent or '', not used. WARNING: from P3, not supported in TIPTOP.
 
 .. option:: PathStatModes
    
    **Optional**, 
    *type : str*, 
    *default: ''*, 
-   path to a .fits file that contain a cube of map of mode in amplitude which lead to a rms of 1 in nanometer of static aberation. if absent or '', not used. From P3, not supported in TIPTOP.
+   path to a .fits file that contain a cube of map of mode in amplitude which lead to a rms of 1 in nanometer of static aberation. if absent or '', not used. WARNING: from P3, not supported in TIPTOP.
 
 .. option:: coefficientOfTheStaticMode
    
@@ -109,7 +109,7 @@ The mandatory sections and their content are:
    *type : str*, 
    *default: ''*, 
    place holder 
-   (TBC) need to find how does the pathStatModes fits file work. From P3, not supported in TIPTOP.
+   (TBC) need to find how does the pathStatModes fits file work. WARNING: from P3, not supported in TIPTOP.
 
 .. option:: extraErrorNm
    
