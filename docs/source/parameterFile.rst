@@ -204,7 +204,7 @@ The mandatory sections and their content are:
    *Default : 25.0*, 
    Outer Scale of the atmosphere  in meters
 
-   *Warning* : not optionnal in MavisLO.py
+   *Warning* : not optional in MavisLO.py
 
 .. option:: Cn2Weights
 
@@ -256,14 +256,14 @@ The mandatory sections and their content are:
 
 .. option:: r0_Value
    
-   **Optionnal**, 
+   **Optional**, 
    *type : float*, 
    set the atmospere Fried parameter.
    If not set TIPTOP uses ``seeing`` .
 
 .. option:: testWindspeed
 
-   **Optionnal**, 
+   **Optional**, 
    *type : float*, 
    used only for tests
 
@@ -394,7 +394,7 @@ Used regardless of the WFS, desired behaviour,
 
 .. option:: SizeLenslets                                                   
    
-   **Optionnal**,
+   **Optional**,
    *type: list of float*, 
    *Default: [Telescope] TelescopeDiameter/[sensor_HO] NumberLenslet*
    Size of WFS lenslets in meters. used, why a list of float? This overrides the ratio between telescope size and Number of lenslet used to compute the matrix size.
@@ -403,7 +403,7 @@ Used regardless of the WFS, desired behaviour,
 
    **Required**, 
    *type: int*, 
-   High Order WFS pixel scale in [mas], unclear what are the units if we chose a pyramid wavefront sensor
+   High Order WFS pixel scale in [mas]. Not used if we chose a pyramid wavefront sensor. 
 
    *Warning* : gives a confusing error message if missing 
 
@@ -434,7 +434,11 @@ Used regardless of the WFS, desired behaviour,
 
    **Required**, 
    *type: list of int*, 
-   Flux return in [nph/frame/subaperture]
+   Flux return in [nph/frame/subaperture].
+
+   It can be computed as:
+
+   ``(0-magn-flux [ph/s/m2]) * (size of sub-aperture [m])^2 * (1/SensorFrameRate_HO) * (total throughput) * (10^(-0.4*magn_source_HO))``
 
    *Warning* : extremly confusing error message if missing
 
@@ -589,6 +593,11 @@ Can be set but not used
    **Required**, 
    *type: list of int*, 
    detected flux in [nph/frame/subaperture]
+
+   It can be computed as:
+
+   ``(0-magn-flux [ph/s/m2]) * (size of subaperture [m])**2 * (1/SensorFrameRate_LO) * (total throughput) * (10**(-0.4*magn_source_LO))``
+
    Must be the same length as NumberLenslet
 
 .. option:: NumberLenslets
