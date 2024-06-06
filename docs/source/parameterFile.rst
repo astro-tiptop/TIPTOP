@@ -403,7 +403,7 @@ Used regardless of the WFS, desired behaviour,
 
    **Required**, 
    *type: int*, 
-   High Order WFS pixel scale in [mas]. Not used if we chose a pyramid wavefront sensor. 
+   High Order WFS pixel scale in [mas]. Not used when a pyramid wavefront sensor has been selected. 
 
    *Warning* : gives a confusing error message if missing 
 
@@ -411,7 +411,7 @@ Used regardless of the WFS, desired behaviour,
 
    **Required**, 
    *type: int*, 
-   Number of pixels per subaperture. 
+   Number of pixels per subaperture. Not used when a pyramid wavefront sensor has been selected (4 pixels are used in this case).
 
    *Warning* : gives a confusing error message if missing 
 
