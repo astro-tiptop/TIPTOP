@@ -540,7 +540,6 @@ class baseSimulation(object):
                         else:
                             self.maskLO = maskLO
 
-                self.psInMas_NGS        = self.psInMas[0] * (self.LO_wvl/self.wvl) # airy pattern PSF FWHM
                 if self.verbose:
                     print('******** HO PSF - NGS directions (1 sub-aperture)')
 
@@ -550,7 +549,7 @@ class baseSimulation(object):
                                                                            self.maskLO,
                                                                            arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:]),
                                                                            self.LO_wvl,
-                                                                           self.psInMas_NGS,
+                                                                           self.psInMas[0],
                                                                            self.nPixPSF,
                                                                            scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
                                                                            oversampling=self.oversampling)
