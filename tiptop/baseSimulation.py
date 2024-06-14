@@ -179,6 +179,7 @@ class baseSimulation(object):
         else:
             self.LO_wvl = LO_wvl_temp     # lambda
 
+        self.LO_psInMas      = self.my_data_map['sensor_LO']['PixelScale']
         self.LO_zen_field    = self.my_data_map['sources_LO']['Zenith']
         self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
         self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
@@ -561,9 +562,11 @@ class baseSimulation(object):
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                     ee_ *= 1/np.max(ee_)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-                    self.NGS_EE_field.append(ee_at_radius_fn(NGS_FWHM_mas[idx]))
+                    # max is used to compute EE on at least a radius of one pixel
+                    ee_NGS = ee_at_radius_fn(max([NGS_FWHM_mas[idx],self.LO_psInMas]))
+                    self.NGS_EE_field.append(ee_NGS)
                     if self.verbose:
-                        print('EE                   :', "%.5f" % ee_at_radius_fn(NGS_FWHM_mas[idx]))
+                        print('EE                   :', "%.5f" % ee_NGS)
                     idx += 1
                 self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
