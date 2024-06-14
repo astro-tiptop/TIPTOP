@@ -562,7 +562,7 @@ class baseSimulation(object):
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                     ee_ *= 1/np.max(ee_)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-                    # max is used to compute EE on at least on a radius of one pixel
+                    # max is used to compute EE on at least a radius of one pixel
                     ee_NGS = ee_at_radius_fn(max([NGS_FWHM_mas[idx],self.LO_psInMas]))
                     self.NGS_EE_field.append(ee_NGS)
                     if self.verbose:
