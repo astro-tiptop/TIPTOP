@@ -502,6 +502,9 @@ class baseSimulation(object):
             if self.LOisOn:
                 if self.verbose:
                     print('******** LO PART')
+                # PSD for NGS directions
+                PSD_NGS = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
+                k  = np.sqrt(self.fao.freq.k2_)
                 # Define the LO sub-aperture shape
                 nSA = self.my_data_map['sensor_LO']['NumberLenslets']
                 pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
@@ -515,11 +518,21 @@ class baseSimulation(object):
                     saSideM = 2*self.tel_radius/nSA[i]
                     saSidePix = int(pupilSidePix/nSA[i])
                     if nSA[i] == 1:
+                        if nSA[i] > 1:
+                            # piston filter for the sub-aperture size
+                            pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
+                            PSD_NGS[i] = self.PSD[i] * pf
+                        # LO mask
                         if nMaskLO > 1:
                             self.maskLO.append(self.mask)
                         else:
                             self.maskLO = self.mask
                     else:
+                        if nSA[i] > 1:
+                            # piston filter for the sub-aperture size
+                            pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
+                            PSD_NGS[i] = self.PSD[i] * pf
+                        # LO mask
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
                         if nSA[i] == 2:
                             saMask[0:saSidePix,0:saSidePix] = 1
@@ -547,7 +560,7 @@ class baseSimulation(object):
                                                                            self.freq_range,
                                                                            self.dk,
                                                                            self.maskLO,
-                                                                           arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:]),
+                                                                           PSD_NGS,
                                                                            self.LO_wvl,
                                                                            self.psInMas[0],
                                                                            self.nPixPSF,
