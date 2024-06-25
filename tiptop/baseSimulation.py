@@ -32,7 +32,7 @@ class baseSimulation(object):
         else:
             return False
     
-    def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=False,
+    def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=True,
                           doPlot=False, addSrAndFwhm=False,
                           verbose=False, getHoErrorBreakDown=False,
                           savePSDs=False, ensquaredEnergy=False,
