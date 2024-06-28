@@ -113,7 +113,7 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
         elif returnMetrics:
             # this must be probably done inside computeAsterisms, at the end
             # simulation.computeMetrics(eeRadiusInMas)            
-            return simulation.sr_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
+            return simulation.strehl_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
         else:
             # this must be probably done inside computeAsterisms, at the end
             # simulation.saveResults()
@@ -129,4 +129,4 @@ def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, ou
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
                                     doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
     simulation.reloadResults()
-    return simulation.sr_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
+    return simulation.strehl_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation

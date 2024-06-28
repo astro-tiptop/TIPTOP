@@ -4,7 +4,11 @@ from .baseSimulation import *
 import math
 from scipy.optimize import curve_fit, minimize
 
+from astropy.visualization.mpl_normalize import ImageNormalize
+from astropy.visualization import LogStretch
+
 from tiptop.nnModel import *
+import mpl_scatter_density
 
 def funcPolar(X, A0, A, B, C, D, E0, E, F, G, H, I, J, J0, J1):
     r, af = X
@@ -77,6 +81,7 @@ class asterismSimulation(baseSimulation):
             if not isinstance(listF, list):
                 listF  = [listF] * len(listZ)
             self.cumAstSizes = [0]
+            self.cumStarSizes = [0]
             self.nfields = 1
             if self.asterismMode=='Sets':
                 pointings = polarToCartesian(np.array( [listZ, listA]))
@@ -101,6 +106,7 @@ class asterismSimulation(baseSimulation):
 
                 all_combos = list(itertools.combinations(list(range(nStars)), int(self.asterismMode[7])))
                 self.nfieldsSizes = [len(all_combos)]
+                self.cumStarSizes.append(nStars)
                 self.cumAstSizes.append(self.nfieldsSizes[0])
                 self.asterismsInputDataCartesian = np.array( [np.take(xxPointigs, all_combos),
                                                      np.take(yyPointigs, all_combos),
@@ -112,7 +118,7 @@ class asterismSimulation(baseSimulation):
                                                      np.take(np.array(listP, dtype=np.float64), all_combos),
                                                      np.take(np.array(listF, dtype=np.float64), all_combos)] )
                 self.asterismsInputDataPolar = np.swapaxes(self.asterismsInputDataPolar, 0,1)
-                self.currentFieldAsterismsIndices = all_combos
+                self.allAsterismsIndices = self.currentFieldAsterismsIndices = all_combos
             elif self.asterismMode=='Generate':
                 self.asterismsInputDataCartesian, self.asterismsInputDataPolar = self.generateTriangles(listZ[0], listZ[0], 10)
                 
@@ -137,15 +143,14 @@ class asterismSimulation(baseSimulation):
                     self.maxStars = 12
                 if self.asterismMode[4:10]=='Random':
                     if self.generate_data:
-                        self.asterismsInputDataCartesian, self.asterismsInputDataPolar = self.generateRandom(self.nfields)
-                        # print('self.asterismsInputDataPolar 1', self.asterismsInputDataPolar)
+                        self.asterismsInputDataCartesian, self.asterismsInputDataPolar, self.allAsterismsIndices = self.generateRandom(self.nfields)
                     else:
                         self.asterismsInputDataCartesian = np.load(os.path.join(self.outputDir, self.file_field_simul +'C.npy'))
                         self.asterismsInputDataPolar = np.load(os.path.join(self.outputDir, self.file_field_simul +'P.npy'))
                         self.nfieldsSizes = np.load(os.path.join(self.outputDir, self.file_field_simul +'F.npy')).tolist()
                         self.cumAstSizes = np.load(os.path.join(self.outputDir, self.file_field_simul +'S.npy')).tolist()
-                        # print('self.asterismsInputDataPolar 2', self.asterismsInputDataPolar)
-
+                        self.cumStarSizes = np.load(os.path.join(self.outputDir, self.file_field_simul +'ST.npy')).tolist()
+                        self.allAsterismsIndices = np.load(os.path.join(self.outputDir, self.file_field_simul +'IDX.npy'))
                 else:
                     field_simul_data = np.load(self.file_field_simul, allow_pickle=True)
                     self.asterismsRecArray = field_simul_data
@@ -166,10 +171,10 @@ class asterismSimulation(baseSimulation):
                 self.LO_wvl = LO_wvl_temp[0]  # lambda
             else:
                 self.LO_wvl = LO_wvl_temp     # lambda
-            self.my_data_map['sources_LO']['Zenith'] = self.currentFieldSourcesData['Zenith']
-            self.my_data_map['sources_LO']['Azimuth'] = self.currentFieldSourcesData['Azimuth']
-            self.my_data_map['sensor_LO']['NumberPhotons'] = self.currentFieldSourcesData['NumberPhotons']                
-            self.my_data_map['RTC']['SensorFrameRate_LO'] = self.currentFieldSourcesData['Frequencies']
+            self.my_data_map['sources_LO']['Zenith'] = self.currentFieldsSourcesData['Zenith']
+            self.my_data_map['sources_LO']['Azimuth'] = self.currentFieldsSourcesData['Azimuth']
+            self.my_data_map['sensor_LO']['NumberPhotons'] = self.currentFieldsSourcesData['NumberPhotons']
+            self.my_data_map['RTC']['SensorFrameRate_LO'] = self.currentFieldsSourcesData['Frequencies']
             self.LO_zen_field    = self.my_data_map['sources_LO']['Zenith']
             self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
             self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
@@ -254,16 +259,15 @@ class asterismSimulation(baseSimulation):
 
 
     def freqFromMagnitudeMAVIS(self, magnitude):
-#        fi = max( min(20 - magnitude, 1), 3)
-#        return (fi-1) * 450.0 + 100.0
-        if magnitude>19:
-            return 100.0
-        elif magnitude>18:
-            return 200.0
-        elif magnitude>17:
-            return 400.0
-        else:
-            return 1000.0
+        return 900.0/(1 + np.exp((magnitude-17.5)*5.0)) + 100.0
+#        if magnitude>19:
+#            return 100.0
+#        elif magnitude>18:
+#            return 200.0
+#        elif magnitude>17:
+#            return 400.0
+#        else:
+#            return 1000.0
 
 
     def freqFromMagnitudeERIS(self, magnitude):
@@ -308,7 +312,7 @@ class asterismSimulation(baseSimulation):
         fluxes = []
         for b in self.bands:
             if b=='H':
-                mm = np.random.uniform(self.magnitudesRange[0],self.magnitudesRange[1])
+                mm = np.random.normal( (self.magnitudesRange[0]+self.magnitudesRange[1])/2.0, 3.0)
             elif b=='J':
                 mm = magnitudes[-1] + np.random.uniform(0.5, 0.7)
             else:
@@ -324,7 +328,9 @@ class asterismSimulation(baseSimulation):
         self.polarSetsList = []
         self.nfieldsSizes = []
         self.cumAstSizes = [0]
+        self.cumStarSizes = [0]
         self.skippedFieldIndexes = []
+        allAsterismsIndices = []
         total_skipped_fields = 0
         total_skipped_asterisms = 0
         for i in range(self.globalOffset, self.globalOffset+max_field, 1):
@@ -334,13 +340,12 @@ class asterismSimulation(baseSimulation):
             # number_of_stars == number of asterisms when isMono
             number_of_stars0 = np.random.randint(self.minStars,self.maxStars)
             number_of_stars = number_of_stars0
-            print('number_of_stars', number_of_stars)
             number_of_stars = 0
-            self.currentFieldSourcesData = {}
-            self.currentFieldSourcesData['Zenith'] = []
-            self.currentFieldSourcesData['Azimuth'] = []
-            self.currentFieldSourcesData['NumberPhotons'] = []
-            self.currentFieldSourcesData['Frequencies'] = []
+            self.currentFieldsSourcesData = {}
+            self.currentFieldsSourcesData['Zenith'] = []
+            self.currentFieldsSourcesData['Azimuth'] = []
+            self.currentFieldsSourcesData['NumberPhotons'] = []
+            self.currentFieldsSourcesData['Frequencies'] = []
             for j in range(number_of_stars0):
                 xcoords = np.random.uniform(-self.fovRange[0],self.fovRange[0])
                 ycoords = np.random.uniform(-self.fovRange[1],self.fovRange[1])
@@ -355,31 +360,34 @@ class asterismSimulation(baseSimulation):
                     if not self.isMono:
                         number_of_stars -= 1
                     continue
-                source = np.array([xcoords, ycoords, flux, freq])
-                self.currentFieldSourcesData['Zenith'].append(source[0])
-                self.currentFieldSourcesData['Azimuth'].append(source[1])
-                self.currentFieldSourcesData['NumberPhotons'].append(source[2])
-                self.currentFieldSourcesData['Frequencies'].append(source[3])
+                pcoords = cartesianToPolar( np.asarray([xcoords, ycoords]))
+                source = np.array([pcoords[0], pcoords[1], flux, freq])
+                self.currentFieldsSourcesData['Zenith'].append(source[0])
+                self.currentFieldsSourcesData['Azimuth'].append(source[1])
+                self.currentFieldsSourcesData['NumberPhotons'].append(source[2])
+                self.currentFieldsSourcesData['Frequencies'].append(source[3])
                 if self.isMono:
                     cartstar = np.vstack( [[xcoords], [ycoords], [flux], [freq]] )
-                    polarstar = np.vstack( [cartesianToPolar(cartstar[0:2,:]), [flux], [freq] ])
+                    polarstar = np.vstack( [ [pcoords[0]], [pcoords[1]], [flux], [freq] ])
                 else:
                     cartstar = np.vstack( [xcoords, ycoords, flux, freq] )
-                    polarstar = np.vstack( (cartesianToPolar(cartstar[0:2,:]), flux, freq) )
+                    polarstar = np.vstack( [pcoords[0], pcoords[1], flux, freq] )
                 setsList.append(cartstar)
                 polarSetsList.append(polarstar)
-            number_of_stars += 1
+                number_of_stars += 1
             number_of_stars = max(0, number_of_stars)
+            print('number_of_stars', number_of_stars)
             if self.isMono:
                 number_of_asterisms = number_of_stars
             else:
-                all_combos = list(itertools.combinations(list(range(number_of_stars0)), 3))
+                all_combos = list(itertools.combinations(list(range(number_of_stars)), 3))
                 number_of_asterisms = len(all_combos)
             self.nfieldsSizes.append(number_of_asterisms)
             self.cumAstSizes.append(self.cumAstSizes[-1]+number_of_asterisms)
+            self.cumStarSizes.append(self.cumStarSizes[-1]+number_of_stars)
             if not self.isMono:
-                cartstars = np.array(setsList[-self.cumAstSizes[-1]:])
-                polarstars = np.array(polarSetsList[-self.cumAstSizes[-1]:])
+                cartstars = np.array(setsList[self.cumStarSizes[-2]-self.cumStarSizes[-1]:])
+                polarstars = np.array(polarSetsList[self.cumStarSizes[-2]-self.cumStarSizes[-1]:])
                 xxPointigs = cartstars[:, 0, 0]
                 yyPointigs = cartstars[:, 1, 0]
                 flux = cartstars[:, 2, 0]
@@ -398,6 +406,7 @@ class asterismSimulation(baseSimulation):
                 pasterism = np.swapaxes(pasterism, 0,1)
                 self.setsList.extend([*asterism])
                 self.polarSetsList.extend([*pasterism])
+                allAsterismsIndices.extend([*all_combos])
         print('total_skipped_fields: ', total_skipped_fields)
         print('total_skipped_asterisms: ', total_skipped_asterisms)
         print('total good asterisms: ', self.cumAstSizes[-1])
@@ -405,12 +414,14 @@ class asterismSimulation(baseSimulation):
         mString = ''
         if not self.isMono:
             mString = 'Multi'
-        # print('np.array( self.setsList)', np.array( self.setsList))
+        allAsterismsIndices = np.array(allAsterismsIndices)
         np.save(os.path.join(self.outputDir, self.file_field_simul + 'C.npy'), np.array( self.setsList))
         np.save(os.path.join(self.outputDir, self.file_field_simul + 'P.npy'), np.array( self.polarSetsList))
         np.save(os.path.join(self.outputDir, self.file_field_simul + 'F.npy'), np.array(self.nfieldsSizes))
         np.save(os.path.join(self.outputDir, self.file_field_simul + 'S.npy'), np.array(self.cumAstSizes))
-        return np.array(self.setsList), np.array(self.polarSetsList)
+        np.save(os.path.join(self.outputDir, self.file_field_simul + 'ST.npy'), np.array(self.cumStarSizes))
+        np.save(os.path.join(self.outputDir, self.file_field_simul + 'IDX.npy'), allAsterismsIndices)
+        return np.array(self.setsList), np.array(self.polarSetsList), allAsterismsIndices
 
 
     def generateFromRecArray(self, max_field):
@@ -438,11 +449,11 @@ class asterismSimulation(baseSimulation):
                     number_of_asterisms = number_of_asterisms0
                     if self.isMono:
                         number_of_asterisms = 0
-                        self.currentFieldSourcesData = {}
-                        self.currentFieldSourcesData['Zenith'] = []
-                        self.currentFieldSourcesData['Azimuth'] = []
-                        self.currentFieldSourcesData['NumberPhotons'] = []
-                        self.currentFieldSourcesData['Frequencies'] = []
+                        self.currentFieldsSourcesData = {}
+                        self.currentFieldsSourcesData['Zenith'] = []
+                        self.currentFieldsSourcesData['Azimuth'] = []
+                        self.currentFieldsSourcesData['NumberPhotons'] = []
+                        self.currentFieldsSourcesData['Frequencies'] = []
                     for j in range(number_of_asterisms0):
                         # asterism=None
                         xcoords = self.asterismsRecArray[i][j]['COORD'][0]
@@ -461,21 +472,23 @@ class asterismSimulation(baseSimulation):
                             continue
                         if self.isMono:
                             for si in range(3):
-                                source = np.array([xcoords[si], ycoords[si], fluxes[si], freqs[si]])
+                                pcoords = cartesianToPolar( np.asarray([xcoords[si], ycoords[si]] ) )
+                                source = np.array([pcoords[0], pcoords[1], fluxes[si], freqs[si]])
                                 s_index = self.sourceIsPresent(source)
                                 if s_index==-1 and np.abs(source[0])<30.0 and np.abs(source[1])<30.0:
-                                    self.currentFieldSourcesData['Zenith'].append(source[0])
-                                    self.currentFieldSourcesData['Azimuth'].append(source[1])
-                                    self.currentFieldSourcesData['NumberPhotons'].append(source[2])
-                                    self.currentFieldSourcesData['Frequencies'].append(source[3])
+                                    self.currentFieldsSourcesData['Zenith'].append(source[0])
+                                    self.currentFieldsSourcesData['Azimuth'].append(source[1])
+                                    self.currentFieldsSourcesData['NumberPhotons'].append(source[2])
+                                    self.currentFieldsSourcesData['Frequencies'].append(source[3])
                                     asterism = np.vstack( [[xcoords[si]], [ycoords[si]], [fluxes[si]], [freqs[si]]] )
-                                    pasterism = np.vstack( [cartesianToPolar(asterism[0:2,:]), [fluxes[si]], [freqs[si]] ])
+                                    pasterism = np.vstack( [ [pcoords[0]], [pcoords[1]], [fluxes[si]], [freqs[si]]] )
                                     self.setsList.append(asterism)
                                     self.polarSetsList.append(pasterism)
                                     number_of_asterisms += 1
                         else:
+                            pcoords = cartesianToPolar( np.asarray([xcoords, ycoords]) )
                             asterism = np.vstack( [xcoords, ycoords, fluxes, freqs] )
-                            pasterism = np.vstack( (cartesianToPolar(asterism[0:2,:]), fluxes, freqs) )
+                            pasterism = np.vstack( [pcoords[0,:], pcoords[1,:], fluxes, freqs] )
                             self.setsList.append(asterism)
                             self.polarSetsList.append(pasterism)
                     number_of_asterisms = max(0, number_of_asterisms)
@@ -487,53 +500,52 @@ class asterismSimulation(baseSimulation):
         return np.array(self.setsList), np.array(self.polarSetsList)
 
 
-    def getAsterismSource(self, field, ast, s):
-        astIndexGlobal = self.cumAstSizes[field]+ast
-        z = self.asterismsInputDataPolar[astIndexGlobal, 0, s]
-        a = self.asterismsInputDataPolar[astIndexGlobal, 1, s]
-        n = self.asterismsInputDataPolar[astIndexGlobal, 2, s]
-        f = self.asterismsInputDataPolar[astIndexGlobal, 3, s]
-        return np.array([z, a, n, f])
-
-
     def sourceIsPresent(self, source):
         # a source is a triple (array) of zenith, azimuth, photons
-        for z, a, n, f, ii in zip(self.currentFieldSourcesData['Zenith'],
-                               self.currentFieldSourcesData['Azimuth'], 
-                               self.currentFieldSourcesData['NumberPhotons'],
-                               self.currentFieldSourcesData['Frequencies'],
-                               range(len(self.currentFieldSourcesData['Zenith'])) ):
+        for z, a, n, f, ii in zip(self.currentFieldsSourcesData['Zenith'],
+                               self.currentFieldsSourcesData['Azimuth'],
+                               self.currentFieldsSourcesData['NumberPhotons'],
+                               self.currentFieldsSourcesData['Frequencies'],
+                               range(len(self.currentFieldsSourcesData['Zenith'])) ):
             if np.allclose(np.array([z,a,n,f]), source):
                 return ii
         return -1
 
 
     def getSourcesData(self, fields):
-        self.currentFieldSourcesData = {}
-        self.currentFieldSourcesData['Zenith'] = [] 
-        self.currentFieldSourcesData['Azimuth'] = []
-        self.currentFieldSourcesData['NumberPhotons'] = []
-        self.currentFieldSourcesData['Frequencies'] = []
+        self.currentFieldsSourcesData = {}
+        self.currentFieldsSourcesData['Zenith'] = []
+        self.currentFieldsSourcesData['Azimuth'] = []
+        self.currentFieldsSourcesData['NumberPhotons'] = []
+        self.currentFieldsSourcesData['Frequencies'] = []
         self.currentFieldAsterismsIndices = []
         for field in fields:
             fieldsize = self.nfieldsSizes[field]
-            # print('fieldsize', fieldsize)
+            fieldsizeStars = self.cumStarSizes[field+1] - self.cumStarSizes[field]
+            firstStarInAsterismIndex = self.cumStarSizes[field+1]
+#            print('fieldsize', fieldsize)
+#            print('fieldsizeStars', fieldsizeStars)
+            doneStars = {}
+            for s in range(fieldsizeStars):
+                doneStars[int(s)] = False
             for ast in range(fieldsize):
-                astIndices = []
-                starsInAsterism = self.asterismsInputDataPolar.shape[2]
-                # print('starsInAsterism', starsInAsterism)
-                for s in range(starsInAsterism):
-                    source = self.getAsterismSource(field, ast, s)
-                    s_index = self.sourceIsPresent(source)
-                    if s_index==-1:
-                        # print('adding source:', source)
-                        self.currentFieldSourcesData['Zenith'].append(source[0])
-                        self.currentFieldSourcesData['Azimuth'].append(source[1])
-                        self.currentFieldSourcesData['NumberPhotons'].append(source[2])
-                        self.currentFieldSourcesData['Frequencies'].append(source[3])
-                        s_index = len(self.currentFieldSourcesData['Zenith'])-1
-                    astIndices.append(s_index)
+                astIndexGlobal = self.cumAstSizes[field]+ast
+#               print('astIndexGlobal', astIndexGlobal)
+                astIndices = self.allAsterismsIndices[astIndexGlobal]
+#                print('astIndices', astIndices)
                 self.currentFieldAsterismsIndices.append(astIndices)
+                for s, si in zip(astIndices, range(3)):
+                    if not doneStars[s]:
+                        z = self.asterismsInputDataPolar[astIndexGlobal, 0, si]
+                        a = self.asterismsInputDataPolar[astIndexGlobal, 1, si]
+                        n = self.asterismsInputDataPolar[astIndexGlobal, 2, si]
+                        f = self.asterismsInputDataPolar[astIndexGlobal, 3, si]
+                        source = np.array([z, a, n, f])
+                        self.currentFieldsSourcesData['Zenith'].append(source[0])
+                        self.currentFieldsSourcesData['Azimuth'].append(source[1])
+                        self.currentFieldsSourcesData['NumberPhotons'].append(source[2])
+                        self.currentFieldsSourcesData['Frequencies'].append(source[3])
+                        doneStars[s] = True
 
 
     def selectData(self, fieldIndex1, fieldIndex2 = None):
@@ -541,7 +553,9 @@ class asterismSimulation(baseSimulation):
             self.currentFieldsize = self.nfieldsSizes[fieldIndex1]
             self.getSourcesData([fieldIndex1])
             self.currentBase = self.cumAstSizes[fieldIndex1]
-            self.covsarray = np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, :,1]**2 + np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, :,2]**2
+            self.covsarray = np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,1]**2 + np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,2]**2
+            self.strehls = np.array(self.strehl_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
+            self.penalties = np.array(self.penalty_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
         else:
             self.currentFieldsize = 0
             fieldIndices = list(range(fieldIndex1, fieldIndex2, 1))
@@ -549,167 +563,241 @@ class asterismSimulation(baseSimulation):
                 self.currentFieldsize += self.nfieldsSizes[ii]
             self.getSourcesData(fieldIndices)
             self.currentBase = self.cumAstSizes[fieldIndex1]
-            self.covsarray = np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, :,1]**2 + np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, :,2]**2
+            print('self.cov_ellipses_Asterism shape', self.cov_ellipses_Asterism.shape)
+            self.covsarray = np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,1]**2 + np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,2]**2
+            self.strehls = np.array(self.strehl_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
+            self.penalties = np.array(self.penalty_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
         if self.covsarray.shape[0]!=0:
-            self.jitterMeasure = np.sqrt(np.average(self.covsarray, axis=1))
+            self.jitterMeasure = self.penalties
             self.minJitter_id = np.argmin(self.jitterMeasure)+self.currentBase
             self.sortedJitterIndices = np.argsort(self.jitterMeasure, axis=0)
             self.lastJitterIndex = self.jitterMeasure.shape[0] + self.currentBase
 
 
-    def fitHeuristicModel(self, fieldIndex1, fieldIndex2, modelName):
+    def fitHeuristicModel(self, fieldIndex1, fieldIndex2, modelName, num_epochs=500, steps = [1e-4], geom=[128]*8):
         self.selectData(fieldIndex1, fieldIndex2)
-        self.fitModel(modelName)
+        self.fitModel(modelName, num_epochs, steps, geom)
 
-    def testHeuristicModel(self, fieldIndex1, fieldIndex2, modelName):
+
+    def  setModelData(self):
+        self.jitterM = np.log(self.jitterMeasure)
+        self.coordsM = self.asterismsInputDataCartesian
+        self.xcoordsM = self.coordsM[self.currentBase:self.lastJitterIndex, 0, :]
+        self.ycoordsM = self.coordsM[self.currentBase:self.lastJitterIndex, 1, :]
+        self.rcoordsM = self.asterismsInputDataPolar[self.currentBase:self.lastJitterIndex, 0, :]
+        self.freqsM  = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 3, :]
+        self.fluxesM = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 2, :]
+        self.fluxesM  = np.log(self.fluxesM)
+        if not self.isMono:
+            self.inputDataT = torch.hstack((torch.from_numpy(np.sqrt(self.xcoordsM**2+self.ycoordsM**2)).double().clone().detach().requires_grad_(True),
+                               torch.from_numpy(np.arctan2(self.xcoordsM, self.ycoordsM)).double().clone().detach().requires_grad_(True),
+                               torch.from_numpy(self.fluxesM).double().clone().detach().requires_grad_(True),
+                               torch.from_numpy(self.freqsM).double().clone().detach().requires_grad_(True)) )
+#            self.inputDataT = torch.hstack(
+#                (torch.from_numpy(self.xcoordsM).double().clone().detach().requires_grad_(True),
+#                 torch.from_numpy(self.ycoordsM).double().clone().detach().requires_grad_(True),
+#                 torch.from_numpy(self.fluxesM).double().clone().detach().requires_grad_(True),
+#                 torch.from_numpy(self.freqsM).double().clone().detach().requires_grad_(True))
+#            )
+            self.jitterT = torch.from_numpy(self.jitterM).double().clone().detach().requires_grad_(True)
+            self.jitterT = self.jitterT[:, None].requires_grad_(True)
+
+
+    def  fitModel(self, modelName, num_epochs, steps, geom):
+        self.setModelData()
+        if self.isMono:
+            inputData = np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] )
+            func = funcPolar
+            popt, pcov = curve_fit(func, realDataX, self.jitterM)
+            # print(popt, pcov)
+            # for i, j in zip(popt, ascii_uppercase):
+            #     print(f"{j} = {i:.6f}")
+            jitterApprox = func(inputData, *popt)
+        else:
+            modelNameFile = os.path.join(self.outputDir, modelName + '.pth')
+            model = NeuralNetwork(12, geom)
+            model.setData(self.inputDataT, self.jitterT, 0.1, True)
+            trainInput, jitterTrain, jitterApproxTrain, testInput, jitterTest, jitterApproxTest = model.trainModel(num_epochs, steps, modelNameFile)
+
+        absoluteErrorTrain = np.abs((jitterTrain-jitterApproxTrain))
+        print( "Mean Absolute Error Train", np.mean(absoluteErrorTrain))
+        absoluteErrorTest = np.abs((jitterTest-jitterApproxTest))
+        print( "Mean Absolute Error Test", np.mean(absoluteErrorTest))
+        absoluteErrorTrain = np.abs((jitterTrain-jitterApproxTrain))
+        print( "Median Absolute Error Train", np.median(absoluteErrorTrain))
+        absoluteErrorTest = np.abs((jitterTest-jitterApproxTest))
+        print( "Median Absolute Error Test", np.median(absoluteErrorTest))
+        rmsErrorTrain = np.sqrt(np.mean( (jitterTrain-jitterApproxTrain)*(jitterTrain-jitterApproxTrain) ) )
+        print( "RMS Error Train", rmsErrorTrain)
+        rmsErrorTest = np.sqrt(np.mean( (jitterTest-jitterApproxTest)*(jitterTest-jitterApproxTest) ) )
+        print( "RMS Error Test", absoluteErrorTest)
+
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(1, 1, 1)
+        plt.scatter(trainInput[:,0], absoluteErrorTrain, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(trainInput[:,3], absoluteErrorTrain, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(trainInput[:,6], absoluteErrorTrain, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(trainInput[:,9], absoluteErrorTrain, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
+        plt.show()
+
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(1, 1, 1)
+        plt.scatter(testInput[:,0], absoluteErrorTest, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(testInput[:,3], absoluteErrorTest, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(testInput[:,6], absoluteErrorTest, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(testInput[:,9], absoluteErrorTest, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(jitterTest, absoluteErrorTest, alpha=0.2, s=4)
+        plt.show()
+
+        if self.isMono:
+            np.save(os.path.join(self.outputDir, modelName +'.npy'), np.array(popt))
+#        else:
+#            model.save_model(os.path.join(self.outputDir, modelName + '.pth'))
+
+    def testHeuristicModel(self, fieldIndex1, fieldIndex2, modelName, geom):
         self.selectData(fieldIndex1, fieldIndex2)
-        jitter = np.log(self.jitterMeasure+1)
-        coords = self.asterismsInputDataCartesian
-        xcoords = coords[self.currentBase:self.lastJitterIndex, 0, :]
-        ycoords = coords[self.currentBase:self.lastJitterIndex, 1, :]
-        rcoords = self.asterismsInputDataPolar[self.currentBase:self.lastJitterIndex, 0, :]
-        freqs  = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 3, :]
-        fluxes = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 2, :]
-        fluxes  = np.log(fluxes+1.0)
+        self.setModelData()
         func = None
         model = None
         if self.isMono:
             popt = np.load(os.path.join(self.outputDir, modelName +'.npy'))
             func = funcPolar
-            inputData = np.array( [rcoords[:,0], fluxes[:,0]] )
+            inputData = np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] )
             jitterApprox = func(inputData, *popt)
         else:
             model_path = os.path.join(self.outputDir, modelName +'.pth')
-            model = NeuralNetwork(12)
+            model = NeuralNetwork(12, geom)
+#            model = NeuralNetwork()
             model.load_model(model_path)
-            print('xcoords.shape', xcoords.shape)
-            print('ycoords.shape', ycoords.shape)
-            print('fluxes.shape', fluxes.shape)
-            print('freqs.shape', freqs.shape)
-            inputDataT = torch.hstack((torch.from_numpy(xcoords).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(ycoords).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(fluxes).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(freqs).float().clone().detach().requires_grad_(True)) )
+            model.to(device)
+            model.setData(self.inputDataT, self.jitterT, 1.0, True)
+            model.eval()
+
+#            batch_data = model.test_loader.dataset[:]
+#            inputDataTest = batch_data['input']
+#            jitterTest = batch_data['target']
+#            batch_size = inputDataTest.size(0)
+#            num_nodes_per_graph = 3  # Since we have 3 vertices per triangle
+#            num_nodes = batch_size * num_nodes_per_graph
+#            # Create edge_index and batch tensors
+#            edge_index = torch.tensor([[0, 1, 2], [1, 2, 0]], dtype=torch.long).repeat(batch_size, 1, 1).view(2, -1)
+#            batch_tensor = torch.arange(batch_size).repeat_interleave(num_nodes_per_graph)
+#            with torch.no_grad():
+#                jitterApproxT = model(inputDataTest, edge_index, batch_tensor)
+
+            inputDataTest, jitterTest = model.test_loader.dataset[:]
             with torch.no_grad():
-                jitterApproxT = model(inputDataT)
+                jitterApproxT = model(inputDataTest)
             jitterApprox = jitterApproxT.detach().cpu().numpy()
             jitterApprox = jitterApprox[:,0]
 
-        relativeAbsoluteError = np.abs((jitter-jitterApprox)/jitter)
+        jitterTestCpu =  jitterTest[:,0].detach().cpu().numpy()
+        inputDataTestCpu = inputDataTest.detach().cpu().numpy()
+        signedError = (jitterTestCpu-jitterApprox)/jitterTestCpu
+        absoluteError = np.abs(signedError)
         sortedJitterIndicesModel = np.argsort(jitterApprox, axis=0)
-        print( "Average Relative Absolute Error", np.mean(relativeAbsoluteError))
-        plt.scatter(rcoords[:,0], relativeAbsoluteError, alpha=0.2, s=4)
+        rmsErrorTest = np.sqrt(np.mean( np.where(absoluteError<1.0, absoluteError*absoluteError, 0)))
+        Un = 1.6 * rmsErrorTest
+        print( "Average Absolute Error", np.mean(absoluteError))
+        print( "STD Absolute Error", np.std(absoluteError))
+        print( "RMS Error Test", rmsErrorTest)
+        print("Un:", Un)
+        # Un = np.mean(absoluteError) + 2 * np.std(absoluteError)
+        plt.scatter(inputDataTestCpu[:,0], absoluteError, alpha=0.2, s=4)
         plt.show()
-        plt.scatter(fluxes[:,0], relativeAbsoluteError, alpha=0.2, s=4)
+        plt.scatter(inputDataTestCpu[:,3], absoluteError, alpha=0.2, s=4)
         plt.show()
-        plt.scatter(jitter, relativeAbsoluteError, alpha=0.2, s=4)
+        plt.scatter(inputDataTestCpu[:,6], absoluteError, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(inputDataTestCpu[:,8], absoluteError, alpha=0.2, s=4)
+        plt.show()
+        plt.scatter(jitterTestCpu, absoluteError, alpha=0.2, s=4)
         plt.show()
         totalS = 0
+        fig = plt.figure(figsize=(10, 6))
+        ax2 = fig.add_subplot(1, 1, 1)
+        lv = signedError
+        sigma = Un/2.0
+        num_bins = 40
+        ax2.hist( lv.ravel(), bins=np.linspace(-3*sigma, 3*sigma, num=num_bins))
+        plt.show()
+#        ax2.set_ylabel('Simulations')
+#        ax2.set_xlabel('Error [' +  ts.data_loader.units[l_ind] + ']')
+        totalAsterisms = 0
+        bestIndexPlot = np.zeros(50)
         for field in range(fieldIndex1, fieldIndex2, 1):
             self.currentField = field
             self.getSourcesData([field])
             fieldsize = len(self.currentFieldAsterismsIndices)
             base = self.cumAstSizes[field]
             self.selectData(field)
-            jitter = np.log(self.jitterMeasure+1)
-            coords = self.asterismsInputDataCartesian
-            xcoords = coords[self.currentBase:self.lastJitterIndex, 0, :]
-            ycoords = coords[self.currentBase:self.lastJitterIndex, 1, :]
-            rcoords = self.asterismsInputDataPolar[self.currentBase:self.lastJitterIndex, 0, :]
-            freqs  = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 3, :]
-            fluxes = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 2, :]
-            fluxes  = np.log(fluxes+1.0)
+            self.setModelData()
             if self.isMono:
-                inputData = np.array( [rcoords[:,0], fluxes[:,0]] )
+                inputData = np.array( [self.rcoords[:,0], self.fluxes[:,0]] )
                 jitterApprox = func(inputData, *popt)
             else:
-                inputDataT = torch.hstack((torch.from_numpy(xcoords).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(ycoords).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(fluxes).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(freqs).float().clone().detach().requires_grad_(True)) )
+                model.setData(self.inputDataT, self.jitterT, 1.0, False)
+                inputDataTest, jitterTest = model.test_loader.dataset[:]
                 with torch.no_grad():
-                    jitterApproxT = model(inputDataT)
+                    jitterApproxT = model(inputDataTest)
                 jitterApprox = jitterApproxT.detach().cpu().numpy()
                 jitterApprox = jitterApprox[:,0]
+                jitterTestCpu =  jitterTest[:,0].detach().cpu().numpy()
             if jitterApprox.shape[0]>1:
-                relativeAbsoluteError = np.abs((jitter-jitterApprox)/jitter)
+                absoluteError = np.abs((jitterTestCpu-jitterApprox)/jitterTestCpu)
+                totalAsterisms += absoluteError.shape[0]
                 sortedJitterIndicesModel = np.argsort(jitterApprox, axis=0)
                 jitterApproxSorted = jitterApprox[sortedJitterIndicesModel]
-                deltas = np.abs( 2.0 * (jitterApproxSorted[:-1] - jitterApproxSorted[1:]) / ( jitterApproxSorted[1:] + jitterApproxSorted[:-1]))
+                deltas = np.abs( (jitterApproxSorted[:-1] - jitterApproxSorted[1:])/jitterApproxSorted[:-1] )
                 cumDeltas = np.cumsum(deltas)
-                if deltas[0]<0.025:
-                    ss = np.where(cumDeltas<0.025)[0].shape[0]+1
-                    print(field, 'Low Delta between best and n-th best asterism, n:', ss)
+                if deltas[0]<Un:
+                    ss = np.where(cumDeltas<Un)[0].shape[0]+1
+                    print(field, 'Low Delta between best and n-th best asterism, n:', ss, 'of ', absoluteError.shape[0])
                     totalS += ss
-                if self.sortedJitterIndices[0] != sortedJitterIndicesModel[0]:
+                else:
+                    totalS += 3
+                correctBestIndex = self.sortedJitterIndices[0]
+                approxBestIndex = sortedJitterIndicesModel[0]
+                bestIndexInApproxArray = np.where(sortedJitterIndicesModel == correctBestIndex)[0][0]
+                bestIndexPlot[bestIndexInApproxArray] += 1.0
+                if correctBestIndex != approxBestIndex:
                     print('Wrong order would be detected relying only on the model:')
                     print(field, deltas)
-                    print(self.sortedJitterIndices)
-                    print(sortedJitterIndicesModel)
-                    print(jitterApproxSorted)
-                    if not deltas[0]<0.025:
+                    print("correct indices", self.sortedJitterIndices)
+                    print("approx indices", sortedJitterIndicesModel)
+                    print("approx jitter", jitterApproxSorted)
+                    print("deltas", deltas)
+                    print("cumDeltas", cumDeltas)
+                    print('bestIndexInApproxArray', bestIndexInApproxArray)
+                    if cumDeltas[bestIndexInApproxArray-1]>Un and bestIndexInApproxArray>2:
                         print('ERROR: Correct ordering estimation missed!!!!!!!!')
-        print('Number of asterisms having a rating too close to the best one', totalS)
-
-
-    def  fitModel(self, modelName):
-
-        jitter = np.log(self.jitterMeasure+1)
-        coords = self.asterismsInputDataCartesian
-        xcoords = coords[self.currentBase:self.lastJitterIndex, 0, :]
-        ycoords = coords[self.currentBase:self.lastJitterIndex, 1, :]
-        rcoords = self.asterismsInputDataPolar[self.currentBase:self.lastJitterIndex, 0, :]
-        freqs  = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 3, :]
-        fluxes = self.asterismsInputDataCartesian[self.currentBase:self.lastJitterIndex, 2, :]
-        fluxes  = np.log(fluxes+1.0)
-        if self.isMono:
-            inputData = np.array( [rcoords[:,0], fluxes[:,0]] )
-            func = funcPolar
-            popt, pcov = curve_fit(func, realDataX, jitter)
-            # print(popt, pcov)
-            # for i, j in zip(popt, ascii_uppercase):
-            #     print(f"{j} = {i:.6f}")
-            jitterApprox = func(inputData, *popt)
-        else:
-            inputDataT = torch.hstack((torch.from_numpy(xcoords).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(ycoords).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(fluxes).float().clone().detach().requires_grad_(True),
-                               torch.from_numpy(freqs).float().clone().detach().requires_grad_(True)) )
-            jitterT = torch.from_numpy(jitter).float().clone().detach().requires_grad_(True)
-            jitterT = jitterT[:, None]
-            dataset = TensorDataset(inputDataT, jitterT)
-            train_loader = DataLoader(dataset, batch_size=64, shuffle=True, drop_last=True)
-            model = NeuralNetwork(12)
-            criterion = nn.MSELoss()
-            optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.5e-5 )
-            num_epochs = 2000
-            for epoch in range(num_epochs):
-                for inputs, targets in train_loader:
-                    optimizer.zero_grad()  # Clear existing gradients
-                    outputs = model(inputs)  # Forward pass
-                    loss = criterion(outputs, targets)  # Compute loss
-                    loss.backward()  # Backward pass
-                    optimizer.step()  # Update model parameters
-                print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.5f}')
-            with torch.no_grad():
-                jitterApproxT = model(inputDataT)
-            jitter = jitterT.detach().cpu().numpy()[:,0]
-            jitterApprox = jitterApproxT.detach().cpu().numpy()
-            jitterApprox = jitterApprox[:,0]
-
-        relativeAbsoluteError = np.abs((jitter-jitterApprox)/jitter)
-        print( "Average Relative Absolute Error", np.mean(relativeAbsoluteError))
-        plt.scatter(rcoords[:,0], relativeAbsoluteError, alpha=0.2, s=4)
+        ii = np.max(np.nonzero(bestIndexPlot))
+        r = bestIndexPlot[:ii+2]
+        r /= np.sum(r) / 100
+        fig = plt.figure(figsize=(16, 8))
+        ax = fig.add_subplot(1, 1, 1)
+        ax.tick_params(axis='both', which='major', labelsize=20)
+        idx = range(len(r))
+        ax.bar( idx, r )
+        ax.set_xticks(idx, labels=map(str, idx), fontsize=20)
+        plt.xlabel('Postion of the estimated best asterism', fontsize=24)
+        plt.ylabel('Times [%]', fontsize=24)
+        ax.set_yscale('linear')
+        ax.yaxis.grid(True)
         plt.show()
-        plt.scatter(fluxes[:,0], relativeAbsoluteError, alpha=0.2, s=4)
-        plt.show()
-        plt.scatter(jitter, relativeAbsoluteError, alpha=0.2, s=4)
-        plt.show()
-        if self.isMono:
-            np.save(os.path.join(self.outputDir, modelName +'.npy'), np.array(popt))
-        else:
-            model.save_model(os.path.join(self.outputDir, modelName + '.pth'))
-
+        #plt.plot(bestIndexPlot[:10])
+        print(bestIndexPlot)
+        #plt.show()
+        print('Number of asterisms having a rating too close to the best one', totalS, 'of ', totalAsterisms, 100 * totalS/totalAsterisms)
 
     def plotFieldInterval(self, fieldIndex1, fieldIndex2):
         self.selectData(fieldIndex1, fieldIndex2)
@@ -734,10 +822,11 @@ class asterismSimulation(baseSimulation):
 
 
     def computeAsterisms(self, eeRadiusInMas):
-        self.sr_Asterism = []
         self.fwhm_Asterism = []
         self.ee_Asterism = []
         self.cov_ellipses_Asterism = []
+        self.strehl_Asterism = []
+        self.penalty_Asterism = []
         for field in range(self.nfields):
             self.currentField = field
             print('self.currentField:', self.currentField)
@@ -751,28 +840,32 @@ class asterismSimulation(baseSimulation):
                 self.computeMetrics()
 #               except:
 #                    print("Unexpected Error Computing (field, asterism): ", self.currentField, self.currentAsterism)
-#                    print(self.currentFieldSourcesData)
-                self.sr_Asterism.append(self.sr)
+#                    print(self.currentFieldsSourcesData)
+                self.strehl_Asterism.append(self.sr)
+                self.penalty_Asterism.append(self.penalty)
                 self.fwhm_Asterism.append(self.fwhm) 
                 self.ee_Asterism.append(self.ee) 
                 self.cov_ellipses_Asterism.append(self.cov_ellipses)
-            if (field+1) % 100 == 0 or field==self.nfields-1:
+
+            if (field+1) % 10 == 0 or field==self.nfields-1:
                 print("Field " + str(field) + " DONE")
                 np.save(os.path.join(self.outputDir, self.simulName+'fw.npy'), np.array(self.fwhm_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'ee.npy'), np.array(self.ee_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'covs.npy'), np.array(self.cov_ellipses_Asterism))
-                np.save(os.path.join(self.outputDir, self.simulName+'sr.npy'), np.array(self.sr_Asterism))
+                np.save(os.path.join(self.outputDir, self.simulName+'sr.npy'), np.array(self.strehl_Asterism))
+                np.save(os.path.join(self.outputDir, self.simulName+'penalty.npy'), np.array(self.penalty_Asterism))
 
 
     def reloadResults(self):
         self.fwhm_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'fw.npy'))
         self.ee_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'ee.npy'))
         self.cov_ellipses_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'covs.npy'))
-        self.sr_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'sr.npy'))
+        self.strehl_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'sr.npy'))
+        self.penalty_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'penalty.npy'))
 
 
     def plotAsterisms(self):
-        al = np.log(self.jitterMeasure)
+        al = self.jitterMeasure
         print('np.max(al)', np.max(al))
         al = (np.max(al) - al)/np.max(al)
         np.random.seed(12345)
@@ -846,27 +939,6 @@ class asterismSimulation(baseSimulation):
 
 
     def twoPlots(self):
-        # RR = self.asterismsInputDataPolar[self.sortedJitterIndices, 0, 0]
-        # FF = self.asterismsInputDataPolar[self.sortedJitterIndices, 2, 0]
-        # print(self.jitterMeasure)
-        # print(self.sortedJitterIndices)
-        # print(self.jitterMeasure[self.sortedJitterIndices])
-        # print(RR)
-        # print(FF)
         plt.plot(self.jitterMeasure[self.sortedJitterIndices])
-        # plt.plot(RR)
-        # plt.plot(FF)
-        # plt.gca().set_yscale("log")
-        # plt.gca().set_yscale("linear")
         plt.show()
-        #print('self.currentBase, self.minJitter_id ', self.currentBase, self.minJitter_id)
         self.plotAsterisms()
-
-'''
-            initial_guess = (0,0,0,0, 0,0,0,0, 0,0)
-            # Perform the minimization
-            result = minimize(costFunction, initial_guess, args=(realDataX, realDataZ), method='L-BFGS-B' )
-            print(result)
-            popt = result.x
-            zApprox = func(realDataX, *popt)
-'''
