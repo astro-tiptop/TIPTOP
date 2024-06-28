@@ -19,6 +19,8 @@ dependencies = [
     "astro-p3>=1.2.11",
     "mastsel>=1.2.9",
     "torch>=2.1.2",
+    "torchmetrics>=1.4.0",
+    "mpl_scatter_density>=0.7",
 ]
 dynamic = ["version"]
 

@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, TensorDataset, random_split # , DataLoader 
 
-from torch_geometric.nn import GCNConv, global_mean_pool, global_add_pool
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
+#from torch_geometric.nn import GCNConv, global_mean_pool, global_add_pool
+#from torch_geometric.data import Data
+#from torch_geometric.loader import DataLoader
 
 import torch
 import torch.nn as nn
