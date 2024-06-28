@@ -169,7 +169,7 @@ class baseSimulation(object):
             raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS WFSs have more than one sub-aperture")
 
 
-    def configLO(self, astIndex=None):      
+    def configLO(self, astIndex=None):
         self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
         # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
         LO_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
@@ -417,17 +417,23 @@ class baseSimulation(object):
     def computeMetrics(self):
         if self.verbose:
             print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
-        self.sr, self.fwhm, self.ee = [], [], []
-        for img in self.results:
-            self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
-            self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
-            if self.ensquaredEnergy:
-                ee_ = cpuArray(getEnsquaredEnergy(img.sampling))
-                rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas[0] * 0.5
-            else:
-                ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
-            ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-            self.ee.append(ee_at_radius_fn(self.eeRadiusInMas))
+        self.penalty, self.sr, self.fwhm, self.ee = [], [], [], []
+        if len(self.results) == 0:
+            self.sr.append( np.mean( np.exp( -4*np.pi**2 * (cpuArray(self.HO_res)**2 + cpuArray(self.LO_res)**2)/((self.wvl*1e9)**2) ) ) )
+            self.penalty.append( np.sqrt(np.mean(cpuArray(self.LO_res))) )
+        else:
+            for img in self.results:
+                # is this ok?
+                # self.penalty.append( np.sqrt(np.mean(cpuArray(self.LO_res))) )
+                self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
+                self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
+                if self.ensquaredEnergy:
+                    ee_ = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
+                    rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas[0] * 0.5
+                else:
+                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
+                self.ee.append(ee_at_radius_fn(self.eeRadiusInMas))
 
 
     def doOverallSimulation(self, astIndex=None):
@@ -601,26 +607,42 @@ class baseSimulation(object):
                     for PSDho in self.PSD:
                         PSDho += self.CtotFocus[0] * FocusFilter
 
-            else:
-                self.NGS_SR_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
-                self.NGS_FWHM_mas_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
-                if astIndex==0:
-                    self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                        self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                        self.LO_freqs_field,
-                                                        self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
-                self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
-                                                                          np.array(self.cartSciencePointingCoords),
-                                                                          np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
-                                                                          self.LO_freqs_asterism,
-                                                                          self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
-                #TODO add self.CtotFocus computation only for the best asterism
-                #if self.addFocusError:
-                #    ...
+        if astIndex is None:
+            self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
+                                                                     self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                     self.LO_freqs_field,
+                                                                     self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
+            if self.addFocusError:
+                # compute focus error
+                self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                     self.LO_freqs_field,
+                                                                     self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field)
+                # add focus error to PSD using P3 FocusFilter
+                FocusFilter = self.fao.FocusFilter()
+                FocusFilter *= 1/FocusFilter.sum()
+                for PSDho in self.PSD:
+                    PSDho += self.CtotFocus[0] * FocusFilter
+
+        else:
+            self.NGS_SR_asterism = []
+            for iid in self.currentAsterismIndices:
+                self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
+            self.NGS_FWHM_mas_asterism = []
+            for iid in self.currentAsterismIndices:
+                self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
+            if astIndex==0:
+                self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
+                                                    self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                    self.LO_freqs_field,
+                                                    self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+            self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
+                                                                      np.array(self.cartSciencePointingCoords),
+                                                                      np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
+                                                                      self.LO_freqs_asterism,
+                                                                      self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
+            #TODO add self.CtotFocus computation only for the best asterism
+            #if self.addFocusError:
+            #    ...
         
         # ------------------------------------------------------------------------
         # HO PSF
@@ -669,10 +691,15 @@ class baseSimulation(object):
             else:
                 self.results[0].standardPlot(True)
 
-        if astIndex is None:
+        if astIndex is None or astIndex==0:
+            # this is fixed for the simulation
             self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
-            if self.LOisOn:
-                self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
+
+        if self.LOisOn:
+            # this changes for each asterism
+            self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
+
+        if astIndex is None:
             self.computeOL_PSD()
             self.computeDL_PSD()
             self.cubeResults = []
