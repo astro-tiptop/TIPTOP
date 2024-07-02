@@ -133,6 +133,9 @@ We now go more in detail for each section:
 |                          |          |       |a scalar (FWHM in mas) for a round kernel or a list of three values       |
 |                          |          |       |[FWHM_mas_max, FWHM_mas_min, angle_rad].                                  |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
+|glFocusOnNGS              |No        |string |*default: False*, global focus control with natural guide stars.          |
+|                          |          |       |Multi-conjugate systems only. Requires NumberLenslets >= 2 in sensor_LO.  |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
 |TechnicalFoV              |No/Yes if |float  |*default: ??*, set the size of the technical field of view (diameter) in  |
 |                          |LO        |       |Used in multi-conjugate AO systems.                                       |
 |                          |          |       |                                                                          |
@@ -349,6 +352,9 @@ The High Order WaveFront Sensor can be a pyramid WFS or a Shack-Hartmann. Regard
 |SigmaRON                 |No       |float   |*Default : 0.0*, read-out noise std in [e-], used only if the             |
 |                         |         |        |`NoiseVariance` is not set.                                               |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|addMcaoWFsensConeError   |No       |string  |*Default : False*, additional error to consider the reduced sensing volume|
+|                         |         |        |due to the cone effect. Multi-conjugate systems only.                     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 In the two following section we list the parameters that are specific to each wavefront sensor. If you define a parameter 
 for one WFS while another WFS is defined The parameter will be ignired. For example, if you define the parameter SigmaRON,
@@ -556,7 +562,7 @@ Can be set but not used
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
 |simpleVarianceComputation|No       |string  |Set to it to False to activate the more complex and slower MASTSEL LO     |
-|                         |         |        |noise computation.                                                        |
+|                         |         |        |noise computation, that is more accurate in low flux regimes.             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |platform                 |No       |string  |*default: 'GPU'* Set to it to 'CPU' to forcy the library to use numpy     |
 |                         |         |        |instead of cupy.                                                          |
