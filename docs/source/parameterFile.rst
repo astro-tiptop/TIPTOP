@@ -53,86 +53,91 @@ We now go more in detail for each section:
 [telescope]
 -----------
 
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-| Parameter               | Required | Type  | Description                                                              |
-+=========================+==========+=======+==========================================================================+
-|TelescopeDiameter        |Yes       |float  |Set the outer diameter of the telescope pupil in unit of meters.          |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|Resolution               |Yes       |integer|Number of pixels across the pupil diameter                                |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|ObscurationRatio         |No/Yes if |float  |*Default : 0.0*, Defines the central obstruction                          |
-|                         |LO        |       |due to the secondary as a ratio of the TelescopeDiameter                  |
-|                         |          |       |*Warning* : MavisLO.py does not have a default value for this parameter   |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|ZenithAngle              |No/Yes if |float  |*Default: 0.0*, Set the pointing direction of the telescope in degree     |
-|                         |LO        |       |with respect to the zenith. Used to compute airmass, to scale atmospheric |
-|                         |          |       |layers and stars altitude.                                                |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|PupilAngle               |No        |float  |*default : 0.0*, unknown effect                                           |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|PathPupil                |No        |string |*default: ''*, path to the pupil model in .fits file (if provided,        |
-|                         |          |       |the pupil model is interpolated). if absent or '', not used.              |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|PathStaticOn             |No        |string |*default: None*, path to a map of static aberrations (nm) in              |
-|                         |          |       |.fits file. if absent or '', not used.                                    |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|PathStaticOff            |No        |string |*default: None*, No clue what this does. if absent or '', not used.       |
-|                         |          |       |From P3, not supported in TIPTOP.                                         |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|PathStaticPos            |No        |string |*default: None*, No clue                                                  |
-|                         |          |       |From P3, not supported in TIPTOP.                                         |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|PathApodizer             |No        |string |*default: ''*, Path to a fits file that contain a binary map corresponding|
-|                         |          |       |to a pupil apodizer (TBC). if absent or '', not used.                     |
-|                         |          |       |From P3, not supported in TIPTOP.                                         |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|PathStatModes            |No        |string |*default: ''*, path to a .fits file that contain a cube of map of mode    |
-|                         |          |       |in amplitude which lead to a rms of 1 in nanometer of static aberation.   |
-|                         |          |       |if absent or '', not used. Unsure how this works.                         |
-|                         |          |       |From P3, not supported in TIPTOP.                                         |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+| Parameter                | Required | Type  | Description                                                              |
++==========================+==========+=======+==========================================================================+
+|TelescopeDiameter         |Yes       |float  |Set the outer diameter of the telescope pupil in unit of meters.          |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|Resolution                |Yes       |integer|Number of pixels across the pupil diameter                                |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|ObscurationRatio          |No/Yes if |float  |*Default : 0.0*, Defines the central obstruction                          |
+|                          |LO        |       |due to the secondary as a ratio of the TelescopeDiameter                  |
+|                          |          |       |                                                                          |
+|                          |          |       |*Warning* : MavisLO.py does not have a default value for this parameter   |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|ZenithAngle               |No/Yes if |float  |*Default: 0.0*, Set the pointing direction of the telescope in degree     |
+|                          |LO        |       |with respect to the zenith. Used to compute airmass, to scale atmospheric |
+|                          |          |       |layers and stars altitude.                                                |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|PupilAngle                |No        |float  |*default : 0.0*, unknown effect                                           |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathPupil                 |No        |string |*default: ''*, path to the pupil model in .fits file (if provided,        |
+|                          |          |       |the pupil model is interpolated). if absent or '', not used.              |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStaticOn              |No        |string |*default: None*, path to a map of static aberrations (nm) in              |
+|                          |          |       |.fits file. if absent or '', not used.                                    |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStaticOff             |No        |string |*default: None*, No clue what this does. if absent or '', not used.       |
+|                          |          |       |From P3, not supported in TIPTOP.                                         |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStaticPos             |No        |string |*default: None*, No clue                                                  |
+|                          |          |       |From P3, not supported in TIPTOP.                                         |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathApodizer              |No        |string |*default: ''*, Path to a fits file that contain a binary map corresponding|
+|                          |          |       |to a pupil apodizer (TBC). if absent or '', not used.                     |
+|                          |          |       |From P3, not supported in TIPTOP.                                         |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|PathStatModes             |No        |string |*default: ''*, path to a .fits file that contain a cube of map of mode    |
+|                          |          |       |in amplitude which lead to a rms of 1 in nanometer of static aberation.   |
+|                          |          |       |if absent or '', not used. Unsure how this works.                         |
+|                          |          |       |From P3, not supported in TIPTOP.                                         |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
 |coefficientOfTheStaticMode|not used  |string |*default: ''*, place holder                                               |
-|                         |          |       |(TBC) need to find how does the pathStatModes fits file work.             |
-|                         |          |       |From P3, not supported in TIPTOP.                                         |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorNm             |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
-|                         |          |       |is not otherwise considered)                                              |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorExp            |No        |float  |*default: -2*, exponent of the power of spatial frequencies used to       |
-|                         |          |       |generate the PSD associated with extraErrorNm                            |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorMin            |No        |float  |*default: 0*, minimum spatial frequency for which PSD associated with     |
-|                         |          |       |extraErrorNm is > 0                                                      |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorMax            |No        |float  |*default: 0*, maximum spatial frequency for which PSD associated with     |
-|                         |          |       |extraErrorNm is > 0                                                      |
-|                         |          |       |Note: 0 means maximum frequency is the one present in the spatial         |
-|                         |          |       |frequency array of the PSDs.                                               |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorLoNm           |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
-|                         |          |       |is not otherwise considered)                                              |
-|                         |          |       |Note: (1) only makes sense if [sensor_LO] is present (2) if not present   |
-|                         |          |       |extraErrorNm is used on LO directions.                                    |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorLoExp          |No        |float  |*default: -2*, exponent of the power of spatial frequencies used to       |
-|                         |          |       |generate the PSD associated with extraErrorLoNm                          |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorLoMin          |No        |float  |*default: 0*, minimum spatial frequency for which PSD associated with     |
-|                         |          |       |extraErrorLoNm is > 0                                                    |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorLoMax          |No        |float  |*default: 0*, maximum spatial frequency for which PSD associated with     |
-|                         |          |       |extraErrorLoNm is > 0                                                     |
-|                         |          |       |Note: 0 means maximum frequency is the one present in the spatial         |
-|                         |          |       |frequency array of the PSDs.                                               |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|jitter_FWHM              |No        |float  |*default: None*, additional kernel to be convolved with PSF, it could be  |
-|                         |          |       |a scalar (FWHM in mas) for a round kernel or a list of three values       |
-|                         |          |       |[FWHM_mas_max, FWHM_mas_min, angle_rad].                                  |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
-|TechnicalFoV             |No/Yes if |float  |*default: ??*, set the size of the technical field of view (diameter) in  |
-|                         |LO        |       |Used in multi-conjugate AO systems.                                       |
-|                         |          |       |*Warning* : This is not optional in MavisLO.py                         |
-+-------------------------+----------+-------+--------------------------------------------------------------------------+
+|                          |          |       |(TBC) need to find how does the pathStatModes fits file work.             |
+|                          |          |       |From P3, not supported in TIPTOP.                                         |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorNm              |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
+|                          |          |       |is not otherwise considered)                                              |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorExp             |No        |float  |*default: -2*, exponent of the power of spatial frequencies used to       |
+|                          |          |       |generate the PSD associated with extraErrorNm                             |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorMin             |No        |float  |*default: 0*, minimum spatial frequency for which PSD associated with     |
+|                          |          |       |extraErrorNm is > 0                                                       |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorMax             |No        |float  |*default: 0*, maximum spatial frequency for which PSD associated with     |
+|                          |          |       |extraErrorNm is > 0                                                       |
+|                          |          |       |                                                                          |
+|                          |          |       |Note: 0 means maximum frequency is the one present in the spatial         |
+|                          |          |       |frequency array of the PSDs.                                              |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorLoNm            |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
+|                          |          |       |is not otherwise considered)                                              |
+|                          |          |       |                                                                          |
+|                          |          |       |Note: (1) only makes sense if [sensor_LO] is present (2) if not present   |
+|                          |          |       |extraErrorNm is used on LO directions.                                    |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorLoExp           |No        |float  |*default: -2*, exponent of the power of spatial frequencies used to       |
+|                          |          |       |generate the PSD associated with extraErrorLoNm                           |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorLoMin           |No        |float  |*default: 0*, minimum spatial frequency for which PSD associated with     |
+|                          |          |       |extraErrorLoNm is > 0                                                     |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|extraErrorLoMax           |No        |float  |*default: 0*, maximum spatial frequency for which PSD associated with     |
+|                          |          |       |extraErrorLoNm is > 0                                                     |
+|                          |          |       |                                                                          |
+|                          |          |       |Note: 0 means maximum frequency is the one present in the spatial         |
+|                          |          |       |frequency array of the PSDs.                                              |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|jitter_FWHM               |No        |float  |*default: None*, additional kernel to be convolved with PSF, it could be  |
+|                          |          |       |a scalar (FWHM in mas) for a round kernel or a list of three values       |
+|                          |          |       |[FWHM_mas_max, FWHM_mas_min, angle_rad].                                  |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
+|TechnicalFoV              |No/Yes if |float  |*default: ??*, set the size of the technical field of view (diameter) in  |
+|                          |LO        |       |Used in multi-conjugate AO systems.                                       |
+|                          |          |       |                                                                          |
+|                          |          |       |*Warning* : This is not optional in MavisLO.py                            |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
 
 
 
@@ -145,42 +150,48 @@ We now go more in detail for each section:
 |Seeing                   |Yes      |float  |Set the seeing at Zenith in arcsec. If not set TIPTOP uses ``r0_value`` . |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
 |Wavelength               |No/Yes if|float  |*Default : 500e-9*, Wavelength of definition of the atmosphere statistics |
-|                         |LO       |       |   *Warning*: not optional in MavisLO.py                                    |
+|                         |LO       |       |                                                                          |
+|                         |         |       |*Warning*: not optional in MavisLO.py                                     |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
 |L0                       |No/Yes if|float  |*Default : 25.0*, Outer Scale of the atmosphere  in meters                |
-|                         |LO       |       |*Warning*: not optional in MavisLO.py                                      |
+|                         |LO       |       |                                                                          |
+|                         |         |       |*Warning*: not optional in MavisLO.py                                     |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|Cn2Weights               |No\*/Yes |list of|*Default : [1.0]*, Relative contribution of each layer. The sum of all the|
+|Cn2Weights               |No/Yes   |list of|*Default : [1.0]*, Relative contribution of each layer. The sum of all the|
 |                         |if LO    |float  |list element must be 1. Must have the same length as ``Cn2Heights``,      |
 |                         |         |       |``WindSpeed`` and ``WindDirection``.                                      |
-|                         |         |       |\*Warning : required if ``Cn2Heights``, ``WindSpeed`` or ``WindDirection``|
+|                         |         |       |                                                                          |
+|                         |         |       |*Warning : required if ``Cn2Heights``, ``WindSpeed`` or ``WindDirection`` |
 |                         |         |       |are defined                                                               |
-|                         |         |       |*Warning* : extremely confusing error message if absent when it must be      |
+|                         |         |       |*Warning* : extremely confusing error message if absent when it must be   |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|Cn2Heights               |No\*/Yes |list of|*Default : [0.0]*, altitude of layers in meters.                          |
+|Cn2Heights               |No/Yes   |list of|*Default : [0.0]*, altitude of layers in meters.                          |
 |                         |if LO    |float  |Must have the same length as ``Cn2Weights``, ``WindSpeed`` and            |
 |                         |         |       |``WindDirection``.                                                        |
-|                         |         |       |\*Warning : required if ``Cn2Weights``, ``WindSpeed`` or ``WindDirection``|
+|                         |         |       |                                                                          |
+|                         |         |       |*Warning* : required if ``Cn2Weights``, ``WindSpeed`` or ``WindDirection``|
 |                         |         |       |are defined                                                               |
-|                         |         |       |*Warning* : extremely confusing error message if absent when it must be      |
+|                         |         |       |*Warning* : extremely confusing error message if absent when it must be   |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|WindSpeed                |No\*/Yes |list of|*Default : [10.0]*, Wind speed values for each layer in m/s.              |
+|WindSpeed                |No/Yes   |list of|*Default : [10.0]*, Wind speed values for each layer in m/s.              |
 |                         |if LO    |float  |Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and           |
 |                         |         |       |``WindDirection``.                                                        |
-|                         |         |       |\*Warning : required if ``Cn2Weights``, ``Cn2Heights`` or                 |
+|                         |         |       |                                                                          |
+|                         |         |       |*Warning* : required if ``Cn2Weights``, ``Cn2Heights`` or                 |
 |                         |         |       |``WindDirection`` are defined                                             |
-|                         |         |       |*Warning* : extremely confusing error message if absent when it must be      |
+|                         |         |       |*Warning* : extremely confusing error message if absent when it must be   |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|WindDirection            |No\*/Yes |list of|*Default : [0.0]*, wind direction for each layer in degrees. 0 degree is  |
+|WindDirection            |No/Yes   |list of|*Default : [0.0]*, wind direction for each layer in degrees. 0 degree is  |
 |                         |if LO    |float  |?? then anticlockwise.                                                    |
 |                         |         |       |Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and           |
 |                         |         |       |``WindSpeed``.                                                            |
-|                         |         |       |\*Warning : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindSpeed``   |
+|                         |         |       |                                                                          |
+|                         |         |       |*Warning* : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindSpeed``   |
 |                         |         |       |are defined                                                               |
-|                         |         |       |*Warning* : extremely confusing error message if absent when it must be      |
+|                         |         |       |*Warning* : extremely confusing error message if absent when it must be   |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
 |r0_Value                 |No       |float  |Set the atmospere Fried parameter. If not set TIPTOP uses ``seeing`` .    |
@@ -258,9 +269,11 @@ We now go more in detail for each section:
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
 |PixelScale               |Yes      |float   |Pixel/spaxel scale in milliarcsec.                                        |
+|                         |         |        |                                                                          |
 |                         |         |        |*Warning*: confusing error message if missing                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |FieldOfView              |Yes      |float   |Field of view of the camera in pixel/spaxel.                              |
+|                         |         |        |                                                                          |
 |                         |         |        |*Warning*: confusing error massage if missing                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
@@ -289,19 +302,24 @@ The High Order WaveFront Sensor can be a pyramid WFS or a Shack-Hartmann. Regard
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |PixelScale               |Yes      |integer |High Order WFS pixel scale in [mas],  Not used when a pyramid wavefront   |
 |                         |         |        |sensor has been selected.                                                 |
+|                         |         |        |                                                                          |
 |                         |         |        |*Warning*: gives a confusing error message if missing                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |FieldOfView              |Yes      |integer |Number of pixels per subaperture. Not used when a pyramid wavefront sensor|
 |                         |         |        |has been selected (4 pixels are used in this case).                       |
+|                         |         |        |                                                                          |
 |                         |         |        |*Warning*: gives a confusing error message if missing                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |WfsType                  |No       |string  |*default : 'Shack-Hartmann'*, type of wavefront sensor used for the High  |
 |                         |         |        |Order sensing. Other available option: 'Pyramid'                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NumberPhotons            |No       |list of |*default : [Inf]*, Flux return in [nph/frame/subaperture]                 |
-|                         |         |integer |It can be computed as:                                                    |
-|                         |         |        |``(0-magn-flux [ph/s/m2]) * (size of sub-aperture [m])^2 * ``             |
-|                         |         |        |``(1/SensorFrameRate_HO) * (total throughput) * (10^(-0.4*magn_source_HO))``|
+|                         |         |integer |                                                                          |
+|                         |         |        |It can be computed as:                                                    |
+|                         |         |        |                                                                          |
+|                         |         |        |``(0-magn-flux [ph/s/m2]) * (size of sub-aperture [m])^2                  |
+|                         |         |        |* (1/SensorFrameRate_HO) * (total throughput)                             |
+|                         |         |        |* (10^(-0.4*magn_source_HO))``                                            |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |SpotFWHM                 |No       |list of |*defaut: [[0.0, 0.0, 0.0]]*, High Order spot parameters: two axes scale   |
 |                         |         |list of |values in milliarcsec (only max value is used) and angle (angle is not    |
@@ -358,7 +376,8 @@ Pyramid requirement
 |Modulation               |Yes      |float   |*default : None*, If the chosen wavefront sensor is the ``'Pyramid'``,    |
 |                         |         |        |Spot modulation radius in lambda/D units. This is ignored if the WFS is   |
 |                         |         |        |`'Shack-Hartmann'`                                                        |
-|                         |         |        |*Warning* : gives a confusing message if missing when required              |
+|                         |         |        |                                                                          |
+|                         |         |        |*Warning* : gives a confusing message if missing when required            |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |Binning                  |No       |integer |*default: 1*, Binning factor of the detector, only used in the pyramid    |
 |                         |         |        |case, optional for pyramid                                                |
@@ -399,9 +418,12 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NumberPhotons            |Yes      |list of |Detected flux in [nph/frame/subaperture], Must be the same length as      |
 |                         |         |integer |NumberLenslet                                                             |
+|                         |         |        |                                                                          |
 |                         |         |        |It can be computed as:                                                    |
-|                         |         |        |``(0-magn-flux [ph/s/m2]) * (size of subaperture [m])**2 * ``             |
-|                         |         |        |``(1/SensorFrameRate_LO) * (total throughput) * (10**(-0.4*magn_source_LO))``|
+|                         |         |        |                                                                          |
+|                         |         |        |``(0-magn-flux [ph/s/m2]) * (size of subaperture [m])**2                  |
+|                         |         |        |* (1/SensorFrameRate_LO) * (total throughput)                             |
+|                         |         |        |* (10**(-0.4*magn_source_LO))``                                           |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NumberLenslets           |Yes      |list of |*Default : [1]*, number of WFS lenslets, Must be the same length as       |
 |                         |         |integer |NumberPhotons                                                             |
@@ -416,6 +438,7 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |WindowRadiusWCoG         |Yes      |integer |*default: 1*, Radius in pixel of the HWHM of the weights map of the       |
 |                         |         |        |weighted CoG the low order WFS pixels                                     |
+|                         |         |        |                                                                          |
 |                         |         |        |*Warning* : if set to 'optimize', gain is automatically optimized by      |
 |                         |         |        |TIPTOP (closest int to half of PSF FWHM), otherwise the float value set is|
 |                         |         |        |used.                                                                     |
@@ -503,8 +526,8 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
-|LoopGain_HO              |No       |float   |*Default : 0.5*, High Order Loop gain. *Warning*: if system to be simulated |
-|                         |         |        |is a multi-conjugate system this parameter is not used.                   |
+|LoopGain_HO              |No       |float   |*Default : 0.5*, High Order Loop gain. *Warning*: if system to be         |
+|                         |         |        |simulated is a multi-conjugate system this parameter is not used.         |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |SensorFrameRate_HO       |No       |float   |*Default : 500.0*, High Order loop frequency in [Hz]                      |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
@@ -512,7 +535,7 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |LoopGain_LO              |No/Yes if|float or|*default: None*, Low Order loop gain, *Warning*: if set to 'optimize',    |
 |                         |LO       |string  |gain is automatically optimized by tiptop, otherwise the float value set  |
-|                         |         |        |is used.                                                                     |
+|                         |         |        |is used.                                                                  |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+   
 |SensorFrameRate_LO       |No/Yes if|float   |*default: None*, Loop frequency in [Hz]. If ``[sensor_LO]`` section is    |
 |                         |LO       |        |present it must be set.                                                   |
