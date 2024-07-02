@@ -10,14 +10,17 @@ authors = [
 description = ""
 readme = "README.md"
 urls = {repository = "https://github.com/astro-tiptop/TIPTOP"}
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = {text = "MIT License"}
 dependencies = [
     "matplotlib",
     "numpy",
     "pyyaml",
-    "astro-p3>=1.2.7",
-    "mastsel>=1.2.5",
+    "astro-p3>=1.2.11",
+    "mastsel>=1.2.9",
+    "torch>=2.1.2",
+    "torchmetrics>=1.4.0",
+    "mpl_scatter_density>=0.7",
     "sphinx_tabs"
 ]
 dynamic = ["version"]

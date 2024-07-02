@@ -59,10 +59,10 @@ from .asterismSimulation import *
 #             raise KeyError("section '{}' is not present in the parameter file"
 #                            .format(sec))
 
-def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=False,
+def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve=True,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
-                      verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50,
-                      savePSDs=False):
+                      verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
+                      eeRadiusInMas=50, savePSDs=False):
     """
         function to run the entire tiptop simulation based on the input file
 
@@ -88,6 +88,8 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         :type verbose: bool
         :param getHoErrorBreakDown: optional default: False, If you want HO error breakdown set this to True.
         :type getHoErrorBreakDown: bool
+        :param ensquaredEnergy: optional default: False, If you want ensquared energy instead of encircled energy set this to True.
+        :type ensquaredEnergy: bool
         :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy
         :type eeRadiusInMas: float
         :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
@@ -97,8 +99,9 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         :rtype: TBD
 
     """
-    simulation = baseSimulation(path, parametersFile, outputDir, outputFile, doConvolve,
-                      doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, savePSDs)
+    simulation = baseSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve,
+                      doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, savePSDs, ensquaredEnergy,
+                      eeRadiusInMas)
     
     simulation.doOverallSimulation()
 
@@ -108,17 +111,18 @@ def overallSimulation(path, parametersFile, outputDir, outputFile, doConvolve=Fa
         else:
             return simulation.HO_res  
     elif returnMetrics:
-        simulation.computeMetrics(eeRadiusInMas)
+        simulation.computeMetrics()
         return simulation.sr, simulation.fwhm, simulation.ee
     else:
         simulation.saveResults()
         
-def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
+def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
-                      verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50):
+                      verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
+                      eeRadiusInMas=50):
 
     """
-        function to run the entire tiptop simulation based on the input file
+        function to run the entire tiptop asterism evaluation on the input file
 
         :param path2param: required, path to the parameter file.
         :type path2param: str
@@ -142,6 +146,8 @@ def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
         :type verbose: bool
         :param getHoErrorBreakDown: optional default: False, If you want HO error breakdown set this to True.
         :type getHoErrorBreakDown: bool
+        :param ensquaredEnergy: optional default: False, If you want ensquared energy instead of encircled energy set this to True.
+        :type ensquaredEnergy: bool
         :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy
         :type eeRadiusInMas: float
         :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
@@ -151,8 +157,8 @@ def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
         :rtype: TBD
 
     """
-    simulation = asterismSimulation(simulName, path, parametersFile, outputDir, outputFile,
-                      doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
+    simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
+                      doPlot, addSrAndFwhm, verbose)
 
     
     if simulation.hasAsterismSection and simulation.LOisOn:
@@ -164,7 +170,7 @@ def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
         elif returnMetrics:
             # this must be probably done inside computeAsterisms, at the end
             # simulation.computeMetrics(eeRadiusInMas)            
-            return simulation.sr_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
+            return simulation.strehl_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
         else:
             # this must be probably done inside computeAsterisms, at the end
             # simulation.saveResults()
@@ -173,11 +179,11 @@ def asterismSelection(simulName, path, parametersFile, outputDir, outputFile,
         return
 
 
-def reloadAsterismSelection(simulName, path, parametersFile, outputDir, outputFile,
+def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
-                      verbose=False, getHoErrorBreakDown=False, eeRadiusInMas=50):
-
-    simulation = asterismSimulation(simulName, path, parametersFile, outputDir, outputFile,
+                      verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
+                      eeRadiusInMas=50):
+    simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
                                     doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
     simulation.reloadResults()
-    return simulation.sr_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
+    return simulation.strehl_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
