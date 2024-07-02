@@ -1,6 +1,64 @@
 from .baseSimulation import *
 from .asterismSimulation import *
 
+# def checkParameterFile(data2check):
+#     '''
+#     This function can be used to verify that the parameters in the parameter file 
+#     fulfill basic requirements. Currently this only support the core requirements.
+#     TODO:
+#         verification of the type of optionnal parameter
+#         Verification of lists that need to be the same length
+#         Verification of the existance of parameters whan some other parameters are set
+#             For example when sensor_HO.WfsType == 'pyramid' the parameter Modulation must be set.
+
+#     Parameters
+#     ----------
+#     data2check : dict
+#         dictionnary containing the parameter file to be checked for requirement.
+
+#     Returns
+#     -------
+#     None.
+
+#     '''
+    
+#     myRequiredPar = {'telescope': {'TelescopeDiameter':8.,'Resolution': 128}, 
+#                      'atmosphere': {'Seeing': 0.6}, 
+#                      'sources_science': {'Wavelength': [1.6e-06], 'Zenith': [0.0], 
+#                                          'Azimuth': [0.0]}, 
+#                      'sources_HO': {'Wavelength': [7.5e-07]}, 
+#                      'sensor_science': {'PixelScale': 40, 'FieldOfView': 256}, 
+#                      'sensor_HO': {'PixelScale': 832, 'FieldOfView': 6, 
+#                                    'NumberPhotons': [200.0], 'SigmaRON': 0.0}, 
+#                      'DM': {'NumberActuators': [20], 'DmPitchs': [0.25]}}
+    
+#     for sec in myRequiredPar.keys():
+#         if sec in data2check:
+#             for opt in myRequiredPar[sec].keys():
+#                 if opt in data2check[sec]:
+#                     if type(data2check[sec][opt])!=type(myRequiredPar[sec][opt]):
+#                         if type(myRequiredPar[sec][opt])==list:
+#                             #If we want a list or an int it MUST be that
+#                             raise TypeError("Parameter '{}' in section '{}' must be a type '{}'"
+#                                             .format(opt,sec,type(myRequiredPar[sec][opt]).__name__))
+#                         elif (type(myRequiredPar[sec][opt])==float and type(data2check[sec][opt])==list 
+#                               or type(myRequiredPar[sec][opt])==int and type(data2check[sec][opt])==list):
+#                             # if we want a float and there is an int instead we do not care
+#                             # however it cannot be a list
+#                             raise TypeError("Parameter '{}' in section '{}' must be a type '{}'"
+#                                             .format(opt,sec,type(myRequiredPar[sec][opt]).__name__))
+#                     if type(myRequiredPar[sec][opt])==list and not data2check[sec][opt]:
+#                         raise ValueError("The list '{}' in section '{}' should not be empty"
+#                                          .format(opt,sec))
+#                 else:
+#                     #The option is missing
+#                     raise KeyError("parameter '{}' is missing from section '{}' in the parameter file"
+#                                    .format(opt,sec))
+#         else:
+#             #the section is missing
+#             raise KeyError("section '{}' is not present in the parameter file"
+#                            .format(sec))
+
 def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve=True,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
@@ -57,7 +115,6 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
         return simulation.sr, simulation.fwhm, simulation.ee
     else:
         simulation.saveResults()
-
         
 def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
