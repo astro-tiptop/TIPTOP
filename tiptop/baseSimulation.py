@@ -524,20 +524,20 @@ class baseSimulation(object):
                     saSideM = 2*self.tel_radius/nSA[i]
                     saSidePix = int(pupilSidePix/nSA[i])
                     if nSA[i] == 1:
-                        if nSA[i] > 1:
-                            # piston filter for the sub-aperture size
-                            pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
-                            PSD_NGS[i] = self.PSD[i] * pf
                         # LO mask
                         if nMaskLO > 1:
                             self.maskLO.append(self.mask)
                         else:
                             self.maskLO = self.mask
                     else:
-                        if nSA[i] > 1:
-                            # piston filter for the sub-aperture size
-                            pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
-                            PSD_NGS[i] = self.PSD[i] * pf
+                        ## -----------------------------------------------------------------------------
+                        ## TODO:
+                        ## THIS PART HAS BEEN REMOVED BECAUSE IT WOULD UNDERSTIAMATE THE AMOUNT OF NOISE
+                        ## IT SHOULD BE CONSIDERED FOR A FOCUS ONLY SENSOR
+                        ## piston filter for the sub-aperture size
+                        #pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
+                        #PSD_NGS[i] = self.PSD[i] * pf
+                        ## -----------------------------------------------------------------------------
                         # LO mask
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
                         if nSA[i] == 2:
