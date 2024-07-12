@@ -453,6 +453,13 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NewValueThrPix           |Yes      |float   |*default: 0.0*, New value for pixels lower than threshold.                |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|filtZernikeCov           |No       |string  |*Default : False*, Filter for the zernike covariance. The zernike cov. is |
+|                         |         |        |used to quantify for the TT tomographic (anisoplanatic) error. This filter|
+|                         |         |        |accounts for the HO correction of an MCAO system. Multi-conjugate systems |
+|                         |         |        |only.                                                                     |
+|                         |         |        |                                                                          |
+|                         |         |        |*Warning*: Do not use in systems with a single DM.                        |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 Can be set but not used
 ^^^^^^^^^^^^^^^^^^^^^^^
