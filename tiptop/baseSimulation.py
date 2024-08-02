@@ -165,8 +165,8 @@ class baseSimulation(object):
             self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']  
             
         self.addFocusError = self.my_data_map['telescope']['glFocusOnNGS']
-        if self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
-            raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS WFSs have more than one sub-aperture")
+        if (not self.check_section_key('sensor_Focus')) and self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
+            raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS/Focus WFSs have more than one sub-aperture")
 
 
     def configLO(self, astIndex=None):
@@ -189,8 +189,16 @@ class baseSimulation(object):
 
         if self.check_section_key('sensor_Focus'):
             self.Focus_fluxes4fr_field = self.my_data_map['sensor_Focus']['NumberPhotons']
+            self.Focus_psInMas         = self.my_data_map['sensor_Focus']['PixelScale']
+            Focus_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
+            if isinstance(Focus_wvl_temp, list):
+                self.Focus_wvl = Focus_wvl_temp[0]  # lambda
+            else:
+                self.Focus_wvl = Focus_wvl_temp     # lambda
         else:
             self.Focus_fluxes4fr_field = self.LO_fluxes_field
+            self.Focus_psInMas         = self.LO_psInMas
+            self.Focus_wvl             = self.LO_wvl
         if self.check_config_key('RTC','SensorFrameRate_Focus'):
             self.Focus_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_Focus']
             if not isinstance(self.Focus_freqs_field, list):
@@ -545,12 +553,9 @@ class baseSimulation(object):
                             self.maskLO = self.mask
                     else:
                         ## -----------------------------------------------------------------------------
-                        ## TODO:
-                        ## THIS PART HAS BEEN REMOVED BECAUSE IT WOULD UNDERSTIAMATE THE AMOUNT OF NOISE
-                        ## IT SHOULD BE CONSIDERED FOR A FOCUS ONLY SENSOR
                         ## piston filter for the sub-aperture size
-                        #pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
-                        #PSD_NGS[i] = PSD_NGS[i] * pf
+                        pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
+                        PSD_NGS[i] = PSD_NGS[i] * pf
                         ## -----------------------------------------------------------------------------
                         # LO mask
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
@@ -614,7 +619,8 @@ class baseSimulation(object):
                 # optional Focus error
                 if self.addFocusError:
                     if 'sensor_Focus' in self.my_data_map.keys():
-                        print('Focus sensor is set: computing new PSFs.')
+                        if self.verbose:
+                            print('Focus sensor is set: computing new PSFs.')
                         nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
                         PSD_Focus = PSD_NGS
                         if len(nSAfocus) == self.nNaturalGS_field:
@@ -634,7 +640,7 @@ class baseSimulation(object):
                             else:
                                 ## -----------------------------------------------------------------------------
                                 # piston filter for the sub-aperture size
-                                pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAFocus[i],k)
+                                pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAfocus[i],k)
                                 PSD_Focus[i] = PSD_Focus[i] * pf
                                 ## -----------------------------------------------------------------------------
                                 # Focus mask
@@ -669,7 +675,7 @@ class baseSimulation(object):
                                                                                    self.Focus_wvl,
                                                                                    self.psInMas[0],
                                                                                    self.nPixPSF,
-                                                                                   scaleFactor=(2*np.pi*1e-9/self.focus_wvl)**2,
+                                                                                   scaleFactor=(2*np.pi*1e-9/self.Focus_wvl)**2,
                                                                                    oversampling=self.oversampling)
                         self.Focus_SR_field         = Focus_SR
                         self.Focus_FWHM_mas_field   = Focus_FWHM_mas
