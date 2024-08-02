@@ -188,9 +188,9 @@ class baseSimulation(object):
             self.LO_freqs_field  = [self.LO_freqs_field] * len(self.LO_zen_field)
 
         if self.check_section_key('sensor_Focus'):
-            self.Focus_fluxes_field = self.my_data_map['sensor_Focus']['NumberPhotons']
+            self.Focus_fluxes4fr_field = self.my_data_map['sensor_Focus']['NumberPhotons']
         else:
-            self.Focus_fluxes_field = self.LO_fluxes_field
+            self.Focus_fluxes4fr_field = self.LO_fluxes_field
         if self.check_config_key('RTC','SensorFrameRate_Focus'):
             self.Focus_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_Focus']
             if not isinstance(self.Focus_freqs_field, list):
@@ -203,6 +203,9 @@ class baseSimulation(object):
         for aFr, aFlux, aZen, aAz in zip(self.LO_freqs_field, self.LO_fluxes_field, self.LO_zen_field, self.LO_az_field):
             polarNGSCoordsList.append([aZen, aAz])
             self.NGS_fluxes_field.append(aFlux*aFr)
+        self.Focus_fluxes_field = []
+        for aFrF, aFluxF in zip(self.Focus_freqs_field, self.Focus_fluxes4fr_field):
+            self.Focus_fluxes_field.append(aFluxF*aFrF)
         polarNGSCoords     = np.asarray(polarNGSCoordsList)
         self.nNaturalGS_field  = len(self.LO_zen_field)
         cartNGSCoordsList = []
