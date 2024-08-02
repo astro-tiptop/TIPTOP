@@ -187,6 +187,17 @@ class baseSimulation(object):
         if not isinstance(self.LO_freqs_field, list):
             self.LO_freqs_field  = [self.LO_freqs_field] * len(self.LO_zen_field)
 
+        if self.check_section_key('sensor_Focus'):
+            self.Focus_fluxes_field = self.my_data_map['sensor_Focus']['NumberPhotons']
+        else:
+            self.Focus_fluxes_field = self.LO_fluxes_field
+        if self.check_config_key('RTC','SensorFrameRate_Focus'):
+            self.Focus_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_Focus']
+            if not isinstance(self.Focus_freqs_field, list):
+                self.Focus_freqs_field  = [self.Focus_freqs_field] * len(self.LO_zen_field)
+        else:
+            self.Focus_freqs_field = self.LO_freqs_field
+
         self.NGS_fluxes_field = []
         polarNGSCoordsList = []
         for aFr, aFlux, aZen, aAz in zip(self.LO_freqs_field, self.LO_fluxes_field, self.LO_zen_field, self.LO_az_field):
@@ -536,7 +547,7 @@ class baseSimulation(object):
                         ## IT SHOULD BE CONSIDERED FOR A FOCUS ONLY SENSOR
                         ## piston filter for the sub-aperture size
                         #pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
-                        #PSD_NGS[i] = self.PSD[i] * pf
+                        #PSD_NGS[i] = PSD_NGS[i] * pf
                         ## -----------------------------------------------------------------------------
                         # LO mask
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
@@ -560,7 +571,7 @@ class baseSimulation(object):
                             self.maskLO = maskLO
 
                 if self.verbose:
-                    print('******** HO PSF - NGS directions (1 sub-aperture)')
+                    print('******** LO PSF - NGS directions (1 sub-aperture)')
 
                 NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(self.N,
                                                                            self.freq_range,
@@ -574,7 +585,7 @@ class baseSimulation(object):
                                                                            oversampling=self.oversampling)
                 self.NGS_SR_field           = NGS_SR
                 self.NGS_FWHM_mas_field     = NGS_FWHM_mas
-                self.NGS_EE_field = []
+                self.NGS_EE_field           = []
                 idx = 0
                 for img in psfLE_NGS:
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
@@ -596,16 +607,98 @@ class baseSimulation(object):
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                                          self.LO_freqs_field,
                                                                          self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
+                # -----------------------------------------------------------------
+                # optional Focus error
                 if self.addFocusError:
+                    if 'sensor_Focus' in self.my_data_map.keys():
+                        print('Focus sensor is set: computing new PSFs.')
+                        nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
+                        PSD_Focus = PSD_NGS
+                        if len(nSAfocus) == self.nNaturalGS_field:
+                            self.maskFocus = []
+                            nMaskFocus = self.nNaturalGS_field
+                        else:
+                            nMaskFocus = 1
+                        for i in range(nMaskFocus):
+                            saSideM = 2*self.tel_radius/nSAfocus[i]
+                            saSidePix = int(pupilSidePix/nSAfocus[i])
+                            if nSAfocus[i] == 1:
+                                # LO mask
+                                if nMaskFocus > 1:
+                                    self.maskFocus.append(self.mask)
+                                else:
+                                    self.maskFocus = self.mask
+                            else:
+                                ## -----------------------------------------------------------------------------
+                                # piston filter for the sub-aperture size
+                                pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAFocus[i],k)
+                                PSD_Focus[i] = PSD_Focus[i] * pf
+                                ## -----------------------------------------------------------------------------
+                                # Focus mask
+                                maskFocus = Field(self.wvl, self.N, self.grid_diameter)
+                                if nSAfocus[i] == 2:
+                                    saMask[0:saSidePix,0:saSidePix] = 1
+                                    saMask *= cpuArray(self.fao.ao.tel.pupil)
+                                elif nSAfocus[i] == 3:
+                                    saMask[0:saSidePix,int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                                    saMask *= cpuArray(self.fao.ao.tel.pupil)
+                                else:
+                                    saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
+                                           int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                                if gpuMastsel:
+                                    maskFocus.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
+                                else:
+                                    maskFocus.sampling = congrid(saMask, [self.sx, self.sx])
+                                maskFocus.sampling = zeroPad(maskFocus.sampling, (self.N-self.sx)//2)
+                                if nMaskFocus > 1:
+                                    self.maskFocus.append(maskFocus)
+                                else:
+                                    self.maskFocus = maskFocus
+
+                        if self.verbose:
+                            print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
+
+                        Focus_SR, psdArray, psfLE_Focus, Focus_FWHM_mas = self.psdSetToPsfSet(self.N,
+                                                                                   self.freq_range,
+                                                                                   self.dk,
+                                                                                   self.maskFocus,
+                                                                                   PSD_Focus,
+                                                                                   self.Focus_wvl,
+                                                                                   self.psInMas[0],
+                                                                                   self.nPixPSF,
+                                                                                   scaleFactor=(2*np.pi*1e-9/self.focus_wvl)**2,
+                                                                                   oversampling=self.oversampling)
+                        self.Focus_SR_field         = Focus_SR
+                        self.Focus_FWHM_mas_field   = Focus_FWHM_mas
+                        self.Focus_EE_field         = []
+                        idx = 0
+                        for img in psfLE_NGS:
+                            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                            ee_ *= 1/np.max(ee_)
+                            ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
+                            # max is used to compute EE on at least a radius of one pixel
+                            ee_Focus = ee_at_radius_fn(max([Focus_FWHM_mas[idx],self.Focus_psInMas]))
+                            self.Focus_EE_field.append(ee_Focus)
+                            if self.verbose:
+                                print('EE (focus sensor)     :', "%.5f" % ee_Focus)
+                            idx += 1
+                    else:
+                        print('Focus sensor is not set: using LO PSFs.')
+                        self.Focus_SR_field         = self.NGS_SR_field
+                        self.Focus_FWHM_mas_field   = self.NGS_FWHM_mas_field
+                        self.Focus_EE_field         = self.NGS_EE_field
+
                     # compute focus error
-                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                                         self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field)
+                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
+                                                                         self.Focus_freqs_field,
+                                                                         self.Focus_SR_field, self.Focus_EE_field, self.Focus_FWHM_mas_field)
+
                     # add focus error to PSD using P3 FocusFilter
                     FocusFilter = self.fao.FocusFilter()
                     FocusFilter *= 1/FocusFilter.sum()
                     for PSDho in self.PSD:
                         PSDho += self.CtotFocus[0] * FocusFilter
+                # -----------------------------------------------------------------
             else:
                 self.NGS_SR_asterism = []
                 for iid in self.currentAsterismIndices:
