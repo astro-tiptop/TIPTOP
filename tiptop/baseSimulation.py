@@ -622,7 +622,7 @@ class baseSimulation(object):
                         if self.verbose:
                             print('Focus sensor is set: computing new PSFs.')
                         nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
-                        PSD_Focus = PSD_NGS
+                        PSD_Focus = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
                         if len(nSAfocus) == self.nNaturalGS_field:
                             self.maskFocus = []
                             nMaskFocus = self.nNaturalGS_field
