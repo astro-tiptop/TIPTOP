@@ -4,7 +4,7 @@ Parameter files explained
 Introduction
 ------------
 
-To run tiptop you need two things: to execute the function and to create a parameter file. This section explaines
+To run TIPTOP you need two things: to execute the function and to create a parameter file. This section explaines
 what should your parameter file contain and the various parameters you can set. You can already find example parameter 
 files in the `github <https://github.com/FabioRossiArcetri/TIPTOP/tree/main/perfTest>`_ .
 
@@ -17,31 +17,35 @@ Overview
 --------
 The following table resume the what the parameter file should contain and what is mandatory.
 
-+---------------+-----------------------------+
-|section        | required?                   |
-+===============+=============================+
-|telescope      | Yes                         |
-+---------------+-----------------------------+
-|atmosphere     | Yes                         |
-+---------------+-----------------------------+
-|sources_science| Yes                         |
-+---------------+-----------------------------+
-|source_HO      | Yes                         |
-+---------------+-----------------------------+
-|sources_LO     | No/Yes if sensor_LO defined |
-+---------------+-----------------------------+
-|sensor_science | Yes                         |
-+---------------+-----------------------------+
-|sensor_HO      | Yes                         |
-+---------------+-----------------------------+
-|sensor_LO      | No/Yes if sources_LO defined|
-+---------------+-----------------------------+
-|DM             | Yes                         |
-+---------------+-----------------------------+
-|RTC            | No/Yes if sensor_LO defined |
-+---------------+-----------------------------+
-|Computation    | No                          |
-+---------------+-----------------------------+
++---------------+--------------------------------+
+|section        | required?                      |
++===============+================================+
+|telescope      | Yes                            |
++---------------+--------------------------------+
+|atmosphere     | Yes                            |
++---------------+--------------------------------+
+|sources_science| Yes                            |
++---------------+--------------------------------+
+|source_HO      | Yes                            |
++---------------+--------------------------------+
+|sources_LO     | No/Yes if sensor_LO defined    |
++---------------+--------------------------------+
+|sources_Focus  | No/Yes if sensor_Focus defined |
++---------------+--------------------------------+
+|sensor_science | Yes                            |
++---------------+--------------------------------+
+|sensor_HO      | Yes                            |
++---------------+--------------------------------+
+|sensor_LO      | No/Yes if sources_LO defined   |
++---------------+--------------------------------+
+|sensor_Focus   | No/Yes if sources_Focus defined|
++---------------+--------------------------------+
+|DM             | Yes                            |
++---------------+--------------------------------+
+|RTC            | No/Yes if sensor_LO defined    |
++---------------+--------------------------------+
+|Computation    | No                             |
++---------------+--------------------------------+
 
 
 We now go more in detail for each section:
@@ -134,7 +138,9 @@ We now go more in detail for each section:
 |                          |          |       |[FWHM_mas_max, FWHM_mas_min, angle_rad].                                  |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |glFocusOnNGS              |No        |string |*default: False*, global focus control with natural guide stars.          |
-|                          |          |       |Multi-conjugate systems only. Requires NumberLenslets >= 2 in sensor_LO.  |
+|                          |          |       |Multi-conjugate systems only. Requires NumberLenslets >= 2 in sensor_LO or|
+|                          |          |       |a specific global focus sensor (``[sources_Focus]`` and ``[sensor_Focus]``|
+|                          |          |       |sections).                                                                |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |TechnicalFoV              |No/Yes if |float  |*default: ??*, set the size of the technical field of view (diameter) in  |
 |                          |LO        |       |Used in multi-conjugate AO systems.                                       |
@@ -263,6 +269,22 @@ We now go more in detail for each section:
 |                         |         |float   |axis is x-axis) of each guide stars.                                      |
 |                         |         |        |Must be the same length as ``Zenith``                                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+   
+
+[sources_Focus]
+---------------
+.. note::
+
+   This section is completely optional.
+   The ``[sources_Focus]`` section is required to have the global focus part simulated considering specific focus sensors and not the LO sensors.
+   This happens when the key ``glFocusOnNGS`` in the ``[telescope]`` section is True and multiple DMs are present.
+
+   Note that the coordinates (``Zenith`` and ``Azimuth``) of the NGSs are the same of the ``[sources_LO]`` section.
+
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+| Parameter               | Required| Type   | Description                                                              |
++=========================+=========+========+==========================================================================+
+|Wavelength               |Yes      |float   |Sensing wavelength for global focus modes in meters                       |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 [sensor_science]
 ----------------
@@ -478,6 +500,58 @@ Can be set but not used
 |Algorithm                |not used |string  |*default: 'wcog'*, CoG computation algorithm                              |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
+[sensor_Focus]
+-----------
+
+.. note::
+
+   This section is completely optional.
+   The ``[sensor_Focus]`` section is required to have the global focus part simulated considering specific focus sensors and not the LO sensors.
+   This happens when the key ``glFocusOnNGS`` in the ``[telescope]`` section is True and multiple DMs are present.
+
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+| Parameter               | Required| Type   | Description                                                              |
++=========================+=========+========+==========================================================================+
+|PixelScale               |Yes      |float   |Focus WFS pixel scale in [mas],                                           |
+|                         |         |        |*Warning*: gives a confusing error message if missing                     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|FieldOfView              |Yes      |integer |not used. Number of pixels per subaperture,                               |
+|                         |         |        |*Warning*: gives a confusing error message if missing                     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|NumberPhotons            |Yes      |list of |Detected flux in [nph/frame/subaperture], Must be the same length as      |
+|                         |         |integer |NumberLenslet                                                             |
+|                         |         |        |                                                                          |
+|                         |         |        |It can be computed as:                                                    |
+|                         |         |        |                                                                          |
+|                         |         |        |``(0-magn-flux [ph/s/m2]) * (size of subaperture [m])**2                  |
+|                         |         |        |* (1/SensorFrameRate_Focus) * (total throughput)                          |
+|                         |         |        |* (10**(-0.4*magn_source_Focus))``                                        |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|NumberLenslets           |Yes      |list of |*Default : [1]*, number of WFS lenslets, Must be the same length as       |
+|                         |         |integer |NumberPhotons                                                             |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|SigmaRON                 |Yes      |float   |*default: 0.0*, read out noise in [e-]                                    |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|Dark                     |Yes      |float   |*default: 0.0*, dark current[e-/s/pix]                                    |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|SkyBackground            |Yes      |float   |*default: 0.0*, Sky background [e-/s/pix]                                 |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|ExcessNoiseFactor        |Yes      |float   |*default: 2.0*, excess noise factor                                       |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|WindowRadiusWCoG         |Yes      |integer |*default: 1*, Radius in pixel of the HWHM of the weights map of the       |
+|                         |         |        |weighted CoG the global focus WFS pixels                                  |
+|                         |         |        |                                                                          |
+|                         |         |        |*Warning* : if set to 'optimize', gain is automatically optimized by      |
+|                         |         |        |TIPTOP (closest int to half of PSF FWHM), otherwise the float value set is|
+|                         |         |        |used.                                                                     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+    
+|ThresholdWCoG            |Yes      |float   |*default: 0.0*, Threshold Number of pixels for windowing the low order WFS|
+|                         |         |        |pixels                                                                    |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|NewValueThrPix           |Yes      |float   |*default: 0.0*, New value for pixels lower than threshold.                |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+
+
 [DM]
 ----
 
@@ -546,14 +620,24 @@ Can be set but not used
 |LoopDelaySteps_HO        |No       |integer |*Default : 2*, High Order loop delay in [frame]                           |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |LoopGain_LO              |No/Yes if|float or|*default: None*, Low Order loop gain, *Warning*: if set to 'optimize',    |
-|                         |LO       |string  |gain is automatically optimized by tiptop, otherwise the float value set  |
+|                         |LO       |string  |gain is automatically optimized by TIPTOP, otherwise the float value set  |
 |                         |         |        |is used.                                                                  |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+   
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 |SensorFrameRate_LO       |No/Yes if|float   |*default: None*, Loop frequency in [Hz]. If ``[sensor_LO]`` section is    |
 |                         |LO       |        |present it must be set.                                                   |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |LoopDelaySteps_LO        |No/Yes if|integer |*default: None*, Low Order loop delays in [frames]. If ``[sensor_LO]``    |
 |                         |LO       |        |section is present it must be set.                                        |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|LoopGain_Focus           |No/Yes if|float or|*default: None*, Global focus loop gain, *Warning*: if set to 'optimize', |
+|                         |Focus    |string  |gain is automatically optimized by TIPTOP, otherwise the float value set  |
+|                         |         |        |is used.                                                                  |
++-------------------------+---------+--------+--------------------------------------------------------------------------+   
+|SensorFrameRate_Focus    |No/Yes if|float   |*default: None*, Global focus loop frequency in [Hz]. If                  |
+|                         |Focus    |        |``[sensor_Focus]`` section is present it must be set.                     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|LoopDelaySteps_Focus     |No/Yes if|integer |*default: None*, Global focus loop delays in [frames]. If                 |
+|                         |Focus    |        |``[sensor_Focus]`` section is present it must be set.                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |ResidualError            |No       |?       |*Default: None*, ?                                                        |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
