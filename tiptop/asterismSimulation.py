@@ -712,7 +712,8 @@ class asterismSimulation(baseSimulation):
 #        jitterApprox = func(inputDataTestCpu, *self.popt)
         grid_x = inputDataTestCpu[0,:]
         grid_y = inputDataTestCpu[1,:]
-        jitterApprox = self.popt.__call__(grid_x, grid_y, grid=False)
+        jitterApproxM = self.popt.__call__(grid_x, grid_y, grid=False)
+        jitterApprox = np.exp(jitterApproxM)-1
         print('jitterApprox', jitterApprox)
         sortedJitterIndicesModel = np.argsort(jitterApprox, axis=0)
         jitterApproxSorted = jitterApprox[sortedJitterIndicesModel]            
