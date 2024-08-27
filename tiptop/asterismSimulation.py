@@ -905,7 +905,6 @@ class asterismSimulation(baseSimulation):
             for ast in listOfAsterisms:
                 self.currentAsterism = ast
 #                try:
-                print('self.doConvolve', self.doConvolve)
                 self.doOverallSimulation(ast)
                 self.computeMetrics()
 #               except:
