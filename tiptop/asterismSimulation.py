@@ -205,7 +205,7 @@ class asterismSimulation(baseSimulation):
             cartNGSCoordsList = []
             for i in range(self.nNaturalGS_field):
                 cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
-            self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)            
+            self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)
         self.currentAsterismIndices = self.currentFieldAsterismsIndices[astIndex]
         super().setAsterismData()
         self.firstConfigCall = False
@@ -636,6 +636,7 @@ class asterismSimulation(baseSimulation):
             #jitterApproxTrain = func(trainInput, *popt)
             grid_x = trainInput[0,:]
             grid_y = trainInput[1,:]
+
             jitterApproxTrainM = funcbs.__call__(grid_x, grid_y, grid=False)
             jitterApproxTrain = np.exp(jitterApproxTrainM)-1
 
@@ -650,26 +651,32 @@ class asterismSimulation(baseSimulation):
             print( "RMS Error Train", rmsErrorTrain)
 
             plt.scatter(trainInput[0,:], absoluteErrorTrain, alpha=0.2, s=4)
-            plt.xlabel('distance [arcsec]')
-            plt.ylabel('absolute error [nm]')
+            plt.xlabel('NGS distance')
+            plt.ylabel('absolute error')
             plt.yscale('log')
             plt.show()
             plt.scatter(np.exp(trainInput[1,:]), absoluteErrorTrain, alpha=0.2, s=4)
-            plt.xlabel('flux [ph/frame/subap]')
-            plt.ylabel('absolute error [nm]')
+            plt.xlabel('flux')
+            plt.ylabel('absolute error')
             plt.xscale('log')
             plt.yscale('log')
             plt.show()
             plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
-            plt.xlabel('penalty [nm]')
-            plt.ylabel('absolute error [nm]')
+            plt.xlabel('penalty')
+            plt.ylabel('absolute error')
             plt.yscale('log')
             plt.show()
         else:
             modelNameFile = os.path.join(self.outputDir, modelName + '.pth')
             model = NeuralNetwork(12, geom)
             model.setData(self.inputDataT, self.jitterT, 0.1, True)
-            trainInput, jitterTrain, jitterApproxTrain, testInput, jitterTest, jitterApproxTest = model.trainModel(num_epochs, steps, modelNameFile)
+            trainInput, jitterTrainM, jitterApproxTrainM, testInput, jitterTestM, jitterApproxTestM = model.trainModel(num_epochs, steps, modelNameFile)
+
+            jitterTrain = np.exp(jitterTrainM)-1
+            jitterApproxTrain = np.exp(jitterApproxTrainM)-1
+            jitterTest = np.exp(jitterTestM)-1
+            jitterApproxTest = np.exp(jitterApproxTestM)-1
+
             absoluteErrorTrain = np.abs((jitterTrain-jitterApproxTrain))
             print( "Mean Absolute Error Train", np.mean(absoluteErrorTrain))
             absoluteErrorTest = np.abs((jitterTest-jitterApproxTest))
@@ -683,27 +690,55 @@ class asterismSimulation(baseSimulation):
             rmsErrorTest = np.sqrt(np.mean( (jitterTest-jitterApproxTest)*(jitterTest-jitterApproxTest) ) )
             print( "RMS Error Test", absoluteErrorTest)
 
+            plt.figure(figsize=(10, 10))
             plt.scatter(trainInput[:,0], absoluteErrorTrain, alpha=0.2, s=4)
+            plt.title('input 0, train set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(trainInput[:,3], absoluteErrorTrain, alpha=0.2, s=4)
+            plt.title('input 3, train set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(trainInput[:,6], absoluteErrorTrain, alpha=0.2, s=4)
+            plt.title('input 6, train set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(trainInput[:,9], absoluteErrorTrain, alpha=0.2, s=4)
+            plt.title('input 9, train set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
+            plt.title('penalty, train set')
+            plt.ylabel('absolute error')
             plt.show()
-            fig = plt.figure(figsize=(10, 10))
-            ax = fig.add_subplot(1, 1, 1)
+            plt.figure(figsize=(10, 10))
             plt.scatter(testInput[:,0], absoluteErrorTest, alpha=0.2, s=4)
+            plt.title('input 0, test set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(testInput[:,3], absoluteErrorTest, alpha=0.2, s=4)
+            plt.title('input 3, test set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(testInput[:,6], absoluteErrorTest, alpha=0.2, s=4)
+            plt.title('input 6, test set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(testInput[:,9], absoluteErrorTest, alpha=0.2, s=4)
+            plt.title('input 9, test set')
+            plt.ylabel('absolute error')
             plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(jitterTest, absoluteErrorTest, alpha=0.2, s=4)
+            plt.title('penalty, test set')
+            plt.ylabel('absolute error')
             plt.show()
         if self.isMono:
 #            np.save(os.path.join(self.outputDir, modelName +'.npy'), np.array(popt))
@@ -800,7 +835,7 @@ class asterismSimulation(baseSimulation):
             plt.yscale('log')
             plt.show()
         plt.scatter(jitterTestCpu, relativeError, alpha=0.2, s=4)
-        plt.xlabel('penalty [nm]')
+        plt.xlabel('penalty')
         plt.ylabel('relative error')
         plt.yscale('log')
         plt.show()
