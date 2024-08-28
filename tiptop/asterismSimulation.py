@@ -12,6 +12,7 @@ from tiptop.nnModel import *
 import mpl_scatter_density
 
 import pickle
+import os.path
 
 ERIS_FOV_RADIUS = 30.0
 
@@ -127,10 +128,6 @@ class asterismSimulation(baseSimulation):
                 # number of asterisms for each field
                 self.nfieldsSizes = []
                 self.file_field_simul = self.my_data_map['ASTERISM_SELECTION']['filename']
-                if 'generate_data' in self.my_data_map['ASTERISM_SELECTION'].keys():
-                    self.generate_data = self.my_data_map['ASTERISM_SELECTION']['generate_data']
-                else:
-                    self.generate_data = False
                 self.globalOffset = self.my_data_map['ASTERISM_SELECTION']['offset']
                 # self.asterismsRecArrayKeys = [x[0][1] for x in self.asterismsRecArray[0].dtype.descr]
                 self.isMono = self.asterismMode[-4:]=='Mono' or self.nNGS==1
@@ -145,15 +142,26 @@ class asterismSimulation(baseSimulation):
                     self.minStars = 3
                     self.maxStars = 12
                 if self.asterismMode[4:10]=='Random':
+                    self.generate_data = False
+                    datafiles = []
+                    datafiles.append(os.path.join(self.outputDir, self.file_field_simul +'C.npy'))
+                    datafiles.append(os.path.join(self.outputDir, self.file_field_simul +'P.npy'))
+                    datafiles.append(os.path.join(self.outputDir, self.file_field_simul +'F.npy'))
+                    datafiles.append(os.path.join(self.outputDir, self.file_field_simul +'S.npy'))
+                    datafiles.append(os.path.join(self.outputDir, self.file_field_simul +'ST.npy'))
+                    datafiles.append(os.path.join(self.outputDir, self.file_field_simul +'IDX.npy'))
+                    for datafile in datafiles:
+                        if not os.path.exists(datafile):
+                            self.generate_data = True
                     if self.generate_data:
                         self.asterismsInputDataCartesian, self.asterismsInputDataPolar, self.allAsterismsIndices = self.generateRandom(self.nfields)
                     else:
-                        self.asterismsInputDataCartesian = np.load(os.path.join(self.outputDir, self.file_field_simul +'C.npy'))
-                        self.asterismsInputDataPolar = np.load(os.path.join(self.outputDir, self.file_field_simul +'P.npy'))
-                        self.nfieldsSizes = np.load(os.path.join(self.outputDir, self.file_field_simul +'F.npy')).tolist()
-                        self.cumAstSizes = np.load(os.path.join(self.outputDir, self.file_field_simul +'S.npy')).tolist()
-                        self.cumStarSizes = np.load(os.path.join(self.outputDir, self.file_field_simul +'ST.npy')).tolist()
-                        self.allAsterismsIndices = np.load(os.path.join(self.outputDir, self.file_field_simul +'IDX.npy'))
+                        self.asterismsInputDataCartesian = np.load(datafiles[0])
+                        self.asterismsInputDataPolar = np.load(datafiles[1])
+                        self.nfieldsSizes = np.load(datafiles[2]).tolist()
+                        self.cumAstSizes = np.load(datafiles[3]).tolist()
+                        self.cumStarSizes = np.load(datafiles[4]).tolist()
+                        self.allAsterismsIndices = np.load(datafiles[5])                        
                 else:
                     field_simul_data = np.load(self.file_field_simul, allow_pickle=True)
                     self.asterismsRecArray = field_simul_data
@@ -646,14 +654,15 @@ class asterismSimulation(baseSimulation):
             print( "Median Absolute Error Train", np.median(absoluteErrorTrain))
             rmsErrorTrain = np.sqrt(np.mean( (jitterTrain-jitterApproxTrain)*(jitterTrain-jitterApproxTrain) ) )
             print( "RMS Error Train", rmsErrorTrain)
-            fig = plt.figure(figsize=(10, 10))
-            ax = fig.add_subplot(1, 1, 1)
-            plt.scatter(trainInput[0,:], absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(trainInput[1,:], absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
+            if self.doPlot:
+                fig = plt.figure(figsize=(10, 10))
+                ax = fig.add_subplot(1, 1, 1)
+                plt.scatter(trainInput[0,:], absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(trainInput[1,:], absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
         else:
             modelNameFile = os.path.join(self.outputDir, modelName + '.pth')
             model = NeuralNetwork(12, geom)
@@ -671,30 +680,31 @@ class asterismSimulation(baseSimulation):
             print( "RMS Error Train", rmsErrorTrain)
             rmsErrorTest = np.sqrt(np.mean( (jitterTest-jitterApproxTest)*(jitterTest-jitterApproxTest) ) )
             print( "RMS Error Test", absoluteErrorTest)
-            fig = plt.figure(figsize=(10, 10))
-            ax = fig.add_subplot(1, 1, 1)
-            plt.scatter(trainInput[:,0], absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(trainInput[:,3], absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(trainInput[:,6], absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(trainInput[:,9], absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
-            plt.show()
-            fig = plt.figure(figsize=(10, 10))
-            ax = fig.add_subplot(1, 1, 1)
-            plt.scatter(testInput[:,0], absoluteErrorTest, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(testInput[:,3], absoluteErrorTest, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(testInput[:,6], absoluteErrorTest, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(testInput[:,9], absoluteErrorTest, alpha=0.2, s=4)
-            plt.show()
-            plt.scatter(jitterTest, absoluteErrorTest, alpha=0.2, s=4)
-            plt.show()
+            if self.doPlot:
+                fig = plt.figure(figsize=(10, 10))
+                ax = fig.add_subplot(1, 1, 1)
+                plt.scatter(trainInput[:,0], absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(trainInput[:,3], absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(trainInput[:,6], absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(trainInput[:,9], absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
+                plt.show()
+                fig = plt.figure(figsize=(10, 10))
+                ax = fig.add_subplot(1, 1, 1)
+                plt.scatter(testInput[:,0], absoluteErrorTest, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(testInput[:,3], absoluteErrorTest, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(testInput[:,6], absoluteErrorTest, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(testInput[:,9], absoluteErrorTest, alpha=0.2, s=4)
+                plt.show()
+                plt.scatter(jitterTest, absoluteErrorTest, alpha=0.2, s=4)
+                plt.show()
         if self.isMono:
 #            np.save(os.path.join(self.outputDir, modelName +'.npy'), np.array(popt))
             with open(os.path.join(self.outputDir, modelName)+'.npy', 'wb') as f:
@@ -775,21 +785,23 @@ class asterismSimulation(baseSimulation):
         print( "RMS Error Test", rmsErrorTest)
         print("Un:", Un)
         # Un = np.mean(absoluteError) + 2 * np.std(absoluteError)
-        for inputIndex in inputIndicesPlots:
-            plt.scatter(inputDataTestCpu[:,inputIndex], absoluteError, alpha=0.2, s=4)
+        if self.doPlot:
+            for inputIndex in inputIndicesPlots:
+                plt.scatter(inputDataTestCpu[:,inputIndex], absoluteError, alpha=0.2, s=4)
+                plt.show()
+            plt.scatter(jitterTestCpu, absoluteError, alpha=0.2, s=4)
             plt.show()
-        plt.scatter(jitterTestCpu, absoluteError, alpha=0.2, s=4)
-        plt.show()
         totalS = 0
-        fig = plt.figure(figsize=(10, 6))
-        ax2 = fig.add_subplot(1, 1, 1)
         lv = signedError
         sigma = Un/2.0
         num_bins = 40
-        ax2.hist( lv.ravel(), bins=np.linspace(-3*sigma, 3*sigma, num=num_bins))
-        plt.show()
-#        ax2.set_ylabel('Simulations')
-#        ax2.set_xlabel('Error [' +  ts.data_loader.units[l_ind] + ']')
+        if self.doPlot:
+            fig = plt.figure(figsize=(10, 6))
+            ax2 = fig.add_subplot(1, 1, 1)
+            ax2.hist( lv.ravel(), bins=np.linspace(-3*sigma, 3*sigma, num=num_bins))
+            plt.show()
+    #        ax2.set_ylabel('Simulations')
+    #        ax2.set_xlabel('Error [' +  ts.data_loader.units[l_ind] + ']')
         totalAsterisms = 0
         bestIndexPlot = np.zeros(50)
         for field in range(fieldIndex1, fieldIndex2, 1):
@@ -846,21 +858,20 @@ class asterismSimulation(baseSimulation):
         ii = np.max(np.nonzero(bestIndexPlot))
         r = bestIndexPlot[:ii+2]
         r /= np.sum(r) / 100
-        fig = plt.figure(figsize=(16, 8))
-        ax = fig.add_subplot(1, 1, 1)
-        ax.tick_params(axis='both', which='major', labelsize=20)
-        idx = range(len(r))
-        ax.bar( idx, r )
-        ax.set_xticks(idx, labels=map(str, idx), fontsize=20)
-        plt.xlabel('Postion of the estimated best asterism', fontsize=24)
-        plt.ylabel('Times [%]', fontsize=24)
-        ax.set_yscale('linear')
-        ax.yaxis.grid(True)
-        plt.show()
-        #plt.plot(bestIndexPlot[:10])
-        print(bestIndexPlot)
-        #plt.show()
-        print('Number of asterisms having a rating too close to the best one', totalS, 'of ', totalAsterisms, 100 * totalS/totalAsterisms)
+        if self.doPlot:
+            fig = plt.figure(figsize=(16, 8))
+            ax = fig.add_subplot(1, 1, 1)
+            ax.tick_params(axis='both', which='major', labelsize=20)
+            idx = range(len(r))
+            ax.bar( idx, r )
+            ax.set_xticks(idx, labels=map(str, idx), fontsize=20)
+            plt.xlabel('Postion of the estimated best asterism', fontsize=24)
+            plt.ylabel('Times [%]', fontsize=24)
+            ax.set_yscale('linear')
+            ax.yaxis.grid(True)
+            plt.show()
+            print(bestIndexPlot)
+            print('Number of asterisms having a rating too close to the best one', totalS, 'of ', totalAsterisms, 100 * totalS/totalAsterisms)
 
     def plotFieldInterval(self, fieldIndex1, fieldIndex2):
         self.selectData(fieldIndex1, fieldIndex2)
