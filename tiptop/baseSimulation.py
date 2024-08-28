@@ -438,17 +438,22 @@ class baseSimulation(object):
 
 
     def computeMetrics(self):
-        if self.verbose:
-            print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
         self.penalty, self.sr, self.fwhm, self.ee = [], [], [], []
-#        print('self.wvl', self.wvl)
         if len(self.results) == 0:
-            self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
+            if self.LOisOn:
+                self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
+            else:
+                self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
             self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvl*1e9)**2) )
         else:
+            for idx, HO_res in enumerate(cpuArray(self.HO_res)):
+                if self.LOisOn:
+                    self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 ) )
+                else:
+                    self.penalty.append( HO_res )
+            if self.verbose:
+                print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
             for img in self.results:
-                # is this ok?
-                # self.penalty.append( np.sqrt(np.mean(cpuArray(self.LO_res))) )
                 self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
                 self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
                 if self.ensquaredEnergy:
