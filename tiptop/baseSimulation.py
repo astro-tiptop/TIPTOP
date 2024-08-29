@@ -37,8 +37,9 @@ class baseSimulation(object):
                           verbose=False, getHoErrorBreakDown=False,
                           savePSDs=False, ensquaredEnergy=False,
                           eeRadiusInMas=50):
-
+        self.firstSimCall =True
         if verbose: np.set_printoptions(precision=3)
+        self.singleAsterism = False
         
         # copy the parameters in state vars
         self.path = path
@@ -437,16 +438,22 @@ class baseSimulation(object):
 
 
     def computeMetrics(self):
-        if self.verbose:
-            print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
         self.penalty, self.sr, self.fwhm, self.ee = [], [], [], []
         if len(self.results) == 0:
-            self.sr.append( np.mean( np.exp( -4*np.pi**2 * (cpuArray(self.HO_res)**2 + cpuArray(self.LO_res)**2)/((self.wvl*1e9)**2) ) ) )
-            self.penalty.append( np.sqrt(np.mean(cpuArray(self.LO_res))) )
+            if self.LOisOn:
+                self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
+            else:
+                self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
+            self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvl*1e9)**2) )
         else:
+            for idx, HO_res in enumerate(cpuArray(self.HO_res)):
+                if self.LOisOn:
+                    self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 ) )
+                else:
+                    self.penalty.append( HO_res )
+            if self.verbose:
+                print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
             for img in self.results:
-                # is this ok?
-                # self.penalty.append( np.sqrt(np.mean(cpuArray(self.LO_res))) )
                 self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
                 self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
                 if self.ensquaredEnergy:
@@ -469,7 +476,8 @@ class baseSimulation(object):
         # HO Part with P3 PSDs
         if self.verbose:
             print('******** HO PSD science and NGSs directions')
-        if astIndex is None or astIndex==0:
+#        if astIndex is None or astIndex==0:
+        if astIndex is None or self.firstSimCall:
             self.fao = fourierModel( self.fullPathFilename, calcPSF=False, verbose=self.verbose
                                , display=False, getPSDatNGSpositions=self.LOisOn
                                , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
@@ -715,7 +723,8 @@ class baseSimulation(object):
                 self.NGS_FWHM_mas_asterism = []
                 for iid in self.currentAsterismIndices:
                     self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
-                if astIndex==0:
+#                if astIndex==0:
+                if self.firstSimCall:
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                         self.LO_freqs_field,
@@ -760,7 +769,7 @@ class baseSimulation(object):
                     self.results.append(psfLongExp)
         else:
             if self.doConvolve:
-                if astIndex is None:
+                if astIndex is None or self.singleAsterism:
                     self.finalConvolution()
                 else:
                     self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
@@ -776,14 +785,17 @@ class baseSimulation(object):
             else:
                 self.results[0].standardPlot(True)
 
-        if astIndex is None or astIndex==0:
+#        if astIndex is None or astIndex==0:
+        if astIndex is None or self.firstSimCall:
             # this is fixed for the simulation
             self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
 
+        self.firstSimCall = False
+            
         if self.LOisOn:
             # this changes for each asterism
             self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
-
+            
         if astIndex is None:
             self.computeOL_PSD()
             self.computeDL_PSD()

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, TensorDataset, random_split # , DataLoader 
+from torch.utils.data import Dataset, TensorDataset, random_split, DataLoader 
 
 #from torch_geometric.nn import GCNConv, global_mean_pool, global_add_pool
 #from torch_geometric.data import Data
@@ -117,7 +117,6 @@ class NeuralNetwork(nn.Module):
         xx4 = self.layersB4[0](xx4)
         for l in range(1,self.nl):
             xx4 = self.dp(self.act1(self.layersB4[l](xx4)))
-
 
         z1 = torch.cat((xx1, xx2, xx3, xx4), 1)
 #       y = xy[:, 6:]
