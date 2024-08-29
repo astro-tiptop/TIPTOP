@@ -51,8 +51,8 @@ class asterismSimulation(baseSimulation):
                  outputFile, doPlot=False, addSrAndFwhm=False, verbose=False,
                  getHoErrorBreakDown=False):
         super().__init__(path, parametersFile, outputDir, outputFile, doConvolve=True,
-                          doPlot=False, addSrAndFwhm=addSrAndFwhm,
-                          verbose=verbose, getHoErrorBreakDown=False,
+                          doPlot=doPlot, addSrAndFwhm=addSrAndFwhm,
+                          verbose=verbose, getHoErrorBreakDown=getHoErrorBreakDown,
                           savePSDs=False)
         self.firstConfigCall = True
         self.simulName = simulName
@@ -658,18 +658,19 @@ class asterismSimulation(baseSimulation):
             rmsErrorTrain = np.sqrt(np.mean( (jitterTrain-jitterApproxTrain)*(jitterTrain-jitterApproxTrain) ) )
             print( "RMS Error Train", rmsErrorTrain)
             if self.doPlot:
-                fig = plt.figure(figsize=(10, 10))
-                ax = fig.add_subplot(1, 1, 1)
+                plt.figure(figsize=(10, 10))
                 plt.scatter(trainInput[0,:], absoluteErrorTrain, alpha=0.2, s=4)
                 plt.xlabel('NGS distance')
                 plt.ylabel('absolute error')
                 plt.show()
+                plt.figure(figsize=(10, 10))
                 plt.scatter(trainInput[1,:], absoluteErrorTrain, alpha=0.2, s=4)
                 plt.xlabel('flux')
                 plt.ylabel('absolute error')
                 plt.xscale('log')
                 plt.yscale('log')
                 plt.show()
+                plt.figure(figsize=(10, 10))
                 plt.scatter(jitterTrain, absoluteErrorTrain, alpha=0.2, s=4)
                 plt.xlabel('penalty')
                 plt.ylabel('absolute error')
@@ -839,11 +840,13 @@ class asterismSimulation(baseSimulation):
         # Un = np.mean(absoluteError) + 2 * np.std(absoluteError)
         if self.doPlot:
             for inputIndex in inputIndicesPlots:
+                plt.figure(figsize=(10, 10))
                 plt.scatter(inputDataTestCpu[:,inputIndex], relativeError, alpha=0.2, s=4)
                 plt.ylabel('relative error')
                 plt.xscale('log')
                 plt.yscale('log')
                 plt.show()
+            plt.figure(figsize=(10, 10))
             plt.scatter(jitterTestCpu, relativeError, alpha=0.2, s=4)
             plt.xlabel('penalty')
             plt.ylabel('relative error')
