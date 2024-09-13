@@ -40,7 +40,7 @@ class baseSimulation(object):
         self.firstSimCall =True
         if verbose: np.set_printoptions(precision=3)
         self.singleAsterism = False
-        
+        self.pointings_FWHM_mas = None
         # copy the parameters in state vars
         self.path = path
         self.parametersFile = parametersFile
@@ -476,7 +476,6 @@ class baseSimulation(object):
         # HO Part with P3 PSDs
         if self.verbose:
             print('******** HO PSD science and NGSs directions')
-#        if astIndex is None or astIndex==0:
         if astIndex is None or self.firstSimCall:
             self.fao = fourierModel( self.fullPathFilename, calcPSF=False, verbose=self.verbose
                                , display=False, getPSDatNGSpositions=self.LOisOn
@@ -723,12 +722,12 @@ class baseSimulation(object):
                 self.NGS_FWHM_mas_asterism = []
                 for iid in self.currentAsterismIndices:
                     self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
-#                if astIndex==0:
                 if self.firstSimCall:
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                         self.LO_freqs_field,
                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+
                 self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                           np.array(self.cartSciencePointingCoords),
                                                                           np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
@@ -739,21 +738,23 @@ class baseSimulation(object):
                 #    ...
         
         # ------------------------------------------------------------------------
-        # HO PSF
-        if self.verbose:
-            print('******** HO PSF')
-        pointings_SR, psdPointingsArray, psfLongExpPointingsArr, pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
-                                                                                                     self.freq_range, 
-                                                                                                     self.dk,
-                                                                                                     self.mask, 
-                                                                                                     arrayP3toMastsel(self.PSD[0:self.nPointings]),
-                                                                                                     self.wvl,
-                                                                                                     self.psInMas[0],
-                                                                                                     self.nPixPSF,
-                                                                                                     scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
-                                                                                                     oversampling=self.oversampling)
-        self.psfLongExpPointingsArr = psfLongExpPointingsArr
-        
+            # HO PSF
+
+        if astIndex is None or self.firstSimCall:
+            if self.verbose:
+                print('******** HO PSF')
+            pointings_SR, psdPointingsArray, psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
+                                                                                                         self.freq_range, 
+                                                                                                         self.dk,
+                                                                                                         self.mask, 
+                                                                                                         arrayP3toMastsel(self.PSD[0:self.nPointings]),
+                                                                                                         self.wvl,
+                                                                                                         self.psInMas[0],
+                                                                                                         self.nPixPSF,
+                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
+                                                                                                         oversampling=self.oversampling)
+            self.psfLongExpPointingsArr = psfLongExpPointingsArr
+
         # ------------------------------------------------------------------------
         # final results computation after optional convolution with jitter kernels
         if not self.LOisOn:
@@ -785,7 +786,6 @@ class baseSimulation(object):
             else:
                 self.results[0].standardPlot(True)
 
-#        if astIndex is None or astIndex==0:
         if astIndex is None or self.firstSimCall:
             # this is fixed for the simulation
             self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))

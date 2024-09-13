@@ -594,7 +594,6 @@ class asterismSimulation(baseSimulation):
                 self.currentFieldsize += self.nfieldsSizes[ii]
             self.getSourcesData(fieldIndices)
             self.currentBase = self.cumAstSizes[fieldIndex1]
-            print('self.cov_ellipses_Asterism shape', self.cov_ellipses_Asterism.shape)
             self.covsarray = np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,1]**2 + np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,2]**2
             self.strehls = np.array(self.strehl_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
             self.penalties = np.array(self.penalty_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
@@ -629,13 +628,31 @@ class asterismSimulation(baseSimulation):
 
 
     def fitModel(self, modelName, num_epochs, steps, geom):
+        if self.isMono:
+            ast = 0
+            self.singleAsterism = True
+            self.firstConfigCall = True
+            self.currentField = 0
+            self.getSourcesData([0])
+            self.currentAsterism = ast
+            self.doOverallSimulation(ast)
         self.setModelData()
         if self.isMono:
+<<<<<<< Updated upstream
             trainInput = np.abs(np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] ))
+=======
+            trainInput = np.abs(np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] )) # /self.freqsM[:,0]
+            # 100, 250, 500
+            idxF0 = np.where(self.freqsM[:,0]<200)
+            idxF1 = np.where((self.freqsM[:,0]<350) & (self.freqsM[:,0]>=200))
+            idxF2 = np.where(self.freqsM[:,0]>=350)
+            idxV = [idxF0, idxF1, idxF2]
+>>>>>>> Stashed changes
             jitterTrainM = np.abs(self.jitterM)
             jitterTrain = np.exp(jitterTrainM)-1
             # func = funcPolar
             # popt, pcov = curve_fit(func, trainInput, jitterTrain)
+<<<<<<< Updated upstream
             ww = 1/jitterTrain
             funcbs = interpolate.SmoothBivariateSpline(trainInput[0,:], trainInput[1,:], jitterTrainM, w=ww, kx=3, ky=3)
             # print(popt, pcov)
@@ -646,6 +663,29 @@ class asterismSimulation(baseSimulation):
             grid_y = trainInput[1,:]
 
             jitterApproxTrainM = funcbs.__call__(grid_x, grid_y, grid=False)
+=======
+            self.monoModel = []
+            for idx in idxV:
+                ww = np.power(1/(jitterTrain[idx]), 2)
+                smoothing = 10*jitterTrain[idx].shape[0]
+                self.monoModel.append(interpolate.SmoothBivariateSpline(trainInput[0, idx], trainInput[1,idx], jitterTrainM[idx], w=ww, kx=4, ky=4))
+#            monoModel = interpolate.SmoothBivariateSpline(trainInput[0,:], trainInput[1,:], jitterTrainM, w=ww, kx=5, ky=5)
+            self.monoModel.append(self.pointings_FWHM_mas)
+            self.monoModel.append(self.HO_res)
+            # print(popt, pcov)
+            # for i, j in zip(popt, ascii_uppercase):
+            #     print(f"{j} = {i:.6f}")
+            #jitterApproxTrain = monoModel(trainInput, *popt)
+            
+            jitterApproxTrainM = np.zeros(trainInput.shape[1])            
+            for i, idx in enumerate(idxV):
+                grid_x = trainInput[0,idx]
+                grid_y = trainInput[1,idx]
+                jitterApproxTrainM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
+            current_pointings_FWHM_mas = self.monoModel[len(idxV)]
+            current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+            
+>>>>>>> Stashed changes
             jitterApproxTrain = np.exp(jitterApproxTrainM)-1
 
             print(jitterApproxTrain.shape, jitterTrain.shape)
@@ -761,6 +801,7 @@ class asterismSimulation(baseSimulation):
     def useHeuristicModel(self):
         # if self.isMono: # only usable for mono for now
         self.rcoordsM = self.asterismsInputDataPolar[:, 0, :]
+<<<<<<< Updated upstream
         self.fluxesM = self.asterismsInputDataPolar[:, 2, :]
         func = funcPolar
         inputDataTestCpu = np.abs(np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] ))            
@@ -768,13 +809,32 @@ class asterismSimulation(baseSimulation):
         grid_x = inputDataTestCpu[0,:]
         grid_y = inputDataTestCpu[1,:]
         jitterApproxM = self.popt.__call__(grid_x, grid_y, grid=False)
+=======
+        self.fluxesM = self.asterismsInputDataPolar[:, 2, :]        
+        self.freqsM = self.asterismsInputDataPolar[:, 3, :]
+#        monoModel = funcPolar
+        inputDataTestCpu = np.abs(np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] )) # /self.freqsM[:,0]
+#        jitterApprox = monoModel(inputDataTestCpu, *self.monoModel)
+        # 100, 250, 500
+        idxF0 = np.where(self.freqsM[:,0]<200)
+        idxF1 = np.where((self.freqsM[:,0]<350) & (self.freqsM[:,0]>=200))
+        idxF2 = np.where(self.freqsM[:,0]>=350)
+        idxV = [idxF0, idxF1, idxF2]
+        jitterApproxM = np.zeros(inputDataTestCpu.shape[1])            
+        for i, idx in enumerate(idxV):
+            if len(idx)>0:
+                grid_x = inputDataTestCpu[0,idx]
+                grid_y = inputDataTestCpu[1,idx]
+                jitterApproxM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
+        current_pointings_FWHM_mas = np.asarray(self.monoModel[len(idxV)])
+        current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+>>>>>>> Stashed changes
         jitterApprox = np.exp(jitterApproxM)-1
-        print('jitterApprox', jitterApprox)
         sortedJitterIndicesModel = np.argsort(jitterApprox, axis=0)
-        jitterApproxSorted = jitterApprox[sortedJitterIndicesModel]            
-        print('jitterApproxSorted', jitterApproxSorted)
+        jitterApproxSorted = jitterApprox[sortedJitterIndicesModel]
         deltas = np.abs( (jitterApproxSorted[:-1] - jitterApproxSorted[1:])/jitterApproxSorted[:-1] )
         cumDeltas = np.cumsum(deltas)
+<<<<<<< Updated upstream
         ss = 3
         Un = 0.026
         if deltas[0]<Un:
@@ -783,6 +843,21 @@ class asterismSimulation(baseSimulation):
         print('self.wvl', self.wvl)
         strehls = np.exp( -4*np.pi**2 * ( (np.exp(jitterApproxSorted)-1)**2 )/(self.wvl*1e9)**2)
         return ss, sortedJitterIndicesModel, jitterApproxSorted, strehls
+=======
+        ss = 1
+        Un = 0.015
+        if deltas[0]<Un:
+            ss = np.where(cumDeltas<Un)[0].shape[0]+1
+            print('Low Delta between best and n-th best asterism, n:', ss, 'of ', jitterApprox.shape[0])
+        strehls = np.exp( -4*np.pi**2 * ( (jitterApproxSorted)**2 )/(self.wvl*1e9)**2)
+        vv = jitterApproxSorted**2 - current_HO_res**2
+        vv[np.where(vv<0)] = 0
+        lo_res = np.sqrt(vv)
+        scale = (np.pi/(180*3600*1000) * self.TelescopeDiameter / (4*1e-9))
+        fwhms_lo = 2.355 * lo_res/scale / np.sqrt(2)
+        fwhms = np.sqrt(fwhms_lo**2 + current_pointings_FWHM_mas**2)
+        return ss, sortedJitterIndicesModel, jitterApproxSorted, strehls, fwhms
+>>>>>>> Stashed changes
 
 
     def testHeuristicModel(self, fieldIndex1, fieldIndex2, modelName, geom):
@@ -799,11 +874,30 @@ class asterismSimulation(baseSimulation):
             funcbs = popt            
             inputDataTestCpu = np.abs(np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] ))            
             jitterTestCpuM = np.abs(self.jitterM)
+<<<<<<< Updated upstream
             # jitterApprox = func(inputDataTestCpu, *popt)
             grid_x = inputDataTestCpu[0,:]
             grid_y = inputDataTestCpu[1,:]
             jitterApproxM = funcbs.__call__(grid_x, grid_y, grid=False)
             print('jitterApproxM.shape', jitterApproxM.shape)
+=======
+            # jitterApprox = monoModel(inputDataTestCpu, *popt)
+            # 100, 250, 500
+            idxF0 = np.where(self.freqsM[:,0]<200)
+            idxF1 = np.where((self.freqsM[:,0]<350) & (self.freqsM[:,0]>=200))
+            idxF2 = np.where(self.freqsM[:,0]>=350)
+            idxV = [idxF0, idxF1, idxF2]
+            jitterApproxM = np.zeros(inputDataTestCpu.shape[1])
+            for i, idx in enumerate(idxV):
+                grid_x = inputDataTestCpu[0,idx]
+                grid_y = inputDataTestCpu[1,idx]
+                jitterApproxM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
+#            grid_x = inputDataTestCpu[0,:]
+#            grid_y = inputDataTestCpu[1,:]
+#            jitterApproxM = self.monoModel.__call__(grid_x, grid_y, grid=False)
+            current_pointings_FWHM_mas = self.monoModel[len(idxV)]
+            current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+>>>>>>> Stashed changes
             inputDataTestCpu = inputDataTestCpu.transpose()
         else:
             inputIndicesPlots = [0,3,6,8]
@@ -878,9 +972,26 @@ class asterismSimulation(baseSimulation):
                 inputDataTest = np.abs(np.array( [self.rcoordsM[:,0], self.fluxesM[:,0]] ))            
                 jitterTestCpu = np.abs(self.jitterM)            
 #                jitterApprox = func(inputDataTest, *popt)
+<<<<<<< Updated upstream
                 grid_x = inputDataTest[0,:]
                 grid_y = inputDataTest[1,:]
                 jitterApprox = funcbs.__call__(grid_x, grid_y, grid=False)
+=======
+                # 100, 250, 500
+                idxF0 = np.where(self.freqsM[:,0]<200)
+                idxF1 = np.where((self.freqsM[:,0]<350) & (self.freqsM[:,0]>=200))
+                idxF2 = np.where(self.freqsM[:,0]>=350)
+                idxV = [idxF0, idxF1, idxF2]
+                jitterApprox = np.zeros(inputDataTest.shape[1])            
+                for i, idx in enumerate(idxV):
+                    if len(idx)>0:
+                        grid_x = inputDataTest[0,idx]
+                        grid_y = inputDataTest[1,idx]
+                        jitterApprox[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
+#                grid_x = inputDataTest[0,:]
+#                grid_y = inputDataTest[1,:]
+#                jitterApprox = monoModel.__call__(grid_x, grid_y, grid=False)
+>>>>>>> Stashed changes
                 inputDataTestCpu = inputDataTest.transpose()
             else:
                 model.setData(self.inputDataT, self.jitterT, 1.0, False)
@@ -902,7 +1013,7 @@ class asterismSimulation(baseSimulation):
                     print(field, 'Low Delta between best and n-th best asterism, n:', ss, 'of ', absoluteError.shape[0])
                     totalS += ss
                 else:
-                    totalS += 3
+                    totalS += 1
                 correctBestIndex = self.sortedJitterIndices[0]
                 approxBestIndex = sortedJitterIndicesModel[0]
                 bestIndexInApproxArray = np.where(sortedJitterIndicesModel == correctBestIndex)[0][0]
@@ -965,11 +1076,16 @@ class asterismSimulation(baseSimulation):
         self.cov_ellipses_Asterism = []
         self.strehl_Asterism = []
         self.penalty_Asterism = []
-        for field in range(self.nfields):
+        nf = self.nfields
+        if singleAsterism:
+            nf=1
+        for field in range(nf):
             self.firstConfigCall = True
-            self.firstSimCall = True
+            if not singleAsterism:
+                self.firstSimCall = True
             self.currentField = field
-            print('self.currentField:', self.currentField)
+            if self.verbose:
+                print('self.currentField:', self.currentField)
             self.getSourcesData([field])
             fieldsize = len(self.currentFieldAsterismsIndices)
             base = self.cumAstSizes[field]
@@ -984,13 +1100,12 @@ class asterismSimulation(baseSimulation):
 #               except:
 #                    print("Unexpected Error Computing (field, asterism): ", self.currentField, self.currentAsterism)
 #                    print(self.currentFieldsSourcesData)
-                self.strehl_Asterism.append(self.sr)
-                self.penalty_Asterism.append(self.penalty)
-                self.fwhm_Asterism.append(self.fwhm) 
+                self.strehl_Asterism.append(np.array( [cpuArray(x) for x in self.sr]))
+                self.penalty_Asterism.append(np.array( [cpuArray(x) for x in self.penalty]))
+                self.fwhm_Asterism.append(self.fwhm)
                 self.ee_Asterism.append(self.ee) 
                 self.cov_ellipses_Asterism.append(self.cov_ellipses)
-
-            if (field+1) % 10 == 0 or field==self.nfields-1 and not self.singleAsterism:
+            if ((field+1) % 10 == 0 or field==self.nfields-1) and not self.singleAsterism:
                 print("Field " + str(field) + " DONE")
                 np.save(os.path.join(self.outputDir, self.simulName+'fw.npy'), np.array(self.fwhm_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'ee.npy'), np.array(self.ee_Asterism))

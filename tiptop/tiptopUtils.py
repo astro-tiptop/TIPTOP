@@ -23,7 +23,7 @@ def arrayP3toMastsel(v):
         return v.get()
     
 def cpuArray(v):
-    if isinstance(v,np.ndarray):
+    if isinstance(v,np.ndarray) or isinstance(v, np.float64):
         return v
     else:
         return v.get()
