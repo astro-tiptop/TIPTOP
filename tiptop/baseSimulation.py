@@ -699,7 +699,8 @@ class baseSimulation(object):
                                 print('EE (focus sensor)     :', "%.5f" % ee_Focus)
                             idx += 1
                     else:
-                        print('Focus sensor is not set: using LO PSFs.')
+                        if self.verbose:
+                            print('Focus sensor is not set: using LO PSFs.')
                         self.Focus_SR_field         = self.NGS_SR_field
                         self.Focus_FWHM_mas_field   = self.NGS_FWHM_mas_field
                         self.Focus_EE_field         = self.NGS_EE_field
@@ -738,8 +739,7 @@ class baseSimulation(object):
                 #    ...
         
         # ------------------------------------------------------------------------
-            # HO PSF
-
+        # HO PSF
         if astIndex is None or self.firstSimCall:
             if self.verbose:
                 print('******** HO PSF')
