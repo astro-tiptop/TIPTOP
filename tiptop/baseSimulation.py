@@ -39,7 +39,7 @@ class baseSimulation(object):
                           eeRadiusInMas=50):
         self.firstSimCall =True
         if verbose: np.set_printoptions(precision=3)
-        self.singleAsterism = False
+        self.doConvolveAsterism = True
         self.pointings_FWHM_mas = None
         # copy the parameters in state vars
         self.path = path
@@ -445,6 +445,10 @@ class baseSimulation(object):
             else:
                 self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
             self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvl*1e9)**2) )
+            scale = (np.pi/(180*3600*1000) * self.TelescopeDiameter / (4*1e-9))
+            fwhms_lo = 2.355 * self.LO_res/scale / np.sqrt(2)
+            self.fwhm.append(np.sqrt(fwhms_lo**2 + np.asarray(self.pointings_FWHM_mas)**2))
+            self.ee.append(0)
         else:
             for idx, HO_res in enumerate(cpuArray(self.HO_res)):
                 if self.LOisOn:
@@ -452,7 +456,7 @@ class baseSimulation(object):
                 else:
                     self.penalty.append( HO_res )
             if self.verbose:
-                print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
+                print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')            
             for img in self.results:
                 self.sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
                 self.fwhm.append(getFWHM(img.sampling, self.psInMas[0], method='contour', nargout=1))
@@ -462,7 +466,7 @@ class baseSimulation(object):
                 else:
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-                self.ee.append(ee_at_radius_fn(self.eeRadiusInMas))
+                self.ee.append( cpuArray(ee_at_radius_fn(self.eeRadiusInMas)).item() )
 
 
     def doOverallSimulation(self, astIndex=None):
@@ -770,7 +774,7 @@ class baseSimulation(object):
                     self.results.append(psfLongExp)
         else:
             if self.doConvolve:
-                if astIndex is None or self.singleAsterism:
+                if self.doConvolveAsterism:
                     self.finalConvolution()
                 else:
                     self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)

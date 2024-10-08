@@ -14,8 +14,26 @@ import mpl_scatter_density
 import pickle
 import os.path
 
-ERIS_FOV_RADIUS = 30.0
+from dataclasses import dataclass
+from typing import List
 
+@dataclass
+class Star:
+    zenith: float
+    azimuth: float
+    photons: float
+    freq: float
+
+@dataclass
+class AsterismProperties:
+    index: int
+    asterism: List[Star]
+    jitter: float
+    strehl: float
+    fwhm: float
+    encircled_energy: float
+
+ERIS_FOV_RADIUS = 30.0
 
 def funcPolar(X, A0, A, B, C, D, E0, E, F, G, H, I, J, J0, J1):
     r, af = X
@@ -631,7 +649,6 @@ class asterismSimulation(baseSimulation):
     def fitModel(self, modelName, num_epochs, steps, geom):
         if self.isMono:
             ast = 0
-            self.singleAsterism = True
             self.firstConfigCall = True
             self.currentField = 0
             self.getSourcesData([0])
@@ -661,7 +678,6 @@ class asterismSimulation(baseSimulation):
             # for i, j in zip(popt, ascii_uppercase):
             #     print(f"{j} = {i:.6f}")
             #jitterApproxTrain = monoModel(trainInput, *popt)
-            
             jitterApproxTrainM = np.zeros(trainInput.shape[1])            
             for i, idx in enumerate(idxV):
                 grid_x = trainInput[0,idx]
@@ -783,7 +799,7 @@ class asterismSimulation(baseSimulation):
 #            model.save_model(os.path.join(self.outputDir, modelName + '.pth'))
 
 
-    def useHeuristicModel(self):
+    def runHeuristicModel(self):
         # if self.isMono: # only usable for mono for now
         self.rcoordsM = self.asterismsInputDataPolar[:, 0, :]
         self.fluxesM = self.asterismsInputDataPolar[:, 2, :]        
@@ -805,6 +821,15 @@ class asterismSimulation(baseSimulation):
         current_pointings_FWHM_mas = np.asarray(self.monoModel[len(idxV)])
         current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
         jitterApprox = np.exp(jitterApproxM)-1
+        strehls = np.exp( -4*np.pi**2 * ( (jitterApprox)**2 )/(self.wvl*1e9)**2)
+        vv = jitterApprox**2 - current_HO_res**2
+        vv[np.where(vv<0)] = 0
+        lo_res = np.sqrt(vv)
+        scale = (np.pi/(180*3600*1000) * self.TelescopeDiameter / (4*1e-9))
+        fwhms_lo = 2.355 * lo_res/scale / np.sqrt(2)
+        fwhms = np.sqrt(fwhms_lo**2 + current_pointings_FWHM_mas**2)
+        ees = [0]*fwhms.shape[0]
+        astList = self.asterismsInputDataPolar.tolist()
         sortedJitterIndicesModel = np.argsort(jitterApprox, axis=0)
         jitterApproxSorted = jitterApprox[sortedJitterIndicesModel]
         deltas = np.abs( (jitterApproxSorted[:-1] - jitterApproxSorted[1:])/jitterApproxSorted[:-1] )
@@ -814,15 +839,25 @@ class asterismSimulation(baseSimulation):
         if deltas[0]<Un:
             ss = np.where(cumDeltas<Un)[0].shape[0]+1
             print('Low Delta between best and n-th best asterism, n:', ss, 'of ', jitterApprox.shape[0])
-        strehls = np.exp( -4*np.pi**2 * ( (jitterApproxSorted)**2 )/(self.wvl*1e9)**2)
-        vv = jitterApproxSorted**2 - current_HO_res**2
-        vv[np.where(vv<0)] = 0
-        lo_res = np.sqrt(vv)
-        scale = (np.pi/(180*3600*1000) * self.TelescopeDiameter / (4*1e-9))
-        fwhms_lo = 2.355 * lo_res/scale / np.sqrt(2)
-        fwhms = np.sqrt(fwhms_lo**2 + current_pointings_FWHM_mas**2)
-        return ss, sortedJitterIndicesModel, jitterApproxSorted, strehls, fwhms
+        return self.assembleOtuput(astList, sortedJitterIndicesModel.tolist(), jitterApprox.tolist(), strehls.tolist(), fwhms.tolist(), ees)
 
+    def assembleOtuput(self, astList, sortedJitterIndicesModel, jitterApprox, strehls, fwhms, ees, absolute=False):
+        results = []
+        for ii, index in enumerate(sortedJitterIndicesModel):
+            stars = astList[index]
+            zeniths = stars[0]
+            azimuths = stars[1]
+            photons = stars[2]
+            freqs = stars[3]
+            asterism = []
+            for z, a, p, f in zip(zeniths, azimuths, photons, freqs):
+                asterism.append(Star(z,a,p,f))
+            if absolute:
+                resultElement = AsterismProperties(index, asterism, jitterApprox[ii], strehls[ii], fwhms[ii], ees[ii])
+            else:
+                resultElement = AsterismProperties(index, asterism, jitterApprox[index], strehls[index], fwhms[index], ees[index])
+            results.append(resultElement)
+        return results
 
     def testHeuristicModel(self, fieldIndex1, fieldIndex2, modelName, geom):
         self.selectData(fieldIndex1, fieldIndex2)
@@ -1013,8 +1048,13 @@ class asterismSimulation(baseSimulation):
             self.twoPlots()
 
 
-    def computeAsterisms(self, eeRadiusInMas, index=None, singleAsterism=False):
-        self.singleAsterism = singleAsterism
+    def computeAsterisms(self, eeRadiusInMas, index=None, doConvolve=False):
+        if index==None:
+            singleAsterism = False
+        else:
+            singleAsterism = True
+        self.doConvolveAsterism = doConvolve
+        self.eeRadiusInMas = eeRadiusInMas
         self.fwhm_Asterism = []
         self.ee_Asterism = []
         self.cov_ellipses_Asterism = []
@@ -1047,16 +1087,35 @@ class asterismSimulation(baseSimulation):
                 self.strehl_Asterism.append(np.array( [cpuArray(x) for x in self.sr]))
                 self.penalty_Asterism.append(np.array( [cpuArray(x) for x in self.penalty]))
                 self.fwhm_Asterism.append(self.fwhm)
-                self.ee_Asterism.append(self.ee) 
+                self.ee_Asterism.append(self.ee)
                 self.cov_ellipses_Asterism.append(self.cov_ellipses)
-            if ((field+1) % 10 == 0 or field==self.nfields-1) and not self.singleAsterism:
+            if ((field+1) % 10 == 0 or field==self.nfields-1) and not singleAsterism:
                 print("Field " + str(field) + " DONE")
                 np.save(os.path.join(self.outputDir, self.simulName+'fw.npy'), np.array(self.fwhm_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'ee.npy'), np.array(self.ee_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'covs.npy'), np.array(self.cov_ellipses_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'sr.npy'), np.array(self.strehl_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'penalty.npy'), np.array(self.penalty_Asterism))
-
+        if nf==1:
+            self.firstConfigCall = True
+            #    print('Actual penalt for asterism', ii, ':', np.log(simulation.penalty_Asterism[0][0]+1))
+            #    print('Actual Strehel for asterism', ii, ':', simulation.strehl_Asterism)
+            #    print('Actual FWHM for asterism', ii, ':', simulation.fwhm_Asterism)
+            if singleAsterism:
+                jitter = self.penalty_Asterism[:][:]
+                astList = self.asterismsInputDataPolar.tolist()
+                return self.assembleOtuput( astList, [index], jitter[0], self.strehl_Asterism[0],
+                                            self.fwhm_Asterism[0], self.ee_Asterism[0], absolute=True )
+            else:
+                jitter = self.penalty_Asterism[:][:]
+                sortedJitterIndices = np.argsort(jitter, axis=0).reshape(-1).tolist()
+                astList = self.asterismsInputDataPolar.tolist()
+                jitter = np.asarray(jitter).reshape(-1).tolist()
+                strehl_Asterism = np.asarray(self.strehl_Asterism).reshape(-1).tolist()
+                fwhm_Asterism = np.asarray(self.fwhm_Asterism).reshape(-1).tolist()
+                ee_Asterism = np.asarray(self.ee_Asterism).reshape(-1).tolist()
+                return self.assembleOtuput( astList, sortedJitterIndices, jitter, strehl_Asterism,
+                                            fwhm_Asterism, ee_Asterism)
 
     def reloadResults(self):
         self.fwhm_Asterism = np.load(os.path.join(self.outputDir, self.simulName+'fw.npy'))
