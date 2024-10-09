@@ -582,6 +582,8 @@ class asterismSimulation(baseSimulation):
             for s in range(fieldsizeStars):
                 doneStars[int(s)] = False
             for ast in range(fieldsize):
+                if self.allAsterismsIndices.size==0:
+                    continue
                 astIndexGlobal = self.cumAstSizes[field]+ast
                 astIndices = self.allAsterismsIndices[astIndexGlobal]
                 self.currentFieldAsterismsIndices.append(astIndices)
