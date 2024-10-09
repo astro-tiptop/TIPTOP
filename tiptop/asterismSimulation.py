@@ -72,6 +72,7 @@ class asterismSimulation(baseSimulation):
                           doPlot=False, addSrAndFwhm=addSrAndFwhm,
                           verbose=verbose, getHoErrorBreakDown=getHoErrorBreakDown,
                           savePSDs=False)
+        self.nNGS = 0
         self.firstConfigCall = True
         self.simulName = simulName
         self.doPlotAst = doPlot
