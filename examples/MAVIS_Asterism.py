@@ -31,12 +31,12 @@ simul.testHeuristicModel(799, 999, 'randomData0_799', [])
 
 simulation = asterismSimulation("TestERISSingles", "astTest", "ERISastSingles1", 'astTest', 
                                 'testERISSingles', doPlot=False, addSrAndFwhm=True, verbose=False)
-ss, sortedJitterIndicesModel, jitterApproxSorted, strehls = simulation.useHeuristicModel()
+ss, sortedJitterIndicesModel, jitterApproxSorted, strehls = simulation.runHeuristicModel()
 print(ss, sortedJitterIndicesModel)
 print('Sorted Approx strehls', strehls)
 print('sortedJitterIndicesModel', sortedJitterIndicesModel)
 for ii in sortedJitterIndicesModel:
-    simulation.computeAsterisms(50, ii, False)
+    simulation.computeAsterisms(50, ii, doConvolve=True)
     print('Actual penalt for asterism', ii, ':', np.log(simulation.penalty_Asterism[0][0]+1))
     print('Actual Strehel for asterism', ii, ':', simulation.strehl_Asterism)
     print('Actual FWHM for asterism', ii, ':', simulation.fwhm_Asterism)
