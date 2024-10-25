@@ -90,7 +90,7 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
         :type getHoErrorBreakDown: bool
         :param ensquaredEnergy: optional default: False, If you want ensquared energy instead of encircled energy set this to True.
         :type ensquaredEnergy: bool
-        :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy (if ensquaredEnergy is selected, this is half of the square)
+        :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy (if ensquaredEnergy is selected, this is half the side of the square)
         :type eeRadiusInMas: float
         :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
         :type savePSDs: bool
