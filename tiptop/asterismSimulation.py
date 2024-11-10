@@ -377,7 +377,11 @@ class asterismSimulation(baseSimulation):
 
 
     def freqFromMagnitudeMAVIS(self, magnitude):
-        return 900.0/(1 + np.exp((magnitude-17.5)*5.0)) + 100.0
+        if 'freqRule' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO':
+                return 400.0/(1+np.exp((magnitude-18.0)*2.5)) + 100.0
+        else:
+            return 900.0/(1 + np.exp((magnitude-17.5)*5.0)) + 100.0
 #        if magnitude>19:
 #            return 100.0
 #        elif magnitude>18:
@@ -414,14 +418,16 @@ class asterismSimulation(baseSimulation):
     def fluxFromMagnitude(self, m, b):
         m0 = 0.0
         f0 = None
-        if self.isMono:
-            f0 = 1.51e10
+        if 'flux'+b+'0' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            f0 = self.my_data_map['ASTERISM_SELECTION']['flux'+b+'0']
         else:
-#            f0 = 5.1e11/10.77531094343579
-            if b=='H':
-                f0 = 2.68e9
-            if b=='J':
-                f0 = 3.72e9
+            if self.isMono:
+                f0 = 1.51e10
+            else:
+                if b=='H':
+                    f0 = 2.68e9
+                if b=='J':
+                    f0 = 3.72e9
         return f0 * np.power(10.0, (-(m-m0)/2.5) )
 
 
