@@ -377,11 +377,7 @@ class asterismSimulation(baseSimulation):
 
 
     def freqFromMagnitudeMAVIS(self, magnitude):
-        if 'freqRule' in self.my_data_map['ASTERISM_SELECTION'].keys():
-            if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO':
-                return 400.0/(1+np.exp((magnitude-18.0)*2.5)) + 100.0
-        else:
-            return 900.0/(1 + np.exp((magnitude-17.5)*5.0)) + 100.0
+        return 900.0/(1 + np.exp((magnitude-17.5)*5.0)) + 100.0
 #        if magnitude>19:
 #            return 100.0
 #        elif magnitude>18:
@@ -402,10 +398,14 @@ class asterismSimulation(baseSimulation):
 
 
     def freqFromMagnitude(self, m):
-        if self.isMono:
-            return self.freqFromMagnitudeERIS(m)
+        if 'freqRule' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO':
+                return 400.0/(1+np.exp((magnitude-18.0)*2.5)) + 100.0
         else:
-            return self.freqFromMagnitudeMAVIS(m)
+            if self.isMono:
+                return self.freqFromMagnitudeERIS(m)
+            else:
+                return self.freqFromMagnitudeMAVIS(m)
 
 
     def freqsFromMagnitudes(self, magnitudes):
