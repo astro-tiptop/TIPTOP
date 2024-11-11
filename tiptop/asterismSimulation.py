@@ -406,10 +406,14 @@ class asterismSimulation(baseSimulation):
 
 
     def freqFromMagnitude(self, m):
-        if self.isMono:
-            return self.freqFromMagnitudeERIS(m)
+        if 'freqRule' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO':
+                return 400.0/(1+np.exp((m-18.0)*2.5)) + 100.0
         else:
-            return self.freqFromMagnitudeMAVIS(m)
+            if self.isMono:
+                return self.freqFromMagnitudeERIS(m)
+            else:
+                return self.freqFromMagnitudeMAVIS(m)
 
 
     def freqsFromMagnitudes(self, magnitudes):
@@ -422,14 +426,16 @@ class asterismSimulation(baseSimulation):
     def fluxFromMagnitude(self, m, b):
         m0 = 0.0
         f0 = None
-        if self.isMono:
-            f0 = 1.51e10
+        if 'flux'+b+'0' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            f0 = self.my_data_map['ASTERISM_SELECTION']['flux'+b+'0']
         else:
-#            f0 = 5.1e11/10.77531094343579
-            if b=='H':
-                f0 = 2.68e9
-            if b=='J':
-                f0 = 3.72e9
+            if self.isMono:
+                f0 = 1.51e10
+            else:
+                if b=='H':
+                    f0 = 2.68e9
+                if b=='J':
+                    f0 = 3.72e9
         return f0 * np.power(10.0, (-(m-m0)/2.5) )
 
 
@@ -522,10 +528,15 @@ class asterismSimulation(baseSimulation):
         ycoords = self.asterismsRecArray[i][j]['COORD'][1]
         fluxes = np.zeros(len(xcoords))
         for b in self.bands:
-            ff = self.asterismsRecArray[i][j]['FLUX' + b]
             mm = self.asterismsRecArray[i][j][b+'MAG']
             freqs = self.freqsFromMagnitudes(mm)
-            fluxes += np.abs(np.asarray(ff) * self.fluxScaling / np.asarray(freqs)) + 1e-3
+            if 'flux'+b+'0' in self.my_data_map['ASTERISM_SELECTION'].keys():
+                if np.min(mm) == 0:
+                    mm[np.where(mm == 0)] = 30
+                fluxes += np.asarray(self.fluxFromMagnitude(mm, b)* self.fluxScaling / np.asarray(freqs)) + 1e-3
+            else:
+                ff = self.asterismsRecArray[i][j]['FLUX' + b]
+                fluxes += np.abs(np.asarray(ff) * self.fluxScaling / np.asarray(freqs)) + 1e-3
         return xcoords, ycoords, fluxes, freqs
 
 
