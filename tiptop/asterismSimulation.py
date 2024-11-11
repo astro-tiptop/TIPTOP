@@ -1150,7 +1150,7 @@ class asterismSimulation(baseSimulation):
             self.twoPlots()
 
 
-    def computeAsterisms(self, eeRadiusInMas, index=None, doConvolve=False):
+    def computeAsterisms(self, eeRadiusInMas, index=None, doConvolve=False, plotGS=False):
         if index==None:
             singleAsterism = False
         else:
@@ -1184,7 +1184,8 @@ class asterismSimulation(baseSimulation):
             if len(listOfAsterisms)==0:
                 print('Skipping')
                 continue
-            self.plot_directions(base, len(listOfAsterisms))
+            if plotGS:
+                self.plot_directions(base, len(listOfAsterisms))
             for ast in listOfAsterisms:
                 self.currentAsterism = ast
 #                try:
