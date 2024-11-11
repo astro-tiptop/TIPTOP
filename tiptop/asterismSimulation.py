@@ -232,14 +232,22 @@ class asterismSimulation(baseSimulation):
 
     def addFieldDataCombos(self, all_combos, setsList, number_of_asterisms, number_of_stars):
         self.updateAsterismIndices([*all_combos], number_of_asterisms, number_of_stars)
-        cartstars = np.array(setsList[self.cumStarSizes[-2]-self.cumStarSizes[-1]:])
-        xxPointigs = cartstars[:, 0, :] # or [:, 0, 0] ?
-        yyPointigs = cartstars[:, 1, :]
-        flux = cartstars[:, 2, :]
-        freq = cartstars[:, 3, :]
+        indices = np.zeros(np.max(all_combos)+1,dtype=np.int8)
+        for i in range(np.max(all_combos)+1):
+            indices[i] = int(np.where(np.array(all_combos).flatten() == i)[0][0])
+        #cartstars = np.array(setsList[self.cumStarSizes[-2]-self.cumStarSizes[-1]:]) # I DO NOT UNDERSTAND THIS
+        setsList = np.array(setsList)
+        setsList = setsList.transpose(0, 2, 1)
+        setsList = setsList.reshape(setsList.shape[0]*setsList.shape[1],setsList.shape[2])
+        cartstars = setsList[indices]
+        xxPointigs = cartstars[:, 0]
+        yyPointigs = cartstars[:, 1]
+        flux = cartstars[:, 2]
+        freq = cartstars[:, 3]
         pcoords = cartesianToPolar(np.array([xxPointigs, yyPointigs]))
         asterism = unrollAsterismData(all_combos, xxPointigs, yyPointigs, flux, freq)
         pasterism = unrollAsterismData(all_combos, pcoords[0,:], pcoords[1,:], flux, freq)
+
         self.setsList.extend([*asterism])
         self.polarSetsList.extend([*pasterism])
 
