@@ -119,7 +119,7 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
 def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
-                      eeRadiusInMas=50, doConvolve=False):
+                      eeRadiusInMas=50, doConvolve=False, plotInComputeAsterisms=False):
 
     """
         function to run the entire tiptop asterism evaluation on the input file
@@ -163,7 +163,7 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
     
     if simulation.hasAsterismSection and simulation.LOisOn:
  
-        simulation.computeAsterisms(eeRadiusInMas, doConvolve=doConvolve)
+        simulation.computeAsterisms(eeRadiusInMas, doConvolve=doConvolve, plotGS=plotInComputeAsterisms)
         
         if returnRes:
             return simulation.HO_res_Asterism, simulation.LO_res_Asterism, simulation
