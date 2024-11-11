@@ -1320,3 +1320,64 @@ class asterismSimulation(baseSimulation):
         plt.plot(self.jitterMeasure[self.sortedJitterIndices])
         plt.show()
         self.plotAsterisms()
+
+    def plot_directions(self, base, nAsterisms):
+        '''
+        Polar plot with science and GS (sources_HO and sources_LO) directions
+        '''
+
+        ticks_interval = 5
+
+        # SCIENCE
+        th_sci = np.array(self.my_data_map['sources_science']['Azimuth'])
+        rr_sci = np.array(self.my_data_map['sources_science']['Zenith'])
+        th_sci = th_sci/180*np.pi
+        fig = plt.figure('SOURCES DIRECTIONS', figsize=(5,5))
+        ax = fig.add_subplot(111, polar=True)
+        ax.tick_params(labelsize=10)
+        ax.set_rlabel_position(225) # theta position of the radius labels
+        ax.scatter(th_sci, rr_sci, marker='*', color='blue', s=120, label='sources_science')
+
+        # LGS
+        th_HO = np.array(self.my_data_map['sources_HO']['Azimuth'])
+        rr_HO = np.array(self.my_data_map['sources_HO']['Zenith'])
+        th_HO = th_HO/180*np.pi
+        ax.scatter(th_HO, rr_HO, marker='*', color='green', s=120, label='sources_HO')
+
+        # NGS
+        rr_LO = self.asterismsInputDataPolar[base:base+nAsterisms, 0, :]
+        th_LO = self.asterismsInputDataPolar[base:base+nAsterisms, 1, :]/180*np.pi
+        fluxes = self.asterismsInputDataPolar[base:base+nAsterisms, 2, :]
+
+        rr_LO = rr_LO.flatten()
+        th_LO = th_LO.flatten()
+        fluxes = fluxes.flatten()
+
+        dummy, indices = np.unique(rr_LO, return_index=True)
+        rr_LO = rr_LO[indices]
+        th_LO = th_LO[indices]
+        fluxes = fluxes[indices]
+
+        max_flux = np.max(fluxes)
+        scales = 0.5 * np.log(fluxes+np.exp(1.0))
+        ax.scatter(th_LO, rr_LO, marker='*', color='red', s=120, label='sources_LO')
+
+        # Set ticks position
+        max_pos = np.max([rr_sci.max(), rr_HO.max(), rr_LO.max()]) + 2*ticks_interval
+        ax.yaxis.set_major_locator(ticker.FixedLocator(np.arange(0,max_pos,ticks_interval)))
+        r_labels = [item.get_text() for item in ax.get_yticklabels()]
+        for i in range(len(r_labels)):
+            if i % 2: r_labels[i]=''
+        ax.set_yticklabels(r_labels, verticalalignment = "top")
+
+        # Put weights next to science sources
+        if labels is not None:
+            for i,lab in enumerate(labels):
+                ax.text(th_sci[i],rr_sci[i],str(lab),color='black',fontsize=11)
+
+        for i,lab in enumerate(fluxes):
+            ax.text(th_LO[i],rr_LO[i],str(int(lab)),color='black',fontsize=11)
+
+        # Legend
+        ax.legend(loc='lower left', bbox_to_anchor=(1, 0))
+        plt.show()
