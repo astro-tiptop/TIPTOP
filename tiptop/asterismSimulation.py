@@ -230,21 +230,20 @@ class asterismSimulation(baseSimulation):
         self.cumAstSizes.append(self.cumAstSizes[-1]+number_of_asterisms)
         self.cumStarSizes.append(self.cumStarSizes[-1]+number_of_stars)
 
-    def addFieldDataCombos(self, all_combos, setsList, number_of_asterisms, number_of_stars):
+    def addFieldDataCombos(self, all_combos, number_of_asterisms, number_of_stars):
+       
         self.updateAsterismIndices([*all_combos], number_of_asterisms, number_of_stars)
-        indices = np.zeros(np.max(all_combos)+1,dtype=np.int8)
-        for i in range(np.max(all_combos)+1):
-            indices[i] = int(np.where(np.array(all_combos).flatten() == i)[0][0])
-        #cartstars = np.array(setsList[self.cumStarSizes[-2]-self.cumStarSizes[-1]:]) # I DO NOT UNDERSTAND THIS
-        setsList = np.array(setsList)
-        setsList = setsList.transpose(0, 2, 1)
-        setsList = setsList.reshape(setsList.shape[0]*setsList.shape[1],setsList.shape[2])
-        cartstars = setsList[indices]
-        xxPointigs = cartstars[:, 0]
-        yyPointigs = cartstars[:, 1]
-        flux = cartstars[:, 2]
-        freq = cartstars[:, 3]
-        pcoords = cartesianToPolar(np.array([xxPointigs, yyPointigs]))
+        
+        pcoord_r = self.currentFieldsSourcesData['Zenith']
+        pcoord_a = self.currentFieldsSourcesData['Azimuth']
+        pcoords = np.array([pcoord_r, pcoord_a])
+        rcoords = polarToCartesian(pcoords)
+        xxPointigs = rcoords[0, :]
+        yyPointigs = rcoords[1, :]
+
+        flux = self.currentFieldsSourcesData['NumberPhotons']
+        freq = self.currentFieldsSourcesData['Frequencies']
+        
         asterism = unrollAsterismData(all_combos, xxPointigs, yyPointigs, flux, freq)
         pasterism = unrollAsterismData(all_combos, pcoords[0,:], pcoords[1,:], flux, freq)
 
@@ -284,7 +283,7 @@ class asterismSimulation(baseSimulation):
             pasterism = np.vstack( [pcoords[0,:], pcoords[1,:], fluxes[j], freqs[j]] )
             setsList.append(asterism)
             polarSetsList.append(pasterism)
-        self.addFieldDataCombos(all_combos, setsList, number_of_asterisms, number_of_stars)
+        self.addFieldDataCombos(all_combos, number_of_asterisms, number_of_stars)
         self.asterismsInputDataCartesian = np.array(self.setsList)
         self.asterismsInputDataPolar = np.array(self.polarSetsList)
         self.allAsterismsIndices = np.array(self.allAsterismsIndices)
@@ -504,7 +503,7 @@ class asterismSimulation(baseSimulation):
             else:
                 all_combos = list(itertools.combinations(list(range(number_of_stars)), 3))
                 number_of_asterisms = len(all_combos)
-            self.addFieldDataCombos(all_combos, setsList, number_of_asterisms, number_of_stars)
+            self.addFieldDataCombos(all_combos, number_of_asterisms, number_of_stars)
         print('total_skipped_fields: ', total_skipped_fields)
         print('total_skipped_asterisms: ', total_skipped_asterisms)
         print('total good asterisms: ', self.cumAstSizes[-1])
@@ -597,7 +596,7 @@ class asterismSimulation(baseSimulation):
                     # self.cumAstSizes.append(self.cumAstSizes[-1])
                     # self.cumStarSizes.append(self.cumStarSizes[-1])
                     continue
-                self.addFieldDataCombos(all_combos, setsList, number_of_asterisms, number_of_stars)
+                self.addFieldDataCombos(all_combos, number_of_asterisms, number_of_stars)
         print('total_skipped_fields: ', total_skipped_fields)
         print('total_skipped_asterisms: ', total_skipped_asterisms)
         print('total good asterisms: ', self.cumAstSizes[-1])
@@ -1185,6 +1184,7 @@ class asterismSimulation(baseSimulation):
             if len(listOfAsterisms)==0:
                 print('Skipping')
                 continue
+            self.plot_directions(base, len(listOfAsterisms))
             for ast in listOfAsterisms:
                 self.currentAsterism = ast
 #                try:
@@ -1369,11 +1369,6 @@ class asterismSimulation(baseSimulation):
         for i in range(len(r_labels)):
             if i % 2: r_labels[i]=''
         ax.set_yticklabels(r_labels, verticalalignment = "top")
-
-        # Put weights next to science sources
-        if labels is not None:
-            for i,lab in enumerate(labels):
-                ax.text(th_sci[i],rr_sci[i],str(lab),color='black',fontsize=11)
 
         for i,lab in enumerate(fluxes):
             ax.text(th_LO[i],rr_LO[i],str(int(lab)),color='black',fontsize=11)
