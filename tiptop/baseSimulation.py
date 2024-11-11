@@ -734,7 +734,7 @@ class baseSimulation(object):
                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
 
                 # discard guide stars with flux less than 1 photon per frame per subaperture
-                if np.min(self.NGS_fluxes_asterism) < 1:
+                if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
                     valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
                     self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
                     self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
