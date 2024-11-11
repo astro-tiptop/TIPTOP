@@ -733,6 +733,17 @@ class baseSimulation(object):
                                                         self.LO_freqs_field,
                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
 
+                # discard guide stars with flux less than 1 photon per frame per subaperture
+                if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
+                    valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
+                    self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
+                    self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
+                    self.NGS_SR_asterism = [elem for i, elem in enumerate(self.NGS_SR_asterism) if i in valid_indices]
+                    self.NGS_EE_field = [elem for i, elem in enumerate(self.NGS_EE_field) if i in valid_indices]
+                    self.NGS_FWHM_mas_asterism = [elem for i, elem in enumerate(self.NGS_FWHM_mas_asterism) if i in valid_indices]
+                    self.LO_freqs_asterism = [elem for i, elem in enumerate(self.LO_freqs_asterism) if i in valid_indices]
+                    self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
+                
                 self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                           np.array(self.cartSciencePointingCoords),
                                                                           np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
