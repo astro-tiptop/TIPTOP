@@ -565,11 +565,9 @@ class baseSimulation(object):
                         else:
                             self.maskLO = self.mask
                     else:
-                        ## -----------------------------------------------------------------------
-                        ## piston filter for the sub-aperture size
+                        # piston filter for the sub-aperture size
                         pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
                         PSD_NGS[i] = PSD_NGS[i] * pf
-                        ## -----------------------------------------------------------------------
                         # LO mask
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
                         if nSA[i] == 2:
@@ -620,7 +618,7 @@ class baseSimulation(object):
                     idx += 1
 
                 # -----------------------------------------------------------------
-                # optional Focus error
+                # --- optional Focus error
                 if self.addFocusError:
                     if 'sensor_Focus' in self.my_data_map.keys():
                         if self.verbose:
@@ -703,11 +701,11 @@ class baseSimulation(object):
                         self.Focus_EE_field         = self.NGS_EE_field
 
                 # ------------------------------------------------------------------------
-                # initialize MASTSEL MavisLO object
+                # --- initialize MASTSEL MavisLO object
                 self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
                 # ------------------------------------------------------------------------
-                # --- Ctot
+                # --- total covariance matrix Ctot
                 if astIndex is None:
                     self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                                              self.cartNGSCoords_field, self.NGS_fluxes_field,
@@ -715,7 +713,7 @@ class baseSimulation(object):
                                                                              self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
 
                     # --------------------------------------------------------------------
-                    # optional Focus error
+                    # --- optional total focus covariance matrix Ctot
                     if self.addFocusError:
 
                         # compute focus error
@@ -809,7 +807,9 @@ class baseSimulation(object):
                 for psfLongExp in self.psfLongExpPointingsArr:
                     self.results.append(psfLongExp)
         # ------------------------------------------------------------------------
-        
+
+        # ------------------------------------------------------------------------
+        # plots
         if self.doPlot:
             if self.LOisOn and self.doConvolve:
                 tiledDisplay(self.results)
@@ -819,6 +819,8 @@ class baseSimulation(object):
 
         self.firstSimCall = False
             
+        # ------------------------------------------------------------------------
+        # final results
         if astIndex is None:
             self.computeOL_PSD()
             self.computeDL_PSD()
