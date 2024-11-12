@@ -536,9 +536,11 @@ class baseSimulation(object):
                                  self.fao.freq.wvl[jWvl],spatialFilter=1)
                     self.otfStatic.append(arrayP3toMastsel(otfStatic))
 
-            # ------------------------------------------------------------------------
+            # ----------------------------------------------------------------------------
             # optional LO part
             if self.LOisOn:
+                # ------------------------------------------------------------------------
+                # --- NGS PSDs, PSFs and merit functions on PSFs
                 if self.verbose:
                     print('******** LO PART')
                 # PSD for NGS directions
@@ -563,11 +565,11 @@ class baseSimulation(object):
                         else:
                             self.maskLO = self.mask
                     else:
-                        ## -----------------------------------------------------------------------------
+                        ## -----------------------------------------------------------------------
                         ## piston filter for the sub-aperture size
                         pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
                         PSD_NGS[i] = PSD_NGS[i] * pf
-                        ## -----------------------------------------------------------------------------
+                        ## -----------------------------------------------------------------------
                         # LO mask
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
                         if nSA[i] == 2:
@@ -616,16 +618,7 @@ class baseSimulation(object):
                     if self.verbose:
                         print('EE                   :', "%.5f" % ee_NGS)
                     idx += 1
-                self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
-        # ------------------------------------------------------------------------
-        # optional LO part
-        if self.LOisOn:
-            if astIndex is None:
-                self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                                         self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
                 # -----------------------------------------------------------------
                 # optional Focus error
                 if self.addFocusError:
@@ -709,53 +702,76 @@ class baseSimulation(object):
                         self.Focus_FWHM_mas_field   = self.NGS_FWHM_mas_field
                         self.Focus_EE_field         = self.NGS_EE_field
 
-                    # compute focus error
-                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
-                                                                         self.Focus_freqs_field,
-                                                                         self.Focus_SR_field, self.Focus_EE_field, self.Focus_FWHM_mas_field)
+                # ------------------------------------------------------------------------
+                # initialize MASTSEL MavisLO object
+                self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
-                    # add focus error to PSD using P3 FocusFilter
-                    FocusFilter = self.fao.FocusFilter()
-                    FocusFilter *= 1/FocusFilter.sum()
-                    for PSDho in self.PSD:
-                        PSDho += self.CtotFocus[0] * FocusFilter
-                # -----------------------------------------------------------------
-            else:
-                self.NGS_SR_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
-                self.NGS_FWHM_mas_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
-                if self.firstSimCall:
-                    self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                        self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                        self.LO_freqs_field,
-                                                        self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+                # ------------------------------------------------------------------------
+                # --- Ctot
+                if astIndex is None:
+                    self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
+                                                                             self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                             self.LO_freqs_field,
+                                                                             self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
 
-                # discard guide stars with flux less than 1 photon per frame per subaperture
-                if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
-                    valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
-                    self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
-                    self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
-                    self.NGS_SR_asterism = [elem for i, elem in enumerate(self.NGS_SR_asterism) if i in valid_indices]
-                    self.NGS_EE_field = [elem for i, elem in enumerate(self.NGS_EE_field) if i in valid_indices]
-                    self.NGS_FWHM_mas_asterism = [elem for i, elem in enumerate(self.NGS_FWHM_mas_asterism) if i in valid_indices]
-                    self.LO_freqs_asterism = [elem for i, elem in enumerate(self.LO_freqs_asterism) if i in valid_indices]
-                    self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
-                
-                self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
-                                                                          np.array(self.cartSciencePointingCoords),
-                                                                          np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
-                                                                          self.LO_freqs_asterism,
-                                                                          self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
-                #TODO add self.CtotFocus computation only for the best asterism
-                #if self.addFocusError:
-                #    ...
-        
-        # ------------------------------------------------------------------------
-        # HO PSF
-        if astIndex is None or self.firstSimCall:
+                    # --------------------------------------------------------------------
+                    # optional Focus error
+                    if self.addFocusError:
+
+                        # compute focus error
+                        self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
+                                                                             self.Focus_freqs_field,
+                                                                             self.Focus_SR_field, self.Focus_EE_field, self.Focus_FWHM_mas_field)
+
+                        # add focus error to PSD using P3 FocusFilter
+                        FocusFilter = self.fao.FocusFilter()
+                        FocusFilter *= 1/FocusFilter.sum()
+                        for PSDho in self.PSD:
+                            PSDho += self.CtotFocus[0] * FocusFilter
+                    # ---------------------------------------------------------------------
+                else:
+                    self.NGS_SR_asterism = []
+                    for iid in self.currentAsterismIndices:
+                        self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
+                    self.NGS_FWHM_mas_asterism = []
+                    for iid in self.currentAsterismIndices:
+                        self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
+                    if self.firstSimCall:
+                        self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
+                                                            self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                            self.LO_freqs_field,
+                                                            self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+
+                    # discard guide stars with flux less than 1 photon per frame per subaperture
+                    if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
+                        valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
+                        self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
+                        self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
+                        self.NGS_SR_asterism = [elem for i, elem in enumerate(self.NGS_SR_asterism) if i in valid_indices]
+                        self.NGS_EE_field = [elem for i, elem in enumerate(self.NGS_EE_field) if i in valid_indices]
+                        self.NGS_FWHM_mas_asterism = [elem for i, elem in enumerate(self.NGS_FWHM_mas_asterism) if i in valid_indices]
+                        self.LO_freqs_asterism = [elem for i, elem in enumerate(self.LO_freqs_asterism) if i in valid_indices]
+                        self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
+
+                    self.Ctot  = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
+                                                                      np.array(self.cartSciencePointingCoords),
+                                                                      np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
+                                                                      self.LO_freqs_asterism,
+                                                                    self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
+                    #TODO add self.CtotFocus computation only for the best asterism
+                    #if self.addFocusError:
+                    #    ...
+
+                # ------------------------------------------------------------------------
+                # --- computation of the LO error (this changes for each asterism)
+                self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
+
+            # ----------------------------------------------------------------------------
+            # computation of the HO error (this is fixed for the simulation)
+            self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
+
+            # ----------------------------------------------------------------------------
+            # HO PSF
             if self.verbose:
                 print('******** HO PSF')
             pointings_SR, psdPointingsArray, psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
@@ -801,15 +817,7 @@ class baseSimulation(object):
             else:
                 self.results[0].standardPlot(True)
 
-        if astIndex is None or self.firstSimCall:
-            # this is fixed for the simulation
-            self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
-
         self.firstSimCall = False
-            
-        if self.LOisOn:
-            # this changes for each asterism
-            self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
             
         if astIndex is None:
             self.computeOL_PSD()
