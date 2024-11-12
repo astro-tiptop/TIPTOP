@@ -289,6 +289,12 @@ class baseSimulation(object):
         for i in range(self.pointings.shape[1]):
             hdr1['CCX'+str(i).zfill(4)] = self.pointings[0,i]
             hdr1['CCY'+str(i).zfill(4)] = self.pointings[1,i]
+        hdr1['RESH'] = "High Order residual in nm RMS"
+        for i in range(self.HO_res.shape[0]):
+            hdr1['RESH'+str(i).zfill(4)] = str(self.HO_res[i])
+        hdr1['RESL'] = "Low Order residual in nm RMS"
+        for i in range(self.LO_res.shape[0]):
+            hdr1['RESL'+str(i).zfill(4)] = str(self.LO_res[i])
         if self.addSrAndFwhm:
             for i in range(self.cubeResultsArray.shape[0]):
                 hdr1['SR'+str(i).zfill(4)]   = float(getStrehl(self.cubeResultsArray[i,:,:], self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
