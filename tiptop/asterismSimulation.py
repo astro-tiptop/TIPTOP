@@ -33,8 +33,6 @@ class AsterismProperties:
     fwhm: float
     encircled_energy: float
 
-ERIS_FOV_RADIUS = 30.0
-
 def funcPolar(X, A0, A, B, C, D, E0, E, F, G, H, I, J, J0, J1):
     r, af = X
     f = af/100
@@ -640,7 +638,8 @@ class asterismSimulation(baseSimulation):
                             pcoords = cartesianToPolar( np.asarray([xcoords[si], ycoords[si]] ) )
                             source = np.array([pcoords[0], pcoords[1], fluxes[si], freqs[si]])
                             s_index = self.sourceIsPresent(source)
-                            if s_index==-1 and np.abs(ccoords[0])<ERIS_FOV_RADIUS and np.abs(ccoords[1])<ERIS_FOV_RADIUS:
+                            if s_index==-1 and np.abs(ccoords[0])<0.5*self.my_data_map['telescope']['TechnicalFoV'] and \
+                               np.abs(ccoords[1])<0.5*self.my_data_map['telescope']['TechnicalFoV']:
                                 self.appendSource(source)
                                 asterism = np.vstack( [[xcoords[si]], [ycoords[si]], [fluxes[si]], [freqs[si]]] )
                                 pasterism = np.vstack( [ [pcoords[0]], [pcoords[1]], [fluxes[si]], [freqs[si]]] )
