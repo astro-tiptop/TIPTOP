@@ -483,12 +483,18 @@ class baseSimulation(object):
             self.configLO(astIndex)
         
         self.results = []
-        
-        # ------------------------------------------------------------------------
-        # HO Part with P3 PSDs
-        if self.verbose:
-            print('******** HO PSD science and NGSs directions')
+
+        # ------------------------------------------------------------
+        # **** Start of calculations only performed on first call ****
+        # ------------------------------------------------------------
+
         if astIndex is None or self.firstSimCall:
+            # ------------------------------------------------------------------------
+            ## HO Part with P3 PSDs
+
+            if self.verbose:
+                print('******** HO PSD science and NGSs directions')
+
             self.fao = fourierModel( self.fullPathFilename, calcPSF=False, verbose=self.verbose
                                , display=False, getPSDatNGSpositions=self.LOisOn
                                , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
@@ -503,9 +509,9 @@ class baseSimulation(object):
                 self.fao.ao.configLOsensor()
                 self.fao.ao.configLO()
                 self.fao.ao.configLO_SC()
-            
+
             self.fao.initComputations()
-                 
+
             # High-order PSD caculations at the science directions and NGSs directions
             self.PSD           = self.fao.PSD # in nm^2
             self.PSD           = self.PSD.transpose()
@@ -526,15 +532,15 @@ class baseSimulation(object):
             self.psInMas = cpuArray(self.fao.freq.psInMas)
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
-            
+
             if self.verbose:
                 print('fao.samp:', self.fao.freq.samp)
                 print('fao.PSD.shape:', self.fao.PSD.shape)
                 print('fao.freq.psInMas:', self.psInMas)
-            
+
             # ------------------------------------------------------------------------
-            # Update the instrumental OTF if static WFE is present:
-            #     [telescope] PathStaticOn key in params
+            ## Update the instrumental OTF if static WFE is present:
+            ##     [telescope] PathStaticOn key in params
             if (self.fao.ao.tel.opdMap_on is not None):
                 self.otfStatic = []
                 # following lines come from SF2PSF method of P3/p3/aoSystem/FourierUtils.py
@@ -544,9 +550,11 @@ class baseSimulation(object):
                                  self.fao.freq.wvl[jWvl],spatialFilter=1)
                     self.otfStatic.append(arrayP3toMastsel(otfStatic))
 
-            # ------------------------------------------------------------------------
-            # optional LO part
+            # ----------------------------------------------------------------------------
+            ## optional LO part
             if self.LOisOn:
+                # ------------------------------------------------------------------------
+                # --- NGS PSDs, PSFs and merit functions on PSFs
                 if self.verbose:
                     print('******** LO PART')
                 # PSD for NGS directions
@@ -571,11 +579,9 @@ class baseSimulation(object):
                         else:
                             self.maskLO = self.mask
                     else:
-                        ## -----------------------------------------------------------------------------
-                        ## piston filter for the sub-aperture size
+                        # piston filter for the sub-aperture size
                         pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
                         PSD_NGS[i] = PSD_NGS[i] * pf
-                        ## -----------------------------------------------------------------------------
                         # LO mask
                         maskLO = Field(self.wvl, self.N, self.grid_diameter)
                         if nSA[i] == 2:
@@ -624,18 +630,9 @@ class baseSimulation(object):
                     if self.verbose:
                         print('EE                   :', "%.5f" % ee_NGS)
                     idx += 1
-                self.mLO           = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
-        # ------------------------------------------------------------------------
-        # optional LO part
-        if self.LOisOn:
-            if astIndex is None:
-                self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                                         self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
                 # -----------------------------------------------------------------
-                # optional Focus error
+                # --- optional Focus error
                 if self.addFocusError:
                     if 'sensor_Focus' in self.my_data_map.keys():
                         if self.verbose:
@@ -658,7 +655,7 @@ class baseSimulation(object):
                                     self.maskFocus = self.mask
                             else:
                                 ## -----------------------------------------------------------------------------
-                                # piston filter for the sub-aperture size
+                                # --- piston filter for the sub-aperture size
                                 pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAfocus[i],k)
                                 PSD_Focus[i] = PSD_Focus[i] * pf
                                 ## -----------------------------------------------------------------------------
@@ -717,6 +714,49 @@ class baseSimulation(object):
                         self.Focus_FWHM_mas_field   = self.NGS_FWHM_mas_field
                         self.Focus_EE_field         = self.NGS_EE_field
 
+                # ------------------------------------------------------------------------
+                # --- initialize MASTSEL MavisLO object
+                self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
+
+            # ----------------------------------------------------------------------------
+            ## HO PSF
+            if self.verbose:
+                print('******** HO PSF')
+            pointings_SR, psdPointingsArray, psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
+                                                                                                         self.freq_range, 
+                                                                                                         self.dk,
+                                                                                                         self.mask, 
+                                                                                                         arrayP3toMastsel(self.PSD[0:self.nPointings]),
+                                                                                                         self.wvl,
+                                                                                                         self.psInMas[0],
+                                                                                                         self.nPixPSF,
+                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
+                                                                                                         oversampling=self.oversampling)
+            self.psfLongExpPointingsArr = psfLongExpPointingsArr
+
+            # ----------------------------------------------------------------------------
+            ## computation of the HO error (this is fixed for the simulation)
+            self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings],axis=(1,2)))
+
+        # ------------------------------------------------------------
+        # ***** End of calculations only performed on first call *****
+        # ------------------------------------------------------------
+
+        # ----------------------------------------------------------------------------
+        # optional LO part - for every call, not just the first (self.firstSimCall)
+        if self.LOisOn:
+            # ------------------------------------------------------------------------
+            ## total covariance matrix Ctot
+            if astIndex is None:
+                self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
+                                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
+                                                                         self.LO_freqs_field,
+                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
+
+                # --------------------------------------------------------------------
+                # --- optional total focus covariance matrix Ctot
+                if self.addFocusError:
+
                     # compute focus error
                     self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
                                                                          self.Focus_freqs_field,
@@ -727,7 +767,7 @@ class baseSimulation(object):
                     FocusFilter *= 1/FocusFilter.sum()
                     for PSDho in self.PSD:
                         PSDho += self.CtotFocus[0] * FocusFilter
-                # -----------------------------------------------------------------
+                # ---------------------------------------------------------------------
             else:
                 self.NGS_SR_asterism = []
                 for iid in self.currentAsterismIndices:
@@ -751,36 +791,31 @@ class baseSimulation(object):
                     self.NGS_FWHM_mas_asterism = [elem for i, elem in enumerate(self.NGS_FWHM_mas_asterism) if i in valid_indices]
                     self.LO_freqs_asterism = [elem for i, elem in enumerate(self.LO_freqs_asterism) if i in valid_indices]
                     self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
-                
-                self.Ctot          = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
-                                                                          np.array(self.cartSciencePointingCoords),
-                                                                          np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
-                                                                          self.LO_freqs_asterism,
-                                                                          self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
+
+                self.Ctot  = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
+                                                                  np.array(self.cartSciencePointingCoords),
+                                                                  np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
+                                                                  self.LO_freqs_asterism,
+                                                                self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
                 #TODO add self.CtotFocus computation only for the best asterism
                 #if self.addFocusError:
                 #    ...
-        
-        # ------------------------------------------------------------------------
-        # HO PSF
-        if astIndex is None or self.firstSimCall:
-            if self.verbose:
-                print('******** HO PSF')
-            pointings_SR, psdPointingsArray, psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
-                                                                                                         self.freq_range, 
-                                                                                                         self.dk,
-                                                                                                         self.mask, 
-                                                                                                         arrayP3toMastsel(self.PSD[0:self.nPointings]),
-                                                                                                         self.wvl,
-                                                                                                         self.psInMas[0],
-                                                                                                         self.nPixPSF,
-                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
-                                                                                                         oversampling=self.oversampling)
-            self.psfLongExpPointingsArr = psfLongExpPointingsArr
 
-        # ------------------------------------------------------------------------
-        # final results computation after optional convolution with jitter kernels
-        if not self.LOisOn:
+            # ------------------------------------------------------------------------
+            ## computation of the LO error (this changes for each asterism)
+            self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
+
+            # ------------------------------------------------------------------------
+            ## final results computation after optional convolution with jitter kernels
+            if self.doConvolve:
+                if self.doConvolveAsterism:
+                    self.finalConvolution()
+                else:
+                    self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
+            else:
+                for psfLongExp in self.psfLongExpPointingsArr:
+                    self.results.append(psfLongExp)
+        else:
             for psfLongExp in self.psfLongExpPointingsArr:
                 if self.jitter_FWHM is not None:
                     if isinstance(self.jitter_FWHM, list):
@@ -791,17 +826,10 @@ class baseSimulation(object):
                                    residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
                 else:
                     self.results.append(psfLongExp)
-        else:
-            if self.doConvolve:
-                if self.doConvolveAsterism:
-                    self.finalConvolution()
-                else:
-                    self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
-            else:
-                for psfLongExp in self.psfLongExpPointingsArr:
-                    self.results.append(psfLongExp)
         # ------------------------------------------------------------------------
-        
+
+        # ------------------------------------------------------------------------
+        # plots
         if self.doPlot:
             if self.LOisOn and self.doConvolve:
                 tiledDisplay(self.results)
@@ -809,16 +837,11 @@ class baseSimulation(object):
             else:
                 self.results[0].standardPlot(True)
 
-        if astIndex is None or self.firstSimCall:
-            # this is fixed for the simulation
-            self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
-
+        # set first call attribute to 0
         self.firstSimCall = False
-            
-        if self.LOisOn:
-            # this changes for each asterism
-            self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
-            
+
+        # ------------------------------------------------------------------------
+        # final results
         if astIndex is None:
             self.computeOL_PSD()
             self.computeDL_PSD()
