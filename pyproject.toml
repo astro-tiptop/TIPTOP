@@ -7,7 +7,7 @@ name = "astro-tiptop"
 authors = [
     {name = "Fabio Rossi", email = "fabio.rossi@inaf.it"},
 ]
-description = ""
+description = "Analytical simulator for astronomical adaptive optics systems"
 readme = "README.md"
 urls = {repository = "https://github.com/astro-tiptop/TIPTOP"}
 requires-python = ">=3.11"
