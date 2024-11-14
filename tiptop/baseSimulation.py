@@ -766,7 +766,7 @@ class baseSimulation(object):
 
             # ----------------------------------------------------------------------------
             # computation of the HO error (this is fixed for the simulation)
-            self.HO_res = np.sqrt(np.sum(self.PSD[:-self.nNaturalGS_field],axis=(1,2)))
+            self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings,axis=(1,2)))
 
             # ----------------------------------------------------------------------------
             # HO PSF
