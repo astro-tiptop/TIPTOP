@@ -119,7 +119,8 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
 def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
-                      eeRadiusInMas=50, doConvolve=False, plotInComputeAsterisms=False):
+                      eeRadiusInMas=50, doConvolve=False, plotInComputeAsterisms=False,
+                      progressStatus=False):
 
     """
         function to run the entire tiptop asterism evaluation on the input file
@@ -150,15 +151,17 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
         :type ensquaredEnergy: bool
         :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy
         :type eeRadiusInMas: float
-        :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
-        :type savePSDs: bool
+        :param plotInComputeAsterisms: optional default: False, If you want to display asterisms.
+        :type plotInComputeAsterisms: bool
+        :param progressStatus: optional default: False, If you want to display progress status.
+        :type progressStatus: bool
 
         :return: TBD
         :rtype: TBD
 
     """
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
-                      doPlot, addSrAndFwhm, verbose)
+                      doPlot, addSrAndFwhm, verbose, progressStatus=progressStatus)
 
     
     if simulation.hasAsterismSection and simulation.LOisOn:
