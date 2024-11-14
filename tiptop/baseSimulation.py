@@ -797,10 +797,17 @@ class baseSimulation(object):
             ## computation of the LO error (this changes for each asterism)
             self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
 
-
-        # ------------------------------------------------------------------------
-        # final results computation after optional convolution with jitter kernels
-        if not self.LOisOn:
+            # ------------------------------------------------------------------------
+            ## final results computation after optional convolution with jitter kernels
+            if self.doConvolve:
+                if self.doConvolveAsterism:
+                    self.finalConvolution()
+                else:
+                    self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
+            else:
+                for psfLongExp in self.psfLongExpPointingsArr:
+                    self.results.append(psfLongExp)
+        else:
             for psfLongExp in self.psfLongExpPointingsArr:
                 if self.jitter_FWHM is not None:
                     if isinstance(self.jitter_FWHM, list):
@@ -810,15 +817,6 @@ class baseSimulation(object):
                     self.results.append(convolve(psfLongExp,
                                    residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
                 else:
-                    self.results.append(psfLongExp)
-        else:
-            if self.doConvolve:
-                if self.doConvolveAsterism:
-                    self.finalConvolution()
-                else:
-                    self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
-            else:
-                for psfLongExp in self.psfLongExpPointingsArr:
                     self.results.append(psfLongExp)
         # ------------------------------------------------------------------------
 
