@@ -727,9 +727,7 @@ class asterismSimulation(baseSimulation):
             self.getSourcesData([fieldIndex1])
             self.currentBase = self.cumAstSizes[fieldIndex1]
             self.covsarray = np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,1]**2 + np.array(self.cov_ellipses_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize, 0,2]**2
-            print('self.strehl_Asterism',self.strehl_Asterism)
             self.strehls = np.array(self.strehl_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
-            print('self.penalty_Asterism',self.penalty_Asterism)
             self.penalties = np.array(self.penalty_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
         else:
             self.currentFieldsize = 0
@@ -743,7 +741,6 @@ class asterismSimulation(baseSimulation):
             self.penalties = np.array(self.penalty_Asterism)[self.currentBase:self.currentBase+self.currentFieldsize][:, 0]
         if self.covsarray.shape[0]!=0:
             self.jitterMeasure = self.penalties
-            print('self.jitterMeasure',self.jitterMeasure)
             self.minJitter_id = np.argmin(self.jitterMeasure)+self.currentBase
             self.sortedJitterIndices = np.argsort(self.jitterMeasure, axis=0)
             self.lastJitterIndex = self.jitterMeasure.shape[0] + self.currentBase
