@@ -297,6 +297,9 @@ class baseSimulation(object):
             hdr1['RESL'] = "Low Order residual in nm RMS"
             for i in range(self.LO_res.shape[0]):
                 hdr1['RESL'+str(i).zfill(4)] = str(self.LO_res[i])
+        if hasattr(self,'GF_res'):
+            hdr1['RESF'] = "Global Focus residual in nm RMS (included in PSD)"
+            hdr1['RESF0000'] = str(self.GF_res)
         if self.addSrAndFwhm:
             for i in range(self.cubeResultsArray.shape[0]):
                 hdr1['SR'+str(i).zfill(4)]   = float(getStrehl(self.cubeResultsArray[i,:,:], self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
@@ -445,6 +448,52 @@ class baseSimulation(object):
             self.results.append(temp)
 
 
+    def finalPSF(self,astIndex):
+        if astIndex is None or self.firstSimCall:
+            # ----------------------------------------------------------------------------
+            ## HO PSF
+            if self.verbose:
+                print('******** HO PSF')
+            pointings_SR, psdPointingsArray, psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(self.N,
+                                                                                                         self.freq_range,
+                                                                                                         self.dk,
+                                                                                                         self.mask,
+                                                                                                         arrayP3toMastsel(self.PSD[0:self.nPointings]),
+                                                                                                         self.wvl,
+                                                                                                         self.psInMas[0],
+                                                                                                         self.nPixPSF,
+                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
+                                                                                                         oversampling=self.oversampling)
+            self.psfLongExpPointingsArr = psfLongExpPointingsArr
+
+            # ----------------------------------------------------------------------------
+            ## computation of the HO error (this is fixed for the simulation)
+            self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings],axis=(1,2)))
+
+        # ------------------------------------------------------------------------
+        ## final PSFs computation after optional convolution with jitter kernels
+        if self.LOisOn:
+            if self.doConvolve:
+                if self.doConvolveAsterism:
+                    self.finalConvolution()
+                else:
+                    self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
+            else:
+                for psfLongExp in self.psfLongExpPointingsArr:
+                    self.results.append(psfLongExp)
+        else:
+            for psfLongExp in self.psfLongExpPointingsArr:
+                if self.jitter_FWHM is not None:
+                    if isinstance(self.jitter_FWHM, list):
+                        ellp = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                    else:
+                        ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                    self.results.append(convolve(psfLongExp,
+                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
+                else:
+                    self.results.append(psfLongExp)
+
+
     def computeMetrics(self):
         self.penalty, self.sr, self.fwhm, self.ee = [], [], [], []
         if len(self.results) == 0:
@@ -472,7 +521,8 @@ class baseSimulation(object):
                     ee_ = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
                     rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas[0] * 0.5
                 else:
-                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0],
+                                                 center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                 self.ee.append( cpuArray(ee_at_radius_fn(self.eeRadiusInMas)).item() )
 
@@ -621,7 +671,8 @@ class baseSimulation(object):
                 self.NGS_EE_field           = []
                 idx = 0
                 for img in psfLE_NGS:
-                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0],
+                                                 center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                     ee_ *= 1/np.max(ee_)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     # max is used to compute EE on at least a radius of one pixel
@@ -718,26 +769,6 @@ class baseSimulation(object):
                 # --- initialize MASTSEL MavisLO object
                 self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
-            # ----------------------------------------------------------------------------
-            ## HO PSF
-            if self.verbose:
-                print('******** HO PSF')
-            pointings_SR, psdPointingsArray, psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(self.N, 
-                                                                                                         self.freq_range, 
-                                                                                                         self.dk,
-                                                                                                         self.mask, 
-                                                                                                         arrayP3toMastsel(self.PSD[0:self.nPointings]),
-                                                                                                         self.wvl,
-                                                                                                         self.psInMas[0],
-                                                                                                         self.nPixPSF,
-                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
-                                                                                                         oversampling=self.oversampling)
-            self.psfLongExpPointingsArr = psfLongExpPointingsArr
-
-            # ----------------------------------------------------------------------------
-            ## computation of the HO error (this is fixed for the simulation)
-            self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings],axis=(1,2)))
-
         # ------------------------------------------------------------
         # ***** End of calculations only performed on first call *****
         # ------------------------------------------------------------
@@ -762,11 +793,13 @@ class baseSimulation(object):
                                                                          self.Focus_freqs_field,
                                                                          self.Focus_SR_field, self.Focus_EE_field, self.Focus_FWHM_mas_field)
 
+                    self.GF_res = np.sqrt(self.CtotFocus[0])
+
                     # add focus error to PSD using P3 FocusFilter
                     FocusFilter = self.fao.FocusFilter()
                     FocusFilter *= 1/FocusFilter.sum()
                     for PSDho in self.PSD:
-                        PSDho += self.CtotFocus[0] * FocusFilter
+                        PSDho += self.GF_res**2 * FocusFilter
                 # ---------------------------------------------------------------------
             else:
                 self.NGS_SR_asterism = []
@@ -795,38 +828,20 @@ class baseSimulation(object):
                 self.Ctot  = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                   np.array(self.cartSciencePointingCoords),
                                                                   np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
-                                                                  self.LO_freqs_asterism,
-                                                                self.NGS_SR_asterism, self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
-                #TODO add self.CtotFocus computation only for the best asterism
+                                                                  self.LO_freqs_asterism, self.NGS_SR_asterism,
+                                                                  self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
+                #TODO add self.CtotFocus and self.GF_res computation for the i-th asterism
                 #if self.addFocusError:
                 #    ...
 
             # ------------------------------------------------------------------------
             ## computation of the LO error (this changes for each asterism)
             self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
-
-            # ------------------------------------------------------------------------
-            ## final results computation after optional convolution with jitter kernels
-            if self.doConvolve:
-                if self.doConvolveAsterism:
-                    self.finalConvolution()
-                else:
-                    self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.Ctot)
-            else:
-                for psfLongExp in self.psfLongExpPointingsArr:
-                    self.results.append(psfLongExp)
-        else:
-            for psfLongExp in self.psfLongExpPointingsArr:
-                if self.jitter_FWHM is not None:
-                    if isinstance(self.jitter_FWHM, list):
-                        ellp = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
-                    else:
-                        ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                    self.results.append(convolve(psfLongExp,
-                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas[0]))))
-                else:
-                    self.results.append(psfLongExp)
         # ------------------------------------------------------------------------
+
+        # ------------------------------------------------------------------------
+        # final PSF computation
+        self.finalPSF(astIndex)
 
         # ------------------------------------------------------------------------
         # plots
@@ -837,7 +852,7 @@ class baseSimulation(object):
             else:
                 self.results[0].standardPlot(True)
 
-        # set first call attribute to 0
+        # set first call attribute to False
         self.firstSimCall = False
 
         # ------------------------------------------------------------------------
@@ -854,3 +869,5 @@ class baseSimulation(object):
                 print('HO_res [nm]:',self.HO_res)
                 if self.LOisOn:
                     print('LO_res [nm]:',self.LO_res)
+                if hasattr(self,'GF_res'):
+                    print('GF_res [nm]:',self.GF_res)
