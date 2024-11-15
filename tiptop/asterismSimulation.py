@@ -95,7 +95,7 @@ class asterismSimulation(baseSimulation):
             listZ = self.my_data_map['ASTERISM_SELECTION']['Zenith']
             listA = self.my_data_map['ASTERISM_SELECTION']['Azimuth']
             listP = self.my_data_map['ASTERISM_SELECTION']['NumberPhotons']
-            listF  = self.my_data_map['ASTERISM_SELECTION']['Frequencies']
+            listF = self.my_data_map['ASTERISM_SELECTION']['Frequencies']
             self.transmissionFactor = self.my_data_map['ASTERISM_SELECTION']['transmissionFactor']
             self.bands              = self.my_data_map['ASTERISM_SELECTION']['bands']
             self.ObscurationRatio   = self.my_data_map['telescope']['ObscurationRatio']
@@ -309,12 +309,35 @@ class asterismSimulation(baseSimulation):
             self.LO_zen_field    = self.my_data_map['sources_LO']['Zenith']
             self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
             self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
-            self.LO_freqs_field = self.my_data_map['RTC']['SensorFrameRate_LO']
+            self.LO_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_LO']
+
+            if self.check_section_key('sensor_Focus'):
+                self.Focus_fluxes4s_field = self.my_data_map['sensor_Focus']['NumberPhotons']
+                self.Focus_psInMas         = self.my_data_map['sensor_Focus']['PixelScale']
+                Focus_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
+                if isinstance(Focus_wvl_temp, list):
+                    self.Focus_wvl = Focus_wvl_temp[0]  # lambda
+                else:
+                    self.Focus_wvl = Focus_wvl_temp     # lambda
+            else:
+                self.Focus_fluxes4s_field = self.LO_fluxes_field
+                self.Focus_psInMas         = self.LO_psInMas
+                self.Focus_wvl             = self.LO_wvl
+            if self.check_config_key('RTC','SensorFrameRate_Focus'):
+                self.Focus_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_Focus']
+                if not isinstance(self.Focus_freqs_field, list):
+                    self.Focus_freqs_field  = [self.Focus_freqs_field] * len(self.LO_zen_field)
+            else:
+                self.Focus_freqs_field = self.LO_freqs_field
+        
             self.NGS_fluxes_field = []
             polarNGSCoordsList = []
             for aFr, aFlux, aZen, aAz in zip(self.LO_freqs_field, self.LO_fluxes_field, self.LO_zen_field, self.LO_az_field):
                 polarNGSCoordsList.append([aZen, aAz])
                 self.NGS_fluxes_field.append(aFlux*aFr)
+            self.Focus_fluxes_field = []
+            for aFrF, aFluxF in zip(self.Focus_freqs_field, self.Focus_fluxes4s_field):
+                self.Focus_fluxes_field.append(aFluxF*aFrF)
             polarNGSCoords     = np.asarray(polarNGSCoordsList)
             self.nNaturalGS_field  = len(self.LO_zen_field)
             cartNGSCoordsList = []
