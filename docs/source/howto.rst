@@ -4,6 +4,15 @@ How to set up ...
 The telescope
 -------------
 
+This section contains the parameters related to the telescope and to some general aspects of the simulation::
+
+   [telescope]
+   TelescopeDiameter = 8.
+   ZenithAngle = 30.0
+   ObscurationRatio = 0.16
+   Resolution = 128
+   TechnicalFoV = 120
+
 The atmosphere
 --------------
 
