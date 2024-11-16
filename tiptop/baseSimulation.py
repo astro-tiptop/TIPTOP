@@ -166,6 +166,7 @@ class baseSimulation(object):
             self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']  
             
         self.addFocusError = self.my_data_map['telescope']['glFocusOnNGS']
+        self.GFinPSD = False
         if (not self.check_section_key('sensor_Focus')) and self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
             raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS/Focus WFSs have more than one sub-aperture")
 
@@ -501,7 +502,10 @@ class baseSimulation(object):
         self.penalty, self.sr, self.fwhm, self.ee = [], [], [], []
         if len(self.results) == 0:
             if self.LOisOn:
-                self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
+                if self.addFocusError and not self.GFinPSD:
+                    self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) + self.GF_res**2 ) )
+                else:
+                    self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
             else:
                 self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
             self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvl*1e9)**2) )
@@ -512,7 +516,10 @@ class baseSimulation(object):
         else:
             for idx, HO_res in enumerate(cpuArray(self.HO_res)):
                 if self.LOisOn:
-                    self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 ) )
+                    if self.addFocusError and not self.GFinPSD:
+                        self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 + self.GF_res**2) )
+                    else:
+                        self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 ) )
                 else:
                     self.penalty.append( HO_res )
             if self.verbose:
@@ -803,6 +810,7 @@ class baseSimulation(object):
                     FocusFilter *= 1/FocusFilter.sum()
                     for PSDho in self.PSD:
                         PSDho += self.GF_res**2 * FocusFilter
+                    self.GFinPSD = True
                 # ---------------------------------------------------------------------
             else:                  
                 if self.firstSimCall:
@@ -821,6 +829,7 @@ class baseSimulation(object):
                     self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
                     self.Focus_fluxes_asterism = [elem for i, elem in enumerate(self.Focus_fluxes_asterism) if i in valid_indices]
                     self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
+                    self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
 
                 self.Ctot  = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                   np.array(self.cartSciencePointingCoords),
@@ -834,6 +843,7 @@ class baseSimulation(object):
                                                                          np.array(self.cartNGSCoords_asterism),
                                                                          self.Focus_fluxes_asterism)
                     self.GF_res = np.sqrt(self.CtotFocus[0])
+                    self.GFinPSD = False
                 # ---------------------------------------------------------------------
 
             # ------------------------------------------------------------------------
