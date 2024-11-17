@@ -31,7 +31,6 @@ or::
    extraErrorExp = -2
    extraErrorMin = 0
    # extra error in the technical FoV  (error not included in TIPTOP like NCPA, optics quality, ...)
-   # Total is 160 nm without 90 nm of contingency because contingency should be applied only once
    extraErrorLoNm = 132
    extraErrorLoExp = -2
    extraErrorLoMin = 0
@@ -41,7 +40,6 @@ to windshake and additional tilt jitter::
    # ELT tip & tilt wind shake when wind speed on M2 is 8 m/s
    windPsdFile = 'data/morfeo_windshake8ms_psd_2022_1k.fits'
    # jitter_FWHM --> 10 nm RMS tip error is 0.505arcesc
-   # extra error on tip/tilt 70 nm (3.5) to consider tilt error due to aliasing not included by TIPTOP 
    jitter_FWHM = 3.5
 
 to the size of the technical field::
