@@ -142,8 +142,8 @@ We now go more in detail for each section:
 |                          |          |       |a specific global focus sensor (``[sources_Focus]`` and ``[sensor_Focus]``|
 |                          |          |       |sections).                                                                |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
-|TechnicalFoV              |No/Yes if |float  |*default: ??*, set the size of the technical field of view (diameter) in  |
-|                          |LO        |       |Used in multi-conjugate AO systems.                                       |
+|TechnicalFoV              |No/Yes if |float  |*default: ??*, set the size of the technical field of view (diameter) is  |
+|                          |LO        |       |Used in laser and multi-conjugate AO systems.                             |
 |                          |          |       |                                                                          |
 |                          |          |       |*Warning* : This is not optional in MavisLO.py                            |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
