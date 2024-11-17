@@ -20,9 +20,12 @@ to the pupil::
 
 to additional aberrations (in the main path or NCP)::
 
-   PathStaticOn = '/home/frossi/dev/TIPTOP/P3/aoSystem/data/ELT_CALIBRATION/CombinedError_Wavefront_nm.fits'
+   PathStaticOn = '../P3/aoSystem/data/ELT_CALIBRATION/CombinedError_Wavefront_nm.fits'
    PathApodizer = ''
    PathStatModes = ''
+
+or::
+
    # extra error in the science FoV (error not included in TIPTOP like NCPA, optics quality, ...)
    extraErrorNm = 160
    extraErrorExp = -2
