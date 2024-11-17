@@ -495,7 +495,8 @@ class baseSimulation(object):
 
 
     def ngsPSF(self):
-        # PSD for NGS directions
+        # -----------------------------------------------------------------
+        # PSD and sub-aperture mask for NGS directions
         PSD_NGS = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
         k  = np.sqrt(self.fao.freq.k2_)
         # Define the LO sub-aperture shape
@@ -540,7 +541,10 @@ class baseSimulation(object):
                     self.maskLO.append(maskLO)
                 else:
                     self.maskLO = maskLO
-        
+
+        # -----------------------------------------------------------------
+        # PSF for NGS directions
+
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
 
@@ -554,6 +558,9 @@ class baseSimulation(object):
                                                                    self.nPixPSF,
                                                                    scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
                                                                    oversampling=self.oversampling)
+
+        # -----------------------------------------------------------------
+        # Merit functions
         self.NGS_SR_field           = NGS_SR
         self.NGS_FWHM_mas_field     = NGS_FWHM_mas
         self.NGS_EE_field           = []
@@ -571,11 +578,13 @@ class baseSimulation(object):
             idx += 1
 
         # -----------------------------------------------------------------
-        # --- optional Focus error
+        # optional Focus error
         if self.addFocusError:
             if 'sensor_Focus' in self.my_data_map.keys():
                 if self.verbose:
                     print('Focus sensor is set: computing new PSFs.')
+                # -----------------------------------------------------------------
+                ## PSD and sub-aperture mask for NGS directions
                 nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
                 PSD_Focus = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
                 if len(nSAfocus) == self.nNaturalGS_field:
@@ -593,11 +602,11 @@ class baseSimulation(object):
                         else:
                             self.maskFocus = self.mask
                     else:
-                        ## -----------------------------------------------------------------------------
+                        ## -----------------------------------------------------------------
                         # --- piston filter for the sub-aperture size
                         pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAfocus[i],k)
                         PSD_Focus[i] = PSD_Focus[i] * pf
-                        ## -----------------------------------------------------------------------------
+                        ## -----------------------------------------------------------------
                         # Focus mask
                         maskFocus = Field(self.wvl, self.N, self.grid_diameter)
                         if nSAfocus[i] == 2:
@@ -618,7 +627,10 @@ class baseSimulation(object):
                             self.maskFocus.append(maskFocus)
                         else:
                             self.maskFocus = maskFocus
-                
+
+                # -----------------------------------------------------------------
+                ## PSF for NGS directions
+
                 if self.verbose:
                     print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
 
@@ -632,6 +644,9 @@ class baseSimulation(object):
                                                                            self.nPixPSF,
                                                                            scaleFactor=(2*np.pi*1e-9/self.Focus_wvl)**2,
                                                                            oversampling=self.oversampling)
+
+                # -----------------------------------------------------------------
+                ## Merit functions
                 self.Focus_SR_field         = Focus_SR
                 self.Focus_FWHM_mas_field   = Focus_FWHM_mas
                 self.Focus_EE_field         = []
@@ -768,7 +783,7 @@ class baseSimulation(object):
                     
                 # ------------------------------------------------------------------------
                 # --- NGS PSDs, PSFs and merit functions on PSFs
-                self.ngsPSF
+                self.ngsPSF()
                 
                 # ------------------------------------------------------------------------
                 # --- initialize MASTSEL MavisLO object
