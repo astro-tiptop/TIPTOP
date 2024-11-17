@@ -18,7 +18,7 @@ to the pupil::
    PathPupil = 'data/EELT480pp0.0803m_obs0.283_spider2023.fits'
    PupilAngle = 0.0
 
-to additional aberrations (in the main path or NCP) and other stuff::
+to additional aberrations (in the main path or NCP)::
 
    PathStaticOn = '/home/frossi/dev/TIPTOP/P3/aoSystem/data/ELT_CALIBRATION/CombinedError_Wavefront_nm.fits'
    PathApodizer = ''
@@ -33,7 +33,7 @@ to additional aberrations (in the main path or NCP) and other stuff::
    extraErrorLoExp = -2
    extraErrorLoMin = 0
 
-to windshake and attional tilt jitter::
+to windshake and additional tilt jitter::
 
    # ELT tip & tilt wind shake when wind speed on M2 is 8 m/s
    windPsdFile = 'data/morfeo_windshake8ms_psd_2022_1k.fits'
@@ -130,12 +130,58 @@ or a Shack-Hartmann sensor::
    WindowRadiusWCoG = 2
    NumberLenslets = [40]
 
+Then a section with the guide star must be present::
+
+   [sources_HO]
+   ;Sensing wavelength for HO modes in meters - required
+   Wavelength = 950e-9
+   ;list of polar coordinates of the guide stars sources; zenith in arcsec and azimuth in degrees - optional - default [0.0]
+   Zenith = [0.0]
+   Azimuth = [0.0]
+   ;altitude of the guide stars (0 if infinite) - optional - default: 0.0
+   Height = 0.0
 
 The deformable mirror
 ~~~~~~~~~~~~~~~~~~~~~
 
+The deformable mirror is used to achieve wavefront control and correction and this section contains the following parameters::
+
+   [DM]
+   ;DM actuators pitch in meters - required
+   NumberActuators = [80]
+   ;DM actuators pitch in meters - required
+   DmPitchs = [0.38]
+   ;DM influence function model - optional - default: 'gaussian'
+   InfModel = 'gaussian'
+   ;DM influence function model  mechanical coupling- optional - default: [0.2]
+   InfCoupling = [0.2]
+   ;DM altitude in m - optional - default: [0.0]
+   DmHeights = [600.0] 
+   ;Zenith position in arcsec - optional - default: [0.0]
+   OptimizationZenith = [0] 
+   ;Azimuth in degrees - optional - default: [0.0]
+   OptimizationAzimuth = [0] 
+   ;Weights - optional - default: [1.0]
+   OptimizationWeight  = [1]   
+   ;Matrix Conditioning - optional - default: 1e2
+   OptimizationConditioning = 1.0e2 
+   ; Number of reconstructed layers for tomographic systems - optional - default: 10
+   NumberReconstructedLayers= 10
+   ;Shape of the AO-corrected area - optional - default: 'circle'
+   AoArea = 'circle'
+
 The real time controler
 ~~~~~~~~~~~~~~~~~~~~~~~
+
+This section contains the details of the control, the framerate and the delay::
+
+   [RTC]
+   ;HO Loop gain - required
+   LoopGain_HO = 0.5                             
+   ;HO loop frequency in [Hz] - required
+   SensorFrameRate_HO = 500.0
+   ;HO loop frame delay - required
+   LoopDelaySteps_HO = 1
 
 .. _MCAO:
 
@@ -147,12 +193,53 @@ The Multi Conjugate Adaptive Optics system is described here: `ESO - AO MODES - 
 The wavefront sensor
 ~~~~~~~~~~~~~~~~~~~~
 
+For an MCAO system with multiple NAtural Guide Stars (NGSs), the difference here is that ``NumberPhotons`` and ``NumberLenslets`` are vectors as are ``Zenith`` and ``Azimuth`` in the ``soruces_HO`` section.
+
+If the system have Laser Guide Stars (LGSs) and NGSs these sections are present::
+
+   [sources_LO]
+   Wavelength = [1650e-9]
+   Zenith = [66.6, 79.3, 69.0]
+   Azimuth = [221.7, 321.2, 106.6]
+   
+   [sensor_LO]
+   PixelScale = 16.0
+   FieldOfView = 100
+   Binning = 1
+   # zero magnitude flux 8.17e11ph/s (H band)
+   # magnitudes 10.7, 16.3, 14.5
+   # 2x2 sub-apertures and 250 Hz framerate
+   # --> 8.17e11*10**(-[10.7,16.3,14.5]/2.5)/4/250.
+   NumberPhotons = [42900,247,1300]
+   SpotFWHM = [[0.0,0.0,0.0]]
+   SigmaRON = 0.5
+   Dark = 40.0
+   SkyBackground = 120.0
+   Gain = 1.0
+   ExcessNoiseFactor = 1.3
+   # note 2x2 is required to provide focus control
+   # (see glFocusOnNGS in telescope section)
+   NumberLenslets = [2, 2, 2]
+   Algorithm = 'wcog'
+   WindowRadiusWCoG = 'optimize'
+   ThresholdWCoG = 0.0
+   NewValueThrPix = 0.0
+   noNoise = False
+   filtZernikeCov = True
+
 The deformable mirror
 ~~~~~~~~~~~~~~~~~~~~~
+
+For an MCAO system with multiple DM, the difference here is that ``NumberActuators``, ``DmPitchs``, ``InfCoupling`` and ``DmHeights`` are vectors.
 
 The real time controler
 ~~~~~~~~~~~~~~~~~~~~~~~
 
+If the system have Laser Guide Stars (LGSs) and NGSs this section has the following parameters::
+
+   LoopGain_LO = 'optimize'
+   SensorFrameRate_LO = 250.0
+   LoopDelaySteps_LO = 1
 
 .. _LTAO:
 
@@ -164,11 +251,17 @@ The Laser Tomography Adaptive Optics system is described here: `ESO - AO MODES -
 The wavefront sensor
 ~~~~~~~~~~~~~~~~~~~~
 
+As for the MCAO system when LGSs and NGSs are present the sections ``[sources_LO]`` and ``[sensor_LO]`` must be added.
+
 The deformable mirror
 ~~~~~~~~~~~~~~~~~~~~~
 
+Like for a SCAO system.
+
 The real time controler
 ~~~~~~~~~~~~~~~~~~~~~~~
+
+Like for a MCAO system with LGSs and NGSs.
 
 .. _GLAO:
 
@@ -180,11 +273,16 @@ The Ground Layery Adaptive Optics system is described here: `ESO - AO MODES - GL
 The wavefront sensor
 ~~~~~~~~~~~~~~~~~~~~
 
+Like for a MCAO system.
+
 The deformable mirror
 ~~~~~~~~~~~~~~~~~~~~~
+
+Like for a SCAO system.
 
 The real time controler
 ~~~~~~~~~~~~~~~~~~~~~~~
 
+Like for a MCAO system.
 
 
