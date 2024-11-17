@@ -13,7 +13,7 @@ This section contains the parameters related to the telescopen::
    Resolution = 128
    TechnicalFoV = 120
 
-and to some general aspects of the simulatio::
+and to some general aspects of the simulation::
 
    PathPupil = 'data/EELT480pp0.0803m_obs0.283_spider2023.fits'
    PathApodizer = ''
