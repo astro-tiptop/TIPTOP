@@ -14,7 +14,7 @@ This section contains the parameters related to the telescopen::
 
 to the pupil::
 
-   ; path to the pupil model in .fits file - optional (if provided, the pupil model is interpolated) - default: ''
+   # path to the pupil model in .fits file - optional (if provided, the pupil model is interpolated) - default: ''
    PathPupil = 'data/EELT480pp0.0803m_obs0.283_spider2023.fits'
    PupilAngle = 0.0
 
@@ -92,25 +92,25 @@ The wavefront sensor
 The Wavefront Sensor in a SCAO system (natural guide star only) can be a Pyramid sensor::
 
    [sensor_HO]
-   ;WFS type - optional - default : Shack-Hartmann
+   # WFS type - optional - default : Shack-Hartmann
    WfsType = 'Pyramid'
-   ;Spot modulation radius in lambda/D units for pyramid WFS - optional - default : None
+   # Spot modulation radius in lambda/D units for pyramid WFS - optional - default : None
    Modulation = 3
-   ;HO WFS pixel scale in [mas] - required
+   # HO WFS pixel scale in [mas] - required
    PixelScale = 220      
-   ;Number of pixels per subaperture - required
+   # Number of pixels per subaperture - required
    FieldOfView = 600         
-   ;Flux return in [nph/frame/subaperture] - required
+   # Flux return in [nph/frame/subaperture] - required
    NumberPhotons = [500]                  
-   ;read-out noise std in [e-] - required
+   # read-out noise std in [e-] - required
    SigmaRON = 1.0               
-   ; dark current[e-/s/pix] - optional - default: 0.0
+   # dark current[e-/s/pix] - optional - default: 0.0
    Dark = 0.2
-   ;Sky background [e-/s/pix] - optional - default: 0.0           
+   # Sky background [e-/s/pix] - optional - default: 0.0           
    SkyBackground = 0.6
-   ;excess noise factor - optional - default: 2.0                     
+   # excess noise factor - optional - default: 2.0                     
    ExcessNoiseFactor = 1.0 
-   ;Number of WFS lenslets - required
+   # Number of WFS lenslets - required
    NumberLenslets = [100]
 
 or a Shack-Hartmann sensor::
@@ -124,21 +124,21 @@ or a Shack-Hartmann sensor::
    NumberPhotons = [100.0]
    SigmaRON = 0.2
    ExcessNoiseFactor = 2.0
-   ;CoG computation algorithm - optional  -defaut:'wcog'
+   # CoG computation algorithm - optional  -defaut:'wcog'
    Algorithm = 'wcog' 
-   ;Number of pixels for windiwing the low order WFS pixels - optional - default: 2      
+   # Number of pixels for windiwing the low order WFS pixels - optional - default: 2      
    WindowRadiusWCoG = 2
    NumberLenslets = [40]
 
 Then a section with the guide star must be present::
 
    [sources_HO]
-   ;Sensing wavelength for HO modes in meters - required
+   # Sensing wavelength for HO modes in meters - required
    Wavelength = 950e-9
-   ;list of polar coordinates of the guide stars sources; zenith in arcsec and azimuth in degrees - optional - default [0.0]
+   # list of polar coordinates of the guide stars sources; zenith in arcsec and azimuth in degrees - optional - default [0.0]
    Zenith = [0.0]
    Azimuth = [0.0]
-   ;altitude of the guide stars (0 if infinite) - optional - default: 0.0
+   # altitude of the guide stars (0 if infinite) - optional - default: 0.0
    Height = 0.0
 
 The deformable mirror
@@ -147,27 +147,27 @@ The deformable mirror
 The deformable mirror is used to achieve wavefront control and correction and this section contains the following parameters::
 
    [DM]
-   ;DM actuators pitch in meters - required
+   # DM actuators pitch in meters - required
    NumberActuators = [80]
-   ;DM actuators pitch in meters - required
+   # DM actuators pitch in meters - required
    DmPitchs = [0.38]
-   ;DM influence function model - optional - default: 'gaussian'
+   # DM influence function model - optional - default: 'gaussian'
    InfModel = 'gaussian'
-   ;DM influence function model  mechanical coupling- optional - default: [0.2]
+   # DM influence function model  mechanical coupling- optional - default: [0.2]
    InfCoupling = [0.2]
-   ;DM altitude in m - optional - default: [0.0]
+   # DM altitude in m - optional - default: [0.0]
    DmHeights = [600.0] 
-   ;Zenith position in arcsec - optional - default: [0.0]
+   # Zenith position in arcsec - optional - default: [0.0]
    OptimizationZenith = [0] 
-   ;Azimuth in degrees - optional - default: [0.0]
+   # Azimuth in degrees - optional - default: [0.0]
    OptimizationAzimuth = [0] 
-   ;Weights - optional - default: [1.0]
+   # Weights - optional - default: [1.0]
    OptimizationWeight  = [1]   
-   ;Matrix Conditioning - optional - default: 1e2
+   # Matrix Conditioning - optional - default: 1e2
    OptimizationConditioning = 1.0e2 
-   ; Number of reconstructed layers for tomographic systems - optional - default: 10
+   # Number of reconstructed layers for tomographic systems - optional - default: 10
    NumberReconstructedLayers= 10
-   ;Shape of the AO-corrected area - optional - default: 'circle'
+   # Shape of the AO-corrected area - optional - default: 'circle'
    AoArea = 'circle'
 
 The real time controler
@@ -176,11 +176,11 @@ The real time controler
 This section contains the details of the control, the framerate and the delay::
 
    [RTC]
-   ;HO Loop gain - required
+   # HO Loop gain - required
    LoopGain_HO = 0.5                             
-   ;HO loop frequency in [Hz] - required
+   # HO loop frequency in [Hz] - required
    SensorFrameRate_HO = 500.0
-   ;HO loop frame delay - required
+   # HO loop frame delay - required
    LoopDelaySteps_HO = 1
 
 .. _MCAO:
