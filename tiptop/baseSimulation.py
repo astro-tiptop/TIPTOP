@@ -166,6 +166,7 @@ class baseSimulation(object):
             self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']  
             
         self.addFocusError = self.my_data_map['telescope']['glFocusOnNGS']
+        self.GFinPSD = False
         if (not self.check_section_key('sensor_Focus')) and self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
             raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS/Focus WFSs have more than one sub-aperture")
 
@@ -189,7 +190,7 @@ class baseSimulation(object):
             self.LO_freqs_field  = [self.LO_freqs_field] * len(self.LO_zen_field)
 
         if self.check_section_key('sensor_Focus'):
-            self.Focus_fluxes4fr_field = self.my_data_map['sensor_Focus']['NumberPhotons']
+            self.Focus_fluxes4s_field = self.my_data_map['sensor_Focus']['NumberPhotons']
             self.Focus_psInMas         = self.my_data_map['sensor_Focus']['PixelScale']
             Focus_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
             if isinstance(Focus_wvl_temp, list):
@@ -197,7 +198,7 @@ class baseSimulation(object):
             else:
                 self.Focus_wvl = Focus_wvl_temp     # lambda
         else:
-            self.Focus_fluxes4fr_field = self.LO_fluxes_field
+            self.Focus_fluxes4s_field = self.LO_fluxes_field
             self.Focus_psInMas         = self.LO_psInMas
             self.Focus_wvl             = self.LO_wvl
         if self.check_config_key('RTC','SensorFrameRate_Focus'):
@@ -213,7 +214,7 @@ class baseSimulation(object):
             polarNGSCoordsList.append([aZen, aAz])
             self.NGS_fluxes_field.append(aFlux*aFr)
         self.Focus_fluxes_field = []
-        for aFrF, aFluxF in zip(self.Focus_freqs_field, self.Focus_fluxes4fr_field):
+        for aFrF, aFluxF in zip(self.Focus_freqs_field, self.Focus_fluxes4s_field):
             self.Focus_fluxes_field.append(aFluxF*aFrF)
         polarNGSCoords     = np.asarray(polarNGSCoordsList)
         self.nNaturalGS_field  = len(self.LO_zen_field)
@@ -242,6 +243,9 @@ class baseSimulation(object):
         self.NGS_fluxes_asterism = []
         for iid in self.currentAsterismIndices:
             self.NGS_fluxes_asterism.append(self.NGS_fluxes_field[iid])
+        self.Focus_fluxes_asterism = []
+        for iid in self.currentAsterismIndices:
+            self.Focus_fluxes_asterism.append(self.Focus_fluxes_field[iid])
         self.cartNGSCoords_asterism = []
         for iid in self.currentAsterismIndices:
             self.cartNGSCoords_asterism.append(self.cartNGSCoords_field[iid])
@@ -673,7 +677,10 @@ class baseSimulation(object):
         self.penalty, self.sr, self.fwhm, self.ee = [], [], [], []
         if len(self.results) == 0:
             if self.LOisOn:
-                self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
+                if self.addFocusError and not self.GFinPSD:
+                    self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) + self.GF_res**2 ) )
+                else:
+                    self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
             else:
                 self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
             self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvl*1e9)**2) )
@@ -684,7 +691,10 @@ class baseSimulation(object):
         else:
             for idx, HO_res in enumerate(cpuArray(self.HO_res)):
                 if self.LOisOn:
-                    self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 ) )
+                    if self.addFocusError and not self.GFinPSD:
+                        self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 + self.GF_res**2) )
+                    else:
+                        self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 ) )
                 else:
                     self.penalty.append( HO_res )
             if self.verbose:
@@ -810,8 +820,8 @@ class baseSimulation(object):
 
                     # compute focus error
                     self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
-                                                                         self.Focus_freqs_field,
-                                                                         self.Focus_SR_field, self.Focus_EE_field, self.Focus_FWHM_mas_field)
+                                                                         self.Focus_freqs_field, self.Focus_SR_field,
+                                                                         self.Focus_EE_field, self.Focus_FWHM_mas_field)
 
                     self.GF_res = np.sqrt(self.CtotFocus[0])
 
@@ -820,39 +830,41 @@ class baseSimulation(object):
                     FocusFilter *= 1/FocusFilter.sum()
                     for PSDho in self.PSD:
                         PSDho += self.GF_res**2 * FocusFilter
+                    self.GFinPSD = True
                 # ---------------------------------------------------------------------
-            else:
-                self.NGS_SR_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_SR_asterism.append(self.NGS_SR_field[iid])
-                self.NGS_FWHM_mas_asterism = []
-                for iid in self.currentAsterismIndices:
-                    self.NGS_FWHM_mas_asterism.append(self.NGS_FWHM_mas_field[iid])
+            else:                  
                 if self.firstSimCall:
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                        self.LO_freqs_field,
-                                                        self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+                                                        self.LO_freqs_field, self.NGS_SR_field,
+                                                        self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+                    if self.addFocusError:
+                        self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
+                                                                 self.Focus_freqs_field, self.Focus_SR_field,
+                                                                 self.Focus_EE_field, self.Focus_FWHM_mas_field)
 
                 # discard guide stars with flux less than 1 photon per frame per subaperture
                 if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
                     valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
                     self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
+                    self.Focus_fluxes_asterism = [elem for i, elem in enumerate(self.Focus_fluxes_asterism) if i in valid_indices]
                     self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
-                    self.NGS_SR_asterism = [elem for i, elem in enumerate(self.NGS_SR_asterism) if i in valid_indices]
-                    self.NGS_EE_field = [elem for i, elem in enumerate(self.NGS_EE_field) if i in valid_indices]
-                    self.NGS_FWHM_mas_asterism = [elem for i, elem in enumerate(self.NGS_FWHM_mas_asterism) if i in valid_indices]
-                    self.LO_freqs_asterism = [elem for i, elem in enumerate(self.LO_freqs_asterism) if i in valid_indices]
                     self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
 
                 self.Ctot  = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
                                                                   np.array(self.cartSciencePointingCoords),
-                                                                  np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism,
-                                                                  self.LO_freqs_asterism, self.NGS_SR_asterism,
-                                                                  self.NGS_EE_field, self.NGS_FWHM_mas_asterism)
-                #TODO add self.CtotFocus and self.GF_res computation for the i-th asterism
-                #if self.addFocusError:
-                #    ...
+                                                                  np.array(self.cartNGSCoords_asterism),
+                                                                  self.NGS_fluxes_asterism)
+                
+                # --------------------------------------------------------------------
+                # --- optional total focus covariance matrix Ctot
+                if self.addFocusError:
+                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrixI(self.currentAsterismIndices,
+                                                                         np.array(self.cartNGSCoords_asterism),
+                                                                         self.Focus_fluxes_asterism)
+                    self.GF_res = np.sqrt(self.CtotFocus[0])
+                    self.GFinPSD = False
+                # ---------------------------------------------------------------------
 
             # ------------------------------------------------------------------------
             ## computation of the LO error (this changes for each asterism)
