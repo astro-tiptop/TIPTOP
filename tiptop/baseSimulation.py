@@ -146,11 +146,13 @@ class baseSimulation(object):
                        PSF for the first wavelength of the list',wvl_temp,'.')
         else:
             self.wvl = wvl_temp     # lambda
+
         self.zenithSrc  = self.my_data_map['sources_science']['Zenith']
         self.azimuthSrc = self.my_data_map['sources_science']['Azimuth']
         self.pointings = polarToCartesian(np.array( [self.zenithSrc, self.azimuthSrc]))
         self.xxSciencePointigs         = self.pointings[0,:]
         self.yySciencePointigs         = self.pointings[1,:]
+        self.psInMas = self.my_data_map['sensor_science']['PixelScale']
         # it checks if LO parameters are set and then it acts accordingly
         if 'sensor_LO' in self.my_data_map.keys():
             self.LOisOn = True
@@ -783,7 +785,6 @@ class baseSimulation(object):
             self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
             # Define the pupil shape
             self.mask = Field(self.wvl, self.N, self.grid_diameter)
-            self.psInMas = self.fao.my_data_map['sensor_science']['PixelScale']
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
             # error messages for wrong pixel size
