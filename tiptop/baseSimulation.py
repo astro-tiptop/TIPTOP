@@ -76,7 +76,7 @@ class baseSimulation(object):
                 self.my_data_map[section] = {}
                 for name,value in config.items(section):
                     self.my_data_map[section].update({name:eval(value)})
-            
+
             #Verify the presence of parameters called in TIPTOP before they are verified 
             #in P3 or in MASTSEL
             if not self.check_section_key('telescope'):
@@ -133,7 +133,7 @@ class baseSimulation(object):
                     self.raiseMissingRequiredSec('RTC')
                 elif not self.check_config_key('RTC', 'SensorFrameRate_LO'):
                     self.raiseMissingRequiredOpt('RTC', 'SensorFrameRate_LO')
-            
+
         else:
             raise FileNotFoundError('No .yml or .ini can be found in '+ self.path)
 
@@ -159,12 +159,12 @@ class baseSimulation(object):
             self.LOisOn = False
             self.nNaturalGS_field = 0
             if self.verbose: print('LO part is not present')
-            
+
         # initialize self.jitter_FWHM variable with a default value
         self.jitter_FWHM = None
         if 'jitter_FWHM' in self.my_data_map['telescope'].keys():
             self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']  
-            
+
         self.addFocusError = self.my_data_map['telescope']['glFocusOnNGS']
         self.GFinPSD = False
         if (not self.check_section_key('sensor_Focus')) and self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
@@ -192,7 +192,10 @@ class baseSimulation(object):
         if self.check_section_key('sensor_Focus'):
             self.Focus_fluxes4s_field = self.my_data_map['sensor_Focus']['NumberPhotons']
             self.Focus_psInMas         = self.my_data_map['sensor_Focus']['PixelScale']
-            Focus_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
+            if self.check_section_key('sources_Focus'):
+                Focus_wvl_temp = self.my_data_map['sources_Focus']['Wavelength']
+            else:
+                Focus_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
             if isinstance(Focus_wvl_temp, list):
                 self.Focus_wvl = Focus_wvl_temp[0]  # lambda
             else:
@@ -503,6 +506,7 @@ class baseSimulation(object):
         # PSD and sub-aperture mask for NGS directions
         PSD_NGS = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
         k  = np.sqrt(self.fao.freq.k2_)
+
         # Define the LO sub-aperture shape
         nSA = self.my_data_map['sensor_LO']['NumberLenslets']
         pupilSidePix = int(self.fao.ao.tel.pupil.shape[0])
@@ -517,16 +521,18 @@ class baseSimulation(object):
             saSidePix = int(pupilSidePix/nSA[i])
             if nSA[i] == 1:
                 # LO mask
+                maskLO = Field(self.LO_wvl, self.N, self.grid_diameter)
+                maskLO.sampling = self.mask.sampling
                 if nMaskLO > 1:
-                    self.maskLO.append(self.mask)
+                    self.maskLO.append(maskLO)
                 else:
-                    self.maskLO = self.mask
+                    self.maskLO = maskLO
             else:
                 # piston filter for the sub-aperture size
                 pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
                 PSD_NGS[i] = PSD_NGS[i] * pf
                 # LO mask
-                maskLO = Field(self.wvl, self.N, self.grid_diameter)
+                maskLO = Field(self.LO_wvl, self.N, self.grid_diameter)
                 if nSA[i] == 2:
                     saMask[0:saSidePix,0:saSidePix] = 1
                     saMask *= cpuArray(self.fao.ao.tel.pupil)
@@ -558,7 +564,7 @@ class baseSimulation(object):
                                                                    self.maskLO,
                                                                    PSD_NGS,
                                                                    self.LO_wvl,
-                                                                   self.psInMas[0],
+                                                                   self.LO_PSFsInMas,
                                                                    self.nPixPSF,
                                                                    scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
                                                                    oversampling=self.oversampling)
@@ -570,7 +576,7 @@ class baseSimulation(object):
         self.NGS_EE_field           = []
         idx = 0
         for img in psfLE_NGS:
-            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0],
+            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.LO_PSFsInMas,
                                          center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
             ee_ *= 1/np.max(ee_)
             ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
@@ -591,6 +597,7 @@ class baseSimulation(object):
                 ## PSD and sub-aperture mask for NGS directions
                 nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
                 PSD_Focus = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
+
                 if len(nSAfocus) == self.nNaturalGS_field:
                     self.maskFocus = []
                     nMaskFocus = self.nNaturalGS_field
@@ -599,38 +606,31 @@ class baseSimulation(object):
                 for i in range(nMaskFocus):
                     saSideM = 2*self.tel_radius/nSAfocus[i]
                     saSidePix = int(pupilSidePix/nSAfocus[i])
-                    if nSAfocus[i] == 1:
-                        # LO mask
-                        if nMaskFocus > 1:
-                            self.maskFocus.append(self.mask)
-                        else:
-                            self.maskFocus = self.mask
+                    ## -----------------------------------------------------------------
+                    # --- piston filter for the sub-aperture size
+                    pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAfocus[i],k)
+                    PSD_Focus[i] = PSD_Focus[i] * pf
+                    ## -----------------------------------------------------------------
+                    # Focus mask
+                    maskFocus = Field(self.Focus_wvl, self.N, self.grid_diameter)
+                    if nSAfocus[i] == 2:
+                        saMask[0:saSidePix,0:saSidePix] = 1
+                        saMask *= cpuArray(self.fao.ao.tel.pupil)
+                    elif nSAfocus[i] == 3:
+                        saMask[0:saSidePix,int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                        saMask *= cpuArray(self.fao.ao.tel.pupil)
                     else:
-                        ## -----------------------------------------------------------------
-                        # --- piston filter for the sub-aperture size
-                        pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAfocus[i],k)
-                        PSD_Focus[i] = PSD_Focus[i] * pf
-                        ## -----------------------------------------------------------------
-                        # Focus mask
-                        maskFocus = Field(self.wvl, self.N, self.grid_diameter)
-                        if nSAfocus[i] == 2:
-                            saMask[0:saSidePix,0:saSidePix] = 1
-                            saMask *= cpuArray(self.fao.ao.tel.pupil)
-                        elif nSAfocus[i] == 3:
-                            saMask[0:saSidePix,int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
-                            saMask *= cpuArray(self.fao.ao.tel.pupil)
-                        else:
-                            saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
-                                   int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
-                        if gpuMastsel:
-                            maskFocus.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
-                        else:
-                            maskFocus.sampling = congrid(saMask, [self.sx, self.sx])
-                        maskFocus.sampling = zeroPad(maskFocus.sampling, (self.N-self.sx)//2)
-                        if nMaskFocus > 1:
-                            self.maskFocus.append(maskFocus)
-                        else:
-                            self.maskFocus = maskFocus
+                        saMask[int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2),\
+                               int(pupilSidePix/2-saSidePix/2):int(pupilSidePix/2+saSidePix/2)] = 1
+                    if gpuMastsel:
+                        maskFocus.sampling = congrid(cp.asarray(saMask), [self.sx, self.sx])
+                    else:
+                        maskFocus.sampling = congrid(saMask, [self.sx, self.sx])
+                    maskFocus.sampling = zeroPad(maskFocus.sampling, (self.N-self.sx)//2)
+                    if nMaskFocus > 1:
+                        self.maskFocus.append(maskFocus)
+                    else:
+                        self.maskFocus = maskFocus
 
                 # -----------------------------------------------------------------
                 ## PSF for NGS directions
@@ -644,7 +644,7 @@ class baseSimulation(object):
                                                                            self.maskFocus,
                                                                            PSD_Focus,
                                                                            self.Focus_wvl,
-                                                                           self.psInMas[0],
+                                                                           self.Focus_PSFsInMas,
                                                                            self.nPixPSF,
                                                                            scaleFactor=(2*np.pi*1e-9/self.Focus_wvl)**2,
                                                                            oversampling=self.oversampling)
@@ -656,7 +656,8 @@ class baseSimulation(object):
                 self.Focus_EE_field         = []
                 idx = 0
                 for img in psfLE_NGS:
-                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas[0], center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.Focus_PSFsInMas,
+                                                 center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
                     ee_ *= 1/np.max(ee_)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     # max is used to compute EE on at least a radius of one pixel
@@ -757,14 +758,18 @@ class baseSimulation(object):
                 self.oversampling = self.fao.freq.k_[0]
             else:
                 self.oversampling  = self.fao.freq.k_
-            self.freq_range    = self.fao.ao.cam.fovInPix*self.fao.freq.PSDstep*self.oversampling
+
+            self.freq_range    = self.N*self.fao.freq.PSDstep
             self.pitch         = 1/self.freq_range
             self.grid_diameter = self.pitch*self.N
             self.sx            = int(2*np.round(self.tel_radius/self.pitch))
+            # This dk is the same used in p3.aoSystem.powerSpectrumDensity except a 2x and multiplied by 1e9
             self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
             # Define the pupil shape
             self.mask = Field(self.wvl, self.N, self.grid_diameter)
             self.psInMas = cpuArray(self.fao.freq.psInMas)
+            self.LO_PSFsInMas = cpuArray(self.fao.freq.psInMas[0]*self.LO_wvl/self.wvl)
+            self.Focus_PSFsInMas = cpuArray(self.fao.freq.psInMas[0]*self.Focus_wvl/self.wvl)
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
 
@@ -812,7 +817,8 @@ class baseSimulation(object):
                 self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                                          self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=True)
+                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field,
+                                                                         doAll=True)
 
                 # --------------------------------------------------------------------
                 # --- optional total focus covariance matrix Ctot
@@ -837,7 +843,8 @@ class baseSimulation(object):
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                         self.LO_freqs_field, self.NGS_SR_field,
-                                                        self.NGS_EE_field, self.NGS_FWHM_mas_field, doAll=False)
+                                                        self.NGS_EE_field, self.NGS_FWHM_mas_field,
+                                                        doAll=False)
                     if self.addFocusError:
                         self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
                                                                  self.Focus_freqs_field, self.Focus_SR_field,
