@@ -146,7 +146,6 @@ class baseSimulation(object):
                        PSF for the first wavelength of the list',wvl_temp,'.')
         else:
             self.wvl = wvl_temp     # lambda
-
         self.zenithSrc  = self.my_data_map['sources_science']['Zenith']
         self.azimuthSrc = self.my_data_map['sources_science']['Azimuth']
         self.pointings = polarToCartesian(np.array( [self.zenithSrc, self.azimuthSrc]))
