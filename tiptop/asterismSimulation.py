@@ -227,14 +227,16 @@ class asterismSimulation(baseSimulation):
         self.currentFieldsSourcesData['Azimuth'].append(source[1])
         self.currentFieldsSourcesData['NumberPhotons'].append(source[2])
         self.currentFieldsSourcesData['Frequencies'].append(source[3])
-        if 'scalePhotonsFocus' in self.my_data_map['ASTERISM_SELECTION'].keys():
-            self.currentFieldsSourcesData['NumberPhotonsFocus'].append(source[2]*self.my_data_map['ASTERISM_SELECTION']['scalePhotonsFocus'])
-        else:
-            self.currentFieldsSourcesData['NumberPhotonsFocus'].append(source[2])
         if 'scaleFrequenciesFocus' in self.my_data_map['ASTERISM_SELECTION'].keys():
-            self.currentFieldsSourcesData['FrequenciesFocus'].append(source[3]*self.my_data_map['ASTERISM_SELECTION']['scaleFrequenciesFocus'])
+            frf = source[3]*self.my_data_map['ASTERISM_SELECTION']['scaleFrequenciesFocus']
         else:
-            self.currentFieldsSourcesData['FrequenciesFocus'].append(source[3])
+            frf = source[3]
+        # photon per frame considering focus sensor framerate
+        phf = source[2]*source[3]/frf
+        if 'scalePhotonsFocus' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            phf *= self.my_data_map['ASTERISM_SELECTION']['scalePhotonsFocus']
+        self.currentFieldsSourcesData['NumberPhotonsFocus'].append(phf)
+        self.currentFieldsSourcesData['FrequenciesFocus'].append(frf)
 
     def updateAsterismIndices(self, all_combos, number_of_asterisms, number_of_stars):
         self.allAsterismsIndices.extend(all_combos)
