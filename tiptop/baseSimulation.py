@@ -182,31 +182,35 @@ class baseSimulation(object):
         else:
             self.LO_wvl = LO_wvl_temp     # lambda
 
-        self.LO_psInMas      = self.my_data_map['sensor_LO']['PixelScale']
-        self.LO_zen_field    = self.my_data_map['sources_LO']['Zenith']
-        self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
-        self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
-        self.LO_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_LO']
+        self.LO_psInMas         = self.my_data_map['sensor_LO']['PixelScale']
+        self.LO_zen_field       = self.my_data_map['sources_LO']['Zenith']
+        self.LO_az_field        = self.my_data_map['sources_LO']['Azimuth']
+        self.LO_fluxes_field    = self.my_data_map['sensor_LO']['NumberPhotons']
+        self.LO_freqs_field     = self.my_data_map['RTC']['SensorFrameRate_LO']
         if not isinstance(self.LO_freqs_field, list):
-            self.LO_freqs_field  = [self.LO_freqs_field] * len(self.LO_zen_field)
+            self.LO_freqs_field = [self.LO_freqs_field] * len(self.LO_zen_field)
+        if self.check_config_key('sensor_LO','addAliasError'):
+            self.addLoAlias     = self.my_data_map['sensor_LO']['addAliasError']
+        else:
+            self.addLoAlias     = False
 
         if self.check_section_key('sensor_Focus'):
-            self.Focus_fluxes4s_field = self.my_data_map['sensor_Focus']['NumberPhotons']
-            self.Focus_psInMas         = self.my_data_map['sensor_Focus']['PixelScale']
+            self.Focus_fluxes4s_field   = self.my_data_map['sensor_Focus']['NumberPhotons']
+            self.Focus_psInMas          = self.my_data_map['sensor_Focus']['PixelScale']
             if self.check_section_key('sources_Focus'):
-                Focus_wvl_temp = self.my_data_map['sources_Focus']['Wavelength']
+                Focus_wvl_temp          = self.my_data_map['sources_Focus']['Wavelength']
             else:
-                Focus_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
+                Focus_wvl_temp          = self.my_data_map['sources_LO']['Wavelength']
             if isinstance(Focus_wvl_temp, list):
-                self.Focus_wvl = Focus_wvl_temp[0]  # lambda
+                self.Focus_wvl          = Focus_wvl_temp[0]  # lambda
             else:
-                self.Focus_wvl = Focus_wvl_temp     # lambda
+                self.Focus_wvl          = Focus_wvl_temp     # lambda
         else:
-            self.Focus_fluxes4s_field = self.LO_fluxes_field
-            self.Focus_psInMas         = self.LO_psInMas
-            self.Focus_wvl             = self.LO_wvl
+            self.Focus_fluxes4s_field   = self.LO_fluxes_field
+            self.Focus_psInMas          = self.LO_psInMas
+            self.Focus_wvl              = self.LO_wvl
         if self.check_config_key('RTC','SensorFrameRate_Focus'):
-            self.Focus_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_Focus']
+            self.Focus_freqs_field      = self.my_data_map['RTC']['SensorFrameRate_Focus']
             if not isinstance(self.Focus_freqs_field, list):
                 self.Focus_freqs_field  = [self.Focus_freqs_field] * len(self.LO_zen_field)
         else:
@@ -220,8 +224,8 @@ class baseSimulation(object):
         self.Focus_fluxes_field = []
         for aFrF, aFluxF in zip(self.Focus_freqs_field, self.Focus_fluxes4s_field):
             self.Focus_fluxes_field.append(aFluxF*aFrF)
-        polarNGSCoords     = np.asarray(polarNGSCoordsList)
-        self.nNaturalGS_field  = len(self.LO_zen_field)
+        polarNGSCoords = np.asarray(polarNGSCoordsList)
+        self.nNaturalGS_field = len(self.LO_zen_field)
         cartNGSCoordsList = []
         for i in range(self.nNaturalGS_field):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
@@ -596,6 +600,20 @@ class baseSimulation(object):
                 print('EE                   :', "%.5f" % ee_NGS)
             idx += 1
 
+        if self.addLoAlias:
+            if self.verbose:
+                print('Adding aliasing error on LO!')
+            # DIFFRACTION LIMITED PSD and PSF
+            psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
+            if isinstance(self.maskLO, list):
+                psfNgsDL = longExposurePsf(self.maskLO[0], psdDL)
+            else:
+                psfNgsDL = longExposurePsf(self.maskLO, psdDL)
+            FWHMx,FWHMy  = getFWHM( psfNgsDL.sampling, self.LO_PSFsInMas, method='contour', nargout=2)
+            self.NGS_DL_FWHM_mas = np.sqrt(FWHMx*FWHMy)
+        else:
+            self.NGS_DL_FWHM_mas = None
+
         # -----------------------------------------------------------------
         # optional Focus error
         if self.addFocusError:
@@ -836,7 +854,7 @@ class baseSimulation(object):
                                                                          self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                                          self.LO_freqs_field,
                                                                          self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field,
-                                                                         doAll=True)
+                                                                         aNGS_FWHM_DL_mas = self.NGS_DL_FWHM_mas, doAll=True)
 
                 # --------------------------------------------------------------------
                 # --- optional total focus covariance matrix Ctot
@@ -847,13 +865,17 @@ class baseSimulation(object):
                                                                          self.Focus_freqs_field, self.Focus_SR_field,
                                                                          self.Focus_EE_field, self.Focus_FWHM_mas_field)
 
-                    self.GF_res = np.sqrt(self.CtotFocus[0])
+                    if self.CtotFocus[0] > 0:
+                        self.GF_res = np.sqrt(self.CtotFocus[0])
+                        # add focus error to PSD using P3 FocusFilter
+                        FocusFilter = self.fao.FocusFilter()
+                        FocusFilter *= 1/FocusFilter.sum()
+                        for PSDho in self.PSD:
+                            PSDho += self.GF_res**2 * FocusFilter
+                    else:
+                        self.GF_res = 0
 
-                    # add focus error to PSD using P3 FocusFilter
-                    FocusFilter = self.fao.FocusFilter()
-                    FocusFilter *= 1/FocusFilter.sum()
-                    for PSDho in self.PSD:
-                        PSDho += self.GF_res**2 * FocusFilter
+
                     self.GFinPSD = True
                 # ---------------------------------------------------------------------
             else:                  
@@ -862,7 +884,7 @@ class baseSimulation(object):
                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
                                                         self.LO_freqs_field, self.NGS_SR_field,
                                                         self.NGS_EE_field, self.NGS_FWHM_mas_field,
-                                                        doAll=False)
+                                                        aNGS_FWHM_DL_mas = self.NGS_DL_FWHM_mas, doAll=False)
                     if self.addFocusError:
                         self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
                                                                  self.Focus_freqs_field, self.Focus_SR_field,
@@ -887,7 +909,10 @@ class baseSimulation(object):
                     self.CtotFocus = self.mLO.computeFocusTotalResidualMatrixI(self.currentAsterismIndices,
                                                                          np.array(self.cartNGSCoords_asterism),
                                                                          self.Focus_fluxes_asterism)
-                    self.GF_res = np.sqrt(self.CtotFocus[0])
+                    if self.CtotFocus[0] > 0:
+                        self.GF_res = np.sqrt(self.CtotFocus[0])
+                    else:
+                        self.GF_res = 0
                     self.GFinPSD = False
                 # ---------------------------------------------------------------------
 
