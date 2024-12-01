@@ -448,6 +448,8 @@ class asterismSimulation(baseSimulation):
         if 'freqRule' in self.my_data_map['ASTERISM_SELECTION'].keys():
             if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO':
                 return 400.0/(1+np.exp((m-18.0)*2.5)) + 100.0
+            if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO_FA':
+                return 400.0/(1+np.exp((m-19.0)*2.5)) + 100.0
         else:
             if self.isMono:
                 return self.freqFromMagnitudeERIS(m)
@@ -571,7 +573,7 @@ class asterismSimulation(baseSimulation):
             freqs = self.freqsFromMagnitudes(mm)
             if 'flux'+b+'0' in self.my_data_map['ASTERISM_SELECTION'].keys():
                 if np.min(mm) == 0:
-                    mm[np.where(mm == 0)] = 30
+                    mm[np.where(mm == 0)] = 100
                 fluxes += np.asarray(self.fluxFromMagnitude(mm, b)* self.fluxScaling / np.asarray(freqs)) + 1e-3
             else:
                 ff = self.asterismsRecArray[i][j]['FLUX' + b]
