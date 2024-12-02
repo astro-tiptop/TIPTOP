@@ -865,17 +865,12 @@ class baseSimulation(object):
                                                                          self.Focus_freqs_field, self.Focus_SR_field,
                                                                          self.Focus_EE_field, self.Focus_FWHM_mas_field)
 
-                    if self.CtotFocus[0] > 0:
-                        self.GF_res = np.sqrt(self.CtotFocus[0])
-                        # add focus error to PSD using P3 FocusFilter
-                        FocusFilter = self.fao.FocusFilter()
-                        FocusFilter *= 1/FocusFilter.sum()
-                        for PSDho in self.PSD:
-                            PSDho += self.GF_res**2 * FocusFilter
-                    else:
-                        self.GF_res = 0
-
-
+                    self.GF_res = np.sqrt(max(self.CtotFocus[0], 0))
+                    # add focus error to PSD using P3 FocusFilter
+                    FocusFilter = self.fao.FocusFilter()
+                    FocusFilter *= 1/FocusFilter.sum()
+                    for PSDho in self.PSD:
+                        PSDho += self.GF_res**2 * FocusFilter
                     self.GFinPSD = True
                 # ---------------------------------------------------------------------
             else:                  
@@ -909,10 +904,7 @@ class baseSimulation(object):
                     self.CtotFocus = self.mLO.computeFocusTotalResidualMatrixI(self.currentAsterismIndices,
                                                                          np.array(self.cartNGSCoords_asterism),
                                                                          self.Focus_fluxes_asterism)
-                    if self.CtotFocus[0] > 0:
-                        self.GF_res = np.sqrt(self.CtotFocus[0])
-                    else:
-                        self.GF_res = 0
+                    self.GF_res = np.sqrt(max(self.CtotFocus[0], 0))
                     self.GFinPSD = False
                 # ---------------------------------------------------------------------
 
