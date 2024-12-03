@@ -847,8 +847,7 @@ class baseSimulation(object):
                                                                          self.Focus_freqs_field, self.Focus_SR_field,
                                                                          self.Focus_EE_field, self.Focus_FWHM_mas_field)
 
-                    self.GF_res = np.sqrt(self.CtotFocus[0])
-
+                    self.GF_res = np.sqrt(max(self.CtotFocus[0], 0))
                     # add focus error to PSD using P3 FocusFilter
                     FocusFilter = self.fao.FocusFilter()
                     FocusFilter *= 1/FocusFilter.sum()
@@ -887,7 +886,7 @@ class baseSimulation(object):
                     self.CtotFocus = self.mLO.computeFocusTotalResidualMatrixI(self.currentAsterismIndices,
                                                                          np.array(self.cartNGSCoords_asterism),
                                                                          self.Focus_fluxes_asterism)
-                    self.GF_res = np.sqrt(self.CtotFocus[0])
+                    self.GF_res = np.sqrt(max(self.CtotFocus[0], 0))
                     self.GFinPSD = False
                 # ---------------------------------------------------------------------
 
