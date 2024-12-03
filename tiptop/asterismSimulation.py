@@ -218,6 +218,8 @@ class asterismSimulation(baseSimulation):
         self.currentFieldsSourcesData['Azimuth'] = []
         self.currentFieldsSourcesData['NumberPhotons'] = []
         self.currentFieldsSourcesData['Frequencies'] = []
+        self.currentFieldsSourcesData['NumberPhotonsFocus'] = []
+        self.currentFieldsSourcesData['FrequenciesFocus'] = []
         self.currentFieldAsterismsIndices = []
 
     def appendSource(self, source):
@@ -225,6 +227,16 @@ class asterismSimulation(baseSimulation):
         self.currentFieldsSourcesData['Azimuth'].append(source[1])
         self.currentFieldsSourcesData['NumberPhotons'].append(source[2])
         self.currentFieldsSourcesData['Frequencies'].append(source[3])
+        if 'scaleFrequenciesFocus' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            frf = source[3]*self.my_data_map['ASTERISM_SELECTION']['scaleFrequenciesFocus']
+        else:
+            frf = source[3]
+        # photon per frame considering focus sensor framerate
+        phf = source[2]*source[3]/frf
+        if 'scalePhotonsFocus' in self.my_data_map['ASTERISM_SELECTION'].keys():
+            phf *= self.my_data_map['ASTERISM_SELECTION']['scalePhotonsFocus']
+        self.currentFieldsSourcesData['NumberPhotonsFocus'].append(phf)
+        self.currentFieldsSourcesData['FrequenciesFocus'].append(frf)
 
     def updateAsterismIndices(self, all_combos, number_of_asterisms, number_of_stars):
         self.allAsterismsIndices.extend(all_combos)
@@ -294,57 +306,60 @@ class asterismSimulation(baseSimulation):
         if self.firstConfigCall:
             self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
             # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
-            LO_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
+            LO_wvl_temp     = self.my_data_map['sources_LO']['Wavelength']
             if isinstance(LO_wvl_temp, list):
                 self.LO_wvl = LO_wvl_temp[0]  # lambda
             else:
                 self.LO_wvl = LO_wvl_temp     # lambda
                 
-            self.my_data_map['sources_LO']['Zenith'] = self.currentFieldsSourcesData['Zenith']
-            self.my_data_map['sources_LO']['Azimuth'] = self.currentFieldsSourcesData['Azimuth']
+            self.my_data_map['sources_LO']['Zenith']       = self.currentFieldsSourcesData['Zenith']
+            self.my_data_map['sources_LO']['Azimuth']      = self.currentFieldsSourcesData['Azimuth']
             self.my_data_map['sensor_LO']['NumberPhotons'] = self.currentFieldsSourcesData['NumberPhotons']
-            self.my_data_map['RTC']['SensorFrameRate_LO'] = self.currentFieldsSourcesData['Frequencies']
+            self.my_data_map['RTC']['SensorFrameRate_LO']  = self.currentFieldsSourcesData['Frequencies']
             
-            self.LO_psInMas      = self.my_data_map['sensor_LO']['PixelScale']
-            self.LO_zen_field    = self.my_data_map['sources_LO']['Zenith']
-            self.LO_az_field     = self.my_data_map['sources_LO']['Azimuth']
-            self.LO_fluxes_field = self.my_data_map['sensor_LO']['NumberPhotons']
-            self.LO_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_LO']
+            self.LO_psInMas                = self.my_data_map['sensor_LO']['PixelScale']
+            self.LO_zen_field              = self.my_data_map['sources_LO']['Zenith']
+            self.LO_az_field               = self.my_data_map['sources_LO']['Azimuth']
+            self.LO_fluxes_field           = self.my_data_map['sensor_LO']['NumberPhotons']
+            self.LO_freqs_field            = self.my_data_map['RTC']['SensorFrameRate_LO']
+            if self.check_config_key('sensor_LO','addAliasError'):
+                self.addLoAlias            = self.my_data_map['sensor_LO']['addAliasError']
+            else:
+                self.addLoAlias            = False
 
             if self.check_section_key('sensor_Focus'):
-                self.Focus_fluxes4s_field = self.my_data_map['sensor_Focus']['NumberPhotons']
+                self.Focus_fluxes4s_field  = self.currentFieldsSourcesData['NumberPhotonsFocus']
+                self.Focus_freqs_field     = self.currentFieldsSourcesData['FrequenciesFocus']
                 self.Focus_psInMas         = self.my_data_map['sensor_Focus']['PixelScale']
-                Focus_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
-                if isinstance(Focus_wvl_temp, list):
-                    self.Focus_wvl = Focus_wvl_temp[0]  # lambda
+                if self.check_section_key('sources_Focus'):
+                    Focus_wvl_temp         = self.my_data_map['sources_Focus']['Wavelength']
                 else:
-                    self.Focus_wvl = Focus_wvl_temp     # lambda
+                    Focus_wvl_temp         = self.my_data_map['sources_LO']['Wavelength']
+                if isinstance(Focus_wvl_temp, list):
+                    self.Focus_wvl         = Focus_wvl_temp[0]  # lambda
+                else:
+                    self.Focus_wvl         = Focus_wvl_temp     # lambda
             else:
-                self.Focus_fluxes4s_field = self.LO_fluxes_field
+                self.Focus_fluxes4s_field  = self.LO_fluxes_field
                 self.Focus_psInMas         = self.LO_psInMas
                 self.Focus_wvl             = self.LO_wvl
-            if self.check_config_key('RTC','SensorFrameRate_Focus'):
-                self.Focus_freqs_field  = self.my_data_map['RTC']['SensorFrameRate_Focus']
-                if not isinstance(self.Focus_freqs_field, list):
-                    self.Focus_freqs_field  = [self.Focus_freqs_field] * len(self.LO_zen_field)
-            else:
-                self.Focus_freqs_field = self.LO_freqs_field
-        
-            self.NGS_fluxes_field = []
-            polarNGSCoordsList = []
+                self.Focus_freqs_field     = self.LO_freqs_field
+
+            self.NGS_fluxes_field    = []
+            polarNGSCoordsList       = []
             for aFr, aFlux, aZen, aAz in zip(self.LO_freqs_field, self.LO_fluxes_field, self.LO_zen_field, self.LO_az_field):
                 polarNGSCoordsList.append([aZen, aAz])
                 self.NGS_fluxes_field.append(aFlux*aFr)
-            self.Focus_fluxes_field = []
+            self.Focus_fluxes_field  = []
             for aFrF, aFluxF in zip(self.Focus_freqs_field, self.Focus_fluxes4s_field):
                 self.Focus_fluxes_field.append(aFluxF*aFrF)
-            polarNGSCoords     = np.asarray(polarNGSCoordsList)
-            self.nNaturalGS_field  = len(self.LO_zen_field)
-            cartNGSCoordsList = []
+            polarNGSCoords           = np.asarray(polarNGSCoordsList)
+            self.nNaturalGS_field    = len(self.LO_zen_field)
+            cartNGSCoordsList        = []
             for i in range(self.nNaturalGS_field):
                 cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
             self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)
-        self.currentAsterismIndices = self.currentFieldAsterismsIndices[astIndex]
+        self.currentAsterismIndices  = self.currentFieldAsterismsIndices[astIndex]
         super().setAsterismData()
         self.firstConfigCall = False
 
@@ -433,6 +448,8 @@ class asterismSimulation(baseSimulation):
         if 'freqRule' in self.my_data_map['ASTERISM_SELECTION'].keys():
             if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO':
                 return 400.0/(1+np.exp((m-18.0)*2.5)) + 100.0
+            if self.my_data_map['ASTERISM_SELECTION']['freqRule'] == 'MORFEO_FA':
+                return 400.0/(1+np.exp((m-19.0)*2.5)) + 100.0
         else:
             if self.isMono:
                 return self.freqFromMagnitudeERIS(m)
@@ -556,7 +573,7 @@ class asterismSimulation(baseSimulation):
             freqs = self.freqsFromMagnitudes(mm)
             if 'flux'+b+'0' in self.my_data_map['ASTERISM_SELECTION'].keys():
                 if np.min(mm) == 0:
-                    mm[np.where(mm == 0)] = 30
+                    mm[np.where(mm == 0)] = 100
                 fluxes += np.asarray(self.fluxFromMagnitude(mm, b)* self.fluxScaling / np.asarray(freqs)) + 1e-3
             else:
                 ff = self.asterismsRecArray[i][j]['FLUX' + b]
