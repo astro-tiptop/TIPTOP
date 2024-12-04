@@ -190,3 +190,19 @@ def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, ou
                                     doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
     simulation.reloadResults()
     return simulation.strehl_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
+
+
+def generateHeuristicModel(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doTest=True,
+                      share = 0.9,
+                      eeRadiusInMas=50):
+    
+    sr, fw, ee, covs, simul = asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doConvolve=False)
+    
+    sr, fw, ee, covs, simul = reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=doPlot)
+    
+    simul.fitHeuristicModel(0, int(share*simul.nfields), parametersFile.split('.')[0]+'_hmodel')
+    
+    if doTest:
+        simul.testHeuristicModel(int(share*simul.nfields), simul.nfields-1, parametersFile.split('.')[0]+'_hmodel', [])
+    
+    return simul
