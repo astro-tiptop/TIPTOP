@@ -101,6 +101,7 @@ class asterismSimulation(baseSimulation):
             self.ObscurationRatio   = self.my_data_map['telescope']['ObscurationRatio']
             self.TelescopeDiameter  = self.my_data_map['telescope']['TelescopeDiameter']
             self.NumberLenslets     = self.my_data_map['sensor_LO']['NumberLenslets']
+            self.techFovRadius      = 0.5 * self.my_data_map['telescope']['TechnicalFoV']
             self.N_sa_tot_LO        = self.NumberLenslets[0]**2
             if self.NumberLenslets[0] > 2:
                 self.N_sa_tot_LO   = int ( np.floor( self.N_sa_tot_LO * np.pi/4.0 * (1.0 - self.ObscurationRatio**2) ) )
@@ -113,7 +114,6 @@ class asterismSimulation(baseSimulation):
             if self.asterismMode=='Sets':
                 self.generateFromList(listZ, listA, listP, listF)
             elif self.asterismMode[:7]=='Singles':
-                listF = [250] * 13
                 if self.asterismMode[7]=='3' or self.asterismMode[7]=='1':
                     nStars = len(self.my_data_map['ASTERISM_SELECTION']['Zenith'])
                     self.nNGS = int(self.asterismMode[7])                    
@@ -148,12 +148,12 @@ class asterismSimulation(baseSimulation):
                 self.isMono = self.asterismMode[-4:]=='Mono' or self.nNGS==1
                 if self.isMono:
                     self.magnitudesRange = [11,20]
-                    self.fovRange = [30,30]
+                    self.fovRange = [self.techFov,self.techFov]
                     self.minStars = 1
                     self.maxStars = 20
                 else:
                     self.magnitudesRange = [11,20]
-                    self.fovRange = [60,60]
+                    self.fovRange = [self.techFov,self.techFov]
                     self.minStars = 3
                     self.maxStars = 12
                 if self.asterismMode[4:10]=='Random':
@@ -280,7 +280,7 @@ class asterismSimulation(baseSimulation):
         all_combos = []
         setsList = []
         polarSetsList = []
-        for j in range(number_of_asterisms):
+        for j in self.techFov(number_of_asterisms):
             s_index = []
             for si in range(3):
                 pcoords = cartesianToPolar( np.asarray([xcoords[j][si], ycoords[j][si]]))
@@ -699,8 +699,7 @@ class asterismSimulation(baseSimulation):
                             pcoords = cartesianToPolar( np.asarray([xcoords[si], ycoords[si]] ) )
                             source = np.array([pcoords[0], pcoords[1], fluxes[si], freqs[si]])
                             s_index = self.sourceIsPresent(source)
-                            if s_index==-1 and np.abs(ccoords[0])<0.5*self.my_data_map['telescope']['TechnicalFoV'] and \
-                               np.abs(ccoords[1])<0.5*self.my_data_map['telescope']['TechnicalFoV']:
+                            if s_index==-1 and np.abs(ccoords[0])<self.techFovRadius and np.abs(ccoords[1])<self.techFovRadius:
                                 self.appendSource(source)
                                 asterism = np.vstack( [[xcoords[si]], [ycoords[si]], [fluxes[si]], [freqs[si]]] )
                                 pasterism = np.vstack( [ [pcoords[0]], [pcoords[1]], [fluxes[si]], [freqs[si]]] )
@@ -1375,7 +1374,7 @@ class asterismSimulation(baseSimulation):
         # Finalize plot
         ax.legend()
         ax.set_aspect('equal', adjustable='box')
-        xylim = 0.5*self.my_data_map['telescope']['TechnicalFoV']
+        xylim = self.techFovRadius
         ax.set_xlim([-xylim,xylim])
         ax.set_ylim([-xylim,xylim])
         cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
