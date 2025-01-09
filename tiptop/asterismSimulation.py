@@ -148,12 +148,12 @@ class asterismSimulation(baseSimulation):
                 self.isMono = self.asterismMode[-4:]=='Mono' or self.nNGS==1
                 if self.isMono:
                     self.magnitudesRange = [11,20]
-                    self.fovRange = [self.techFov,self.techFov]
+                    self.fovRange = [self.techFovRadius,self.techFovRadius]
                     self.minStars = 1
                     self.maxStars = 20
                 else:
                     self.magnitudesRange = [11,20]
-                    self.fovRange = [self.techFov,self.techFov]
+                    self.fovRange = [self.techFovRadius,self.techFovRadius]
                     self.minStars = 3
                     self.maxStars = 12
                 if self.asterismMode[4:10]=='Random':
