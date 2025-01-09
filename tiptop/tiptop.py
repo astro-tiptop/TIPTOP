@@ -1,6 +1,19 @@
 from .baseSimulation import *
 from .asterismSimulation import *
 
+
+def gpuSelect(gpuIndex):
+    if gpuMastsel or gpuP3:
+        import cupy as cp
+        max_index = cp.cuda.runtime.getDeviceCount() - 1
+        if gpuIndex <= max_index:
+            gpu_device = cp.cuda.Device(gpuIndex)
+            gpu_device.use()
+        else:
+            print('Trying to use GPU index ', gpuIndex, ' while max index allowed is ', max_index)
+            print('Defaulting to first GPU (index 0)')
+
+
 # def checkParameterFile(data2check):
 #     '''
 #     This function can be used to verify that the parameters in the parameter file 
@@ -62,7 +75,7 @@ from .asterismSimulation import *
 def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve=True,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
-                      eeRadiusInMas=50, savePSDs=False):
+                      eeRadiusInMas=50, savePSDs=False, gpuIndex=0):
     """
         function to run the entire tiptop simulation based on the input file
 
@@ -99,6 +112,9 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
         :rtype: TBD
 
     """
+
+    gpuSelect(gpuIndex)
+
     simulation = baseSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve,
                       doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, savePSDs, ensquaredEnergy,
                       eeRadiusInMas)
@@ -120,7 +136,7 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
                       eeRadiusInMas=50, doConvolve=False, plotInComputeAsterisms=False,
-                      progressStatus=False):
+                      progressStatus=False, gpuIndex=0):
 
     """
         function to run the entire tiptop asterism evaluation on the input file
@@ -155,11 +171,16 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
         :type plotInComputeAsterisms: bool
         :param progressStatus: optional default: False, If you want to display progress status.
         :type progressStatus: bool
+        :param progressStatus: optional default: 0, The index of the GPU that will be used to perform this computation, if in use.
+        :type progressStatus: int
 
         :return: TBD
         :rtype: TBD
 
     """
+
+    gpuSelect(gpuIndex)
+
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot, addSrAndFwhm, verbose, progressStatus=progressStatus)
 
@@ -185,7 +206,10 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
 def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
-                      eeRadiusInMas=50):
+                      eeRadiusInMas=50, gpuIndex=0):
+    
+    gpuSelect(gpuIndex)
+
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
                                     doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown)
     simulation.reloadResults()
@@ -193,13 +217,12 @@ def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, ou
 
 
 def generateHeuristicModel(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doTest=True,
-                      share = 0.9,
-                      eeRadiusInMas=50):
+                      share = 0.9, eeRadiusInMas=50, gpuIndex=0):
     
-    sr, fw, ee, covs, simul = asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doConvolve=False)
+    sr, fw, ee, covs, simul = asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doConvolve=False, gpuIndex=gpuIndex)
     
-    sr, fw, ee, covs, simul = reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=doPlot)
-    
+    sr, fw, ee, covs, simul = reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=doPlot, gpuIndex=gpuIndex)
+
     simul.fitHeuristicModel(0, int(share*simul.nfields), parametersFile.split('.')[0]+'_hmodel')
     
     if doTest:
