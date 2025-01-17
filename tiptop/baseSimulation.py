@@ -9,6 +9,8 @@ import matplotlib as mpl
 norm = mpl.colors.Normalize(vmin=0, vmax=1)
 rc("text", usetex=False)
 
+import json
+
 class baseSimulation(object):
     
     def raiseMissingRequiredOpt(self,sec,opt):
@@ -258,20 +260,46 @@ class baseSimulation(object):
         for iid in self.currentAsterismIndices:
             self.cartNGSCoords_asterism.append(self.cartNGSCoords_field[iid])
 
+    def computePSF1D(self):
+        psf1d = []
+        psf1d_radius = []
+        for psfs in self.cubeResults:
+            psfRadius = psfs.shape[0]/2
+            rr, radialprofile, ee = radial_profile(psfs, ext=0, pixelscale=self.psInMas, ee=True,
+                                                    center=None, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
+                                                    normalize='total', pa_range=None, slice=0, nargout=2)
+            psf1d.append(radialprofile)
+            psf1d_radius.append(rr)
+        self.psf1d = np.asarray(psf1d)
+        self.psf1d_radius = np.asarray(psf1d_radius)
+        self.psf1d_data = np.vstack( (self.psf1d_radius, self.psf1d) )
+
+
+    def savePSFprofileJSON(self):
+        data = {}
+        data['radius'] = self.psf1d_radius.tolist()
+        data['psf'] = self.psf1d.tolist()
+        filename = os.path.join(self.outputDir, self.outputFile + '1D_PSF' + '.json')
+        with open(filename, 'w') as f:
+            json.dump(self.my_data_map, f)
+            json.dump(data, f)
+
 
     def saveResults(self):
         # save PSF cube in fits
         hdul1 = fits.HDUList()
-        hdul1.append(fits.PrimaryHDU())        
+        hdul1.append(fits.PrimaryHDU())
         hdul1.append(fits.ImageHDU(data=self.cubeResultsArray))
         hdul1.append(fits.ImageHDU(data=self.psfOL.sampling)) # append open-loop PSF
         hdul1.append(fits.ImageHDU(data=self.psfDL.sampling)) # append diffraction limited PSF
         if self.savePSDs:
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
+        hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
+
         # header
-        hdr0 = hdul1[0].header
+        self.hdr0 = hdul1[0].header
         now = datetime.now()
-        hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        self.hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         # parameters in the header
         for key_primary in self.my_data_map:
             for key_secondary in self.my_data_map[key_primary]:
@@ -282,14 +310,15 @@ class baseSimulation(object):
                         if isinstance(elem, list):
                             jjj = 0
                             for elem2 in elem:
-                                add_hdr_keyword(hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
+                                add_hdr_keyword(self.hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
                                 jjj += 1
                         else:                        
-                            add_hdr_keyword(hdr0,key_primary,key_secondary,elem,iii=str(iii))
+                            add_hdr_keyword(self.hdr0,key_primary,key_secondary,elem,iii=str(iii))
                         iii += 1
                 else:
-                    add_hdr_keyword(hdr0, key_primary,key_secondary,temp)
+                    add_hdr_keyword(self.hdr0, key_primary,key_secondary,temp)
 
+        self.savePSFprofileJSON() # saves radial profiles to a JSON files as well
         # header of the PSFs
         hdr1 = hdul1[1].header
         hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
@@ -338,12 +367,20 @@ class baseSimulation(object):
         hdr3['CONTENT'] = "DIFFRACTION LIMITED PSF"
         hdr3['SIZE'] = str(self.psfDL.sampling.shape)
 
+        ii = 4
         if self.savePSDs:
             # header of the PSD
             hdr4 = hdul1[4].header
             hdr4['TIME'] = now.strftime("%Y%m%d_%H%M%S")
             hdr4['CONTENT'] = "High Order PSD"
             hdr4['SIZE'] = str(self.PSD.shape)
+            ii = 5
+
+        # header of the Total PSFs profiles
+        hdr5 = hdul1[ii].header
+        hdr5['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr5['CONTENT'] = "Final PSFs profiles"
+        hdr5['SIZE'] = str(self.psf1d_data.shape)
 
         hdul1.writeto( os.path.join(self.outputDir, self.outputFile + '.fits'), overwrite=True)
         if self.verbose:
@@ -938,7 +975,7 @@ class baseSimulation(object):
             for img in self.results:
                 self.cubeResults.append(img.sampling)
             self.cubeResultsArray = np.array(self.cubeResults)
-
+            self.computePSF1D()
             if self.verbose:
                 print('HO_res [nm]:',self.HO_res)
                 if self.LOisOn:
