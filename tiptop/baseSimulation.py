@@ -3,6 +3,7 @@ from p3.aoSystem.FourierUtils import *
 from mastsel import *
 
 from .tiptopUtils import *
+from ._version import __version__
 
 from matplotlib import cm
 import matplotlib as mpl
@@ -39,6 +40,7 @@ class baseSimulation(object):
                           verbose=False, getHoErrorBreakDown=False,
                           savePSDs=False, ensquaredEnergy=False,
                           eeRadiusInMas=50):
+
         self.firstSimCall =True
         if verbose: np.set_printoptions(precision=3)
         self.doConvolveAsterism = True
@@ -267,7 +269,7 @@ class baseSimulation(object):
             psfRadius = psfs.shape[0]/2
             rr, radialprofile, ee = radial_profile(psfs, ext=0, pixelscale=self.psInMas, ee=True,
                                                     center=None, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
-                                                    normalize='total', pa_range=None, slice=0, nargout=2)
+                                                    normalize='total', pa_range=None, slice=0, nargout=2, verbose=self.verbose)
             psf1d.append(radialprofile)
             psf1d_radius.append(rr)
         self.psf1d = np.asarray(psf1d)
@@ -276,11 +278,16 @@ class baseSimulation(object):
 
 
     def savePSFprofileJSON(self):
+        now = datetime.now()
         data = {}
         data['radius'] = self.psf1d_radius.tolist()
         data['psf'] = self.psf1d.tolist()
         filename = os.path.join(self.outputDir, self.outputFile + '1D_PSF' + '.json')
+        dict = {}
+        dict['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        dict['TIPTOP version'] = __version__
         with open(filename, 'w') as f:
+            json.dump(dict, f)
             json.dump(self.my_data_map, f)
             json.dump(data, f)
 
@@ -296,10 +303,11 @@ class baseSimulation(object):
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
         hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
 
+        now = datetime.now()        
         # header
-        self.hdr0 = hdul1[0].header
-        now = datetime.now()
-        self.hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr0 = hdul1[0].header            
+        hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr0['TIPTOP_V'] = __version__
         # parameters in the header
         for key_primary in self.my_data_map:
             for key_secondary in self.my_data_map[key_primary]:
@@ -310,15 +318,14 @@ class baseSimulation(object):
                         if isinstance(elem, list):
                             jjj = 0
                             for elem2 in elem:
-                                add_hdr_keyword(self.hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
+                                add_hdr_keyword(hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
                                 jjj += 1
                         else:                        
-                            add_hdr_keyword(self.hdr0,key_primary,key_secondary,elem,iii=str(iii))
+                            add_hdr_keyword(hdr0,key_primary,key_secondary,elem,iii=str(iii))
                         iii += 1
                 else:
-                    add_hdr_keyword(self.hdr0, key_primary,key_secondary,temp)
+                    add_hdr_keyword(hdr0, key_primary,key_secondary,temp)
 
-        self.savePSFprofileJSON() # saves radial profiles to a JSON files as well
         # header of the PSFs
         hdr1 = hdul1[1].header
         hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
