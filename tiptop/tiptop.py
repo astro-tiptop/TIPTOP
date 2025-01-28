@@ -125,6 +125,9 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
     
     simulation.doOverallSimulation()
 
+    if saveJson:
+        simulation.savePSFprofileJSON()
+
     if returnRes:
         if simulation.LOisOn:
             return simulation.HO_res, simulation.LO_res
@@ -136,8 +139,6 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
     else:
         simulation.saveResults()
 
-    if saveJson:
-        simulation.savePSFprofileJSON()
         
 def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
