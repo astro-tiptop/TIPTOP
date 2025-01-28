@@ -3,11 +3,14 @@ from p3.aoSystem.FourierUtils import *
 from mastsel import *
 
 from .tiptopUtils import *
+from ._version import __version__
 
 from matplotlib import cm
 import matplotlib as mpl
 norm = mpl.colors.Normalize(vmin=0, vmax=1)
 rc("text", usetex=False)
+
+import json
 
 class baseSimulation(object):
     
@@ -37,6 +40,7 @@ class baseSimulation(object):
                           verbose=False, getHoErrorBreakDown=False,
                           savePSDs=False, ensquaredEnergy=False,
                           eeRadiusInMas=50):
+
         self.firstSimCall =True
         if verbose: np.set_printoptions(precision=3)
         self.doConvolveAsterism = True
@@ -258,20 +262,52 @@ class baseSimulation(object):
         for iid in self.currentAsterismIndices:
             self.cartNGSCoords_asterism.append(self.cartNGSCoords_field[iid])
 
+    def computePSF1D(self):
+        psf1d = []
+        psf1d_radius = []
+        for psfs in self.cubeResults:
+            psfRadius = psfs.shape[0]/2
+            rr, radialprofile, ee = radial_profile(psfs, ext=0, pixelscale=self.psInMas, ee=True,
+                                                    center=None, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
+                                                    normalize='total', pa_range=None, slice=0, nargout=2, verbose=self.verbose)
+            psf1d.append(radialprofile)
+            psf1d_radius.append(rr)
+        self.psf1d = np.asarray(psf1d)
+        self.psf1d_radius = np.asarray(psf1d_radius)
+        self.psf1d_data = np.vstack( (self.psf1d_radius, self.psf1d) )
+
+
+    def savePSFprofileJSON(self):
+        now = datetime.now()
+        data = {}
+        data['radius'] = self.psf1d_radius.tolist()
+        data['psf'] = self.psf1d.tolist()
+        filename = os.path.join(self.outputDir, self.outputFile + '1D_PSF' + '.json')
+        dict = {}
+        dict['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        dict['TIPTOP version'] = __version__
+        with open(filename, 'w') as f:
+            json.dump(dict, f)
+            json.dump(self.my_data_map, f)
+            json.dump(data, f)
+
 
     def saveResults(self):
         # save PSF cube in fits
         hdul1 = fits.HDUList()
-        hdul1.append(fits.PrimaryHDU())        
+        hdul1.append(fits.PrimaryHDU())
         hdul1.append(fits.ImageHDU(data=self.cubeResultsArray))
         hdul1.append(fits.ImageHDU(data=self.psfOL.sampling)) # append open-loop PSF
         hdul1.append(fits.ImageHDU(data=self.psfDL.sampling)) # append diffraction limited PSF
         if self.savePSDs:
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
+        hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
+
+        now = datetime.now()        
         # header
-        hdr0 = hdul1[0].header
-        now = datetime.now()
+        hdr0 = hdul1[0].header            
         hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr0['TIPTOP_V'] = __version__
         # parameters in the header
         for key_primary in self.my_data_map:
             for key_secondary in self.my_data_map[key_primary]:
@@ -338,12 +374,20 @@ class baseSimulation(object):
         hdr3['CONTENT'] = "DIFFRACTION LIMITED PSF"
         hdr3['SIZE'] = str(self.psfDL.sampling.shape)
 
+        ii = 4
         if self.savePSDs:
             # header of the PSD
             hdr4 = hdul1[4].header
             hdr4['TIME'] = now.strftime("%Y%m%d_%H%M%S")
             hdr4['CONTENT'] = "High Order PSD"
             hdr4['SIZE'] = str(self.PSD.shape)
+            ii = 5
+
+        # header of the Total PSFs profiles
+        hdr5 = hdul1[ii].header
+        hdr5['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        hdr5['CONTENT'] = "Final PSFs profiles"
+        hdr5['SIZE'] = str(self.psf1d_data.shape)
 
         hdul1.writeto( os.path.join(self.outputDir, self.outputFile + '.fits'), overwrite=True)
         if self.verbose:
@@ -938,7 +982,7 @@ class baseSimulation(object):
             for img in self.results:
                 self.cubeResults.append(img.sampling)
             self.cubeResultsArray = np.array(self.cubeResults)
-
+            self.computePSF1D()
             if self.verbose:
                 print('HO_res [nm]:',self.HO_res)
                 if self.LOisOn:

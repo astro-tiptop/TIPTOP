@@ -75,7 +75,7 @@ def gpuSelect(gpuIndex):
 def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve=True,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
-                      eeRadiusInMas=50, savePSDs=False, gpuIndex=0):
+                      eeRadiusInMas=50, savePSDs=False, saveJson=False, gpuIndex=0):
     """
         function to run the entire tiptop simulation based on the input file
 
@@ -107,6 +107,10 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
         :type eeRadiusInMas: float
         :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
         :type savePSDs: bool
+        :param saveJson: optional default: False, If you want to save the PSF profile in a json file
+        :type saveJson: bool
+        :param gpuIndex: optional default: 0, Target GPU index where the simulation will be run
+        :type gpuIndex: int
 
         :return: TBD
         :rtype: TBD
@@ -121,6 +125,9 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
     
     simulation.doOverallSimulation()
 
+    if saveJson:
+        simulation.savePSFprofileJSON()
+
     if returnRes:
         if simulation.LOisOn:
             return simulation.HO_res, simulation.LO_res
@@ -131,6 +138,7 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
         return simulation.sr, simulation.fwhm, simulation.ee
     else:
         simulation.saveResults()
+
         
 def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
@@ -192,12 +200,8 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
         if returnRes:
             return simulation.HO_res_Asterism, simulation.LO_res_Asterism, simulation
         elif returnMetrics:
-            # this must be probably done inside computeAsterisms, at the end
-            # simulation.computeMetrics(eeRadiusInMas)            
             return simulation.strehl_Asterism, simulation.fwhm_Asterism, simulation.ee_Asterism, simulation.cov_ellipses_Asterism, simulation
         else:
-            # this must be probably done inside computeAsterisms, at the end
-            # simulation.saveResults()
             return simulation
     else:
         return
