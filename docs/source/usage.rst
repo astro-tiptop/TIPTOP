@@ -8,7 +8,7 @@ Installation
 
 We recommend conda.
 
-Create a Anaconda environment for TIPTOP with python>=3.9 (below for example
+Create a Anaconda environment for TIPTOP with python>=3.11 (below for example
 3.11)::
 
    conda create --name tiptop python=3.11
