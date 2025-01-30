@@ -401,7 +401,6 @@ class baseSimulation(object):
         dk = self.dk
         npixel = self.nPixPSF
         oversampling = N/npixel
-        print('N/npixel,oversampling',N/npixel,oversampling)
         pixelscale = self.psInMas*wavelength/self.wvl
         scaleFactor = (2*np.pi*1e-9/wavelength)**2
         if mask is None:
@@ -413,10 +412,14 @@ class baseSimulation(object):
         psfLongExpArr = []
         sources_FWHM_mas = []
 
-        # Get the Telecope plus Static WFE OTF if defined in self
-        if hasattr(self, "otfStatic"):
-            otf_tel = self.otfStatic[0]
-            # above only 0 is used because this method does not yet support multi wavelength PSF generation
+        # ------------------------------------------------------------------------
+        ## Update the instrumental OTF if static WFE is present:
+        ##     [telescope] PathStaticOn key in params
+        if (self.fao.ao.tel.opdMap_on is not None):
+            rad2mas = 3600 * 180 * 1000 / np.pi
+            samp = oversampling * wavelength * rad2mas* 1/(self.psInMas*2*self.tel_radius)
+            otf_tel, otfDL, phaseMap = getStaticOTF(self.fao.ao.tel,int(self.fao.freq.nOtf),
+                                                    samp,wavelength,spatialFilter=1)
         else:
             otf_tel = None
 
@@ -434,7 +437,7 @@ class baseSimulation(object):
                 psfLE = longExposurePsf(mask, psd, otf_tel = otf_tel )
             
             # It rebins the PSF if oversampling is greater than 1
-            if oversampling > 1:
+            if oversampling > 1:                    # --> TODO this must be update to manage multi-wavelength PSF
                 temp = np.array(psfLE.sampling)
                 nTemp = int(oversampling)
                 nOut = int(temp.shape[0]/nTemp)
@@ -841,18 +844,6 @@ class baseSimulation(object):
                 print('freq_range:', self.freq_range)
                 print('PSD.shape:', self.PSD.shape)
                 print('sensor_science.PixelScale:', self.psInMas)
-
-            # ------------------------------------------------------------------------
-            ## Update the instrumental OTF if static WFE is present:
-            ##     [telescope] PathStaticOn key in params
-            if (self.fao.ao.tel.opdMap_on is not None):
-                self.otfStatic = []
-                # following lines come from SF2PSF method of P3/p3/aoSystem/FourierUtils.py
-                for jWvl in range(self.fao.freq.nWvl):
-                    otfStatic, otfDL, phaseMap = \
-                    getStaticOTF(self.fao.ao.tel,int(self.fao.freq.nOtf),self.fao.freq.samp[jWvl],
-                                 self.fao.freq.wvl[jWvl],spatialFilter=1)
-                    self.otfStatic.append(arrayP3toMastsel(otfStatic))
 
             # ----------------------------------------------------------------------------
             ## optional LO part
