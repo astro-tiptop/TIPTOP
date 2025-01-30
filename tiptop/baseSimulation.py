@@ -394,7 +394,20 @@ class baseSimulation(object):
             print("Output cube shape:", self.cubeResultsArray.shape)
 
 
-    def psdSetToPsfSet(self, N, freq_range, dk, mask, inputPSDs, wavelength, pixelscale, npixel, scaleFactor=1, oversampling=1):
+    def psdSetToPsfSet(self, inputPSDs, wavelength, mask=None):
+
+        N = self.N
+        freq_range = self.freq_range
+        dk = self.dk
+        npixel = self.nPixPSF
+        oversampling = N/npixel
+        print('N/npixel,oversampling',N/npixel,oversampling)
+        pixelscale = self.psInMas*wavelength/self.wvl
+        scaleFactor = (2*np.pi*1e-9/wavelength)**2
+        if mask is None:
+            mask = Field(wavelength, self.N, self.grid_diameter)
+            mask.sampling = self.mask.sampling
+
         sources_SR = []
         psdArray = []
         psfLongExpArr = []
@@ -510,16 +523,9 @@ class baseSimulation(object):
             ## HO PSF
             if self.verbose:
                 print('******** HO PSF')
-            pointings_SR, psdPointingsArray, psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(self.N,
-                                                                                                         self.freq_range,
-                                                                                                         self.dk,
-                                                                                                         self.mask,
-                                                                                                         arrayP3toMastsel(self.PSD[0:self.nPointings]),
-                                                                                                         self.wvl,
-                                                                                                         self.psInMas,
-                                                                                                         self.nPixPSF,
-                                                                                                         scaleFactor=(2*np.pi*1e-9/self.wvl)**2,
-                                                                                                         oversampling=self.oversampling)
+            pointings_SR, psdPointingsArray, \
+            psfLongExpPointingsArr, self.pointings_FWHM_mas = self.psdSetToPsfSet(arrayP3toMastsel(self.PSD[0:self.nPointings]),
+                                                                                  self.wvl)
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
 
             # ----------------------------------------------------------------------------
@@ -548,7 +554,6 @@ class baseSimulation(object):
                                    residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas))))
                 else:
                     self.results.append(psfLongExp)
-
 
     def ngsPSF(self):
         # pixel size for LO
@@ -614,17 +619,9 @@ class baseSimulation(object):
 
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
-
-        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(self.N,
-                                                                   self.freq_range,
-                                                                   self.dk,
-                                                                   self.maskLO,
-                                                                   PSD_NGS,
+        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = self.psdSetToPsfSet(PSD_NGS,
                                                                    self.LO_wvl,
-                                                                   self.LO_PSFsInMas,
-                                                                   self.nPixPSF,
-                                                                   scaleFactor=(2*np.pi*1e-9/self.LO_wvl)**2,
-                                                                   oversampling=self.oversampling)
+                                                                   mask=self.maskLO)
 
         # -----------------------------------------------------------------
         # Merit functions
@@ -716,17 +713,9 @@ class baseSimulation(object):
 
                 if self.verbose:
                     print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
-
-                Focus_SR, psdArray, psfLE_Focus, Focus_FWHM_mas = self.psdSetToPsfSet(self.N,
-                                                                           self.freq_range,
-                                                                           self.dk,
-                                                                           self.maskFocus,
-                                                                           PSD_Focus,
-                                                                           self.Focus_wvl,
-                                                                           self.Focus_PSFsInMas,
-                                                                           self.nPixPSF,
-                                                                           scaleFactor=(2*np.pi*1e-9/self.Focus_wvl)**2,
-                                                                           oversampling=self.oversampling)
+                Focus_SR, psdArray, psfLE_Focus, Focus_FWHM_mas = self.psdSetToPsfSet(PSD_Focus,
+                                                                                 self.Focus_wvl,
+                                                                                 mask=self.maskFocus)
 
                 # -----------------------------------------------------------------
                 ## Merit functions
@@ -833,11 +822,6 @@ class baseSimulation(object):
             self.N             = self.PSD[0].shape[0]
             self.nPointings    = self.pointings.shape[1]
             self.nPixPSF       = int(self.fao.freq.nOtf /self.fao.freq.kRef_)
-            if isinstance(self.fao.freq.k_, list):
-                self.oversampling = self.fao.freq.k_[0]
-            else:
-                self.oversampling  = self.fao.freq.k_
-
             self.freq_range    = self.N*self.fao.freq.PSDstep
             self.pitch         = 1/self.freq_range
             self.grid_diameter = self.pitch*self.N
