@@ -358,7 +358,7 @@ class baseSimulation(object):
                     ee = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
                     rr = np.arange(1, ee.shape[0]*2, 2) * self.psInMas * 0.5
                 else:
-                    ee,rr = getEncircledEnergy(self.cubeResultsArray[i,:,:], pixelscale=self.psInMas, center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                    ee,rr = getEncircledEnergy(self.cubeResultsArray[i,:,:], pixelscale=self.psInMas, center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
                 hdr1['EE'+str(np.round(self.eeRadiusInMas))+str(i).zfill(4)] = ee_at_radius_fn(self.eeRadiusInMas).take(0)
 
@@ -396,7 +396,7 @@ class baseSimulation(object):
     def computeOL_PSD(self):
         # OPEN-LOOP PSD
         k   = np.sqrt(self.fao.freq.k2_)
-        pf  = FourierUtils.pistonFilter(self.fao.ao.tel.D,k)
+        pf  = FourierUtils.pistonFilter(2*self.tel_radius,k)
         psdOL = Field(self.wvl, self.N, self.freq_range, 'rad')
         temp = self.fao.ao.atm.spectrum(k) * pf
         psdOL.sampling = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf * (self.fao.freq.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
@@ -436,14 +436,14 @@ class baseSimulation(object):
         # FINAl CONVOLUTION
         # Optimization: Non NEED to perform this convolutions if this is the asterism selection procedure ???
         for ellp, psfLongExp in zip(self.cov_ellipses, self.psfLongExpPointingsArr):
-            resSpec = residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas))
+            resSpec = residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
             temp = convolve(psfLongExp, resSpec)
             if self.jitter_FWHM is not None:
                 if isinstance(self.jitter_FWHM, list):
                     ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
                 else:
                     ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                resSpecJ = residualToSpectrum(ellpJ, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas))
+                resSpecJ = residualToSpectrum(ellpJ, self.wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
                 temp = convolve(temp, resSpecJ)
             self.results.append(temp)
 
@@ -457,12 +457,26 @@ class baseSimulation(object):
 
             if self.verbose:
                 print('******** HO PSF')
-            pointings_SR, psdPointingsArray, \
-            psfLongExpPointingsArr, self.pointings_FWHM_mas = psdSetToPsfSet(PSD_HO,mask,
-                                                                   self.wvl, self.N, self.sx, self.grid_diameter,
-                                                                   self.freq_range, self.dk, self.nPixPSF, self.psInMas,
-                                                                   self.wvl, opdMap=self.opdMap,
-                                                                   verbose=self.verbose)
+            psdPointingsArray, psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO,mask,
+                                                                       self.wvl, self.N, self.sx, self.grid_diameter,
+                                                                       self.freq_range, self.dk, self.nPixPSF, self.psInMas,
+                                                                       self.wvl, opdMap=self.opdMap)
+
+            # -----------------------------------------------------------------
+            ## Merit functions
+            self.pointings_FWHM_mas   = []
+            idx = 0
+            for img in psfLongExpPointingsArr:
+                # Get SFWHM in mas the star positions at the sensing wavelength
+                FWHMx,FWHMy = getFWHM(img.sampling, self.psInMas, method='contour', nargout=2)
+                FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
+                self.pointings_FWHM_mas.append(FWHM)
+                if self.verbose:
+                    s1 = cpuArray(PSD_HO[idx]).sum()
+                    SR = np.exp(-s1*(2*np.pi*1e-9/self.wvl)**2) # Strehl-ratio at the sensing wavelength
+                    print('SR(@',int(self.wvl*1e9),'nm)        :', "%.5f" % SR)
+                    print('FWHM(@',int(self.wvl*1e9),'nm) [mas]:', "%.3f" % FWHM)
+                idx += 1
 
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
 
@@ -489,7 +503,7 @@ class baseSimulation(object):
                     else:
                         ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
                     self.results.append(convolve(psfLongExp,
-                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.fao.ao.cam.fovInPix * self.psInMas))))
+                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))))
                 else:
                     self.results.append(psfLongExp)
 
@@ -514,7 +528,7 @@ class baseSimulation(object):
         for i in range(self.nNaturalGS_field):
             if nSA[i] != 1:
                 # piston filter for the sub-aperture size
-                pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSA[i],k)
+                pf = FourierUtils.pistonFilter(2*self.tel_radius/nSA[i],k)
                 PSD_NGS[i] = PSD_NGS[i] * pf
 
         # -----------------------------------------------------------------
@@ -522,27 +536,35 @@ class baseSimulation(object):
 
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
-        NGS_SR, psdArray, psfLE_NGS, NGS_FWHM_mas = psdSetToPsfSet(PSD_NGS,maskLO,
-                                                                   self.LO_wvl,self.N, self.sx, self.grid_diameter,
-                                                                   self.freq_range, self.dk, self.nPixPSF, self.psInMas,
-                                                                   self.wvl, opdMap=self.opdMap,
-                                                                   verbose=self.verbose)
+        psdArray, psfLE_NGS = psdSetToPsfSet(PSD_NGS,maskLO,
+                                             self.LO_wvl,self.N, self.sx, self.grid_diameter,
+                                             self.freq_range, self.dk, self.nPixPSF, self.psInMas,
+                                             self.wvl, opdMap=self.opdMap)
 
         # -----------------------------------------------------------------
         # Merit functions
-        self.NGS_SR_field           = NGS_SR
-        self.NGS_FWHM_mas_field     = NGS_FWHM_mas
+        self.NGS_SR_field           = []
+        self.NGS_FWHM_mas_field     = []
         self.NGS_EE_field           = []
         idx = 0
         for img in psfLE_NGS:
+            # Get SR, FWHM in mas and EE at the NGSs positions at the sensing wavelength
+            s1 = cpuArray(PSD_NGS[idx]).sum()
+            SR = np.exp(-s1*(2*np.pi*1e-9/self.LO_wvl)**2) # Strehl-ratio at the sensing wavelength
+            self.NGS_SR_field.append(SR)
+            FWHMx,FWHMy = getFWHM(img.sampling, self.LO_PSFsInMas, method='contour', nargout=2)
+            FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
+            self.NGS_FWHM_mas_field.append(FWHM)
             ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.LO_PSFsInMas,
-                                         center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                                         center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
             ee_ *= 1/np.max(ee_)
             ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
             # max is used to compute EE on at least a radius of one pixel
-            ee_NGS = ee_at_radius_fn(max([NGS_FWHM_mas[idx],self.LO_psInMas]))
+            ee_NGS = ee_at_radius_fn(max([FWHM,self.LO_psInMas]))
             self.NGS_EE_field.append(ee_NGS)
             if self.verbose:
+                print('SR(@',int(self.LO_wvl*1e9),'nm)        :', "%.5f" % SR)
+                print('FWHM(@',int(self.LO_wvl*1e9),'nm) [mas]:', "%.3f" % FWHM)
                 print('EE                   :', "%.5f" % ee_NGS)
             idx += 1
 
@@ -590,7 +612,7 @@ class baseSimulation(object):
                 for i in range(self.nNaturalGS_field):
                     if nSAfocus[i] != 1:
                         # --- piston filter for the sub-aperture size
-                        pf = FourierUtils.pistonFilter(self.fao.ao.tel.D/nSAfocus[i],k)
+                        pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAfocus[i],k)
                         PSD_Focus[i] = PSD_Focus[i] * pf
 
 
@@ -599,27 +621,35 @@ class baseSimulation(object):
 
                 if self.verbose:
                     print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
-                Focus_SR, psdArray, psfLE_Focus, Focus_FWHM_mas = psdSetToPsfSet(PSD_Focus,maskFocus,
-                                                                   self.Focus_wvl,self.N, self.sx, self.grid_diameter,
-                                                                   self.freq_range, self.dk, self.nPixPSF, self.psInMas,
-                                                                   self.wvl, opdMap=self.opdMap,
-                                                                   verbose=self.verbose)
+                psdArray, psfLE_Focus = psdSetToPsfSet(PSD_Focus,maskFocus,
+                                                       self.Focus_wvl,self.N, self.sx, self.grid_diameter,
+                                                       self.freq_range, self.dk, self.nPixPSF, self.psInMas,
+                                                       self.wvl, opdMap=self.opdMap)
 
                 # -----------------------------------------------------------------
                 ## Merit functions
-                self.Focus_SR_field         = Focus_SR
-                self.Focus_FWHM_mas_field   = Focus_FWHM_mas
+                self.Focus_SR_field         = []
+                self.Focus_FWHM_mas_field   = []
                 self.Focus_EE_field         = []
                 idx = 0
-                for img in psfLE_NGS:
+                for img in psfLE_Focus:
+                    # Get SR, FWHM in mas and EE at the NGSs positions at the sensing wavelength
+                    s1 = cpuArray(PSD_Focus[idx]).sum()
+                    SR = np.exp(-s1*(2*np.pi*1e-9/self.Focus_wvl)**2) # Strehl-ratio at the sensing wavelength
+                    self.Focus_SR_field.append(SR)
+                    FWHMx,FWHMy = getFWHM(img.sampling, self.Focus_PSFsInMas, method='contour', nargout=2)
+                    FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
+                    self.Focus_FWHM_mas_field.append(FWHM)
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.Focus_PSFsInMas,
-                                                 center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                                                 center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
                     ee_ *= 1/np.max(ee_)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     # max is used to compute EE on at least a radius of one pixel
-                    ee_Focus = ee_at_radius_fn(max([Focus_FWHM_mas[idx],self.Focus_psInMas]))
+                    ee_Focus = ee_at_radius_fn(max([FWHM,self.Focus_psInMas]))
                     self.Focus_EE_field.append(ee_Focus)
                     if self.verbose:
+                        print('SR(@',int(self.Focus_wvl*1e9),'nm)        :', "%.5f" % SR)
+                        print('FWHM(@',int(self.Focus_wvl*1e9),'nm) [mas]:', "%.3f" % FWHM)
                         print('EE (focus sensor)     :', "%.5f" % ee_Focus)
                     idx += 1
             else:
@@ -664,7 +694,7 @@ class baseSimulation(object):
                     rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas * 0.5
                 else:
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas,
-                                                 center=(self.fao.ao.cam.fovInPix/2,self.fao.ao.cam.fovInPix/2), nargout=2)
+                                                 center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
                 ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                 self.ee.append( cpuArray(ee_at_radius_fn(self.eeRadiusInMas)).item() )
 
