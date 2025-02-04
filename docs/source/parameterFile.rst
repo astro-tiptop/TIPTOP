@@ -116,7 +116,10 @@ We now go more in detail for each section:
 |                          |          |       |frequency array of the PSDs.                                              |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |extraErrorLoNm            |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
-|                          |          |       |is not otherwise considered)                                              |
+|                          |          |       |is not otherwise considered).                                             |
+|                          |          |       |                                                                          |
+|                          |          |       |It can be a list of two values, the on-axis error and the error at the    |
+|                          |          |       |edge of the technical field ([telescope]TechnicalFoV)                     |
 |                          |          |       |                                                                          |
 |                          |          |       |Note: (1) only makes sense if [sensor_LO] is present (2) if not present   |
 |                          |          |       |extraErrorNm is used on LO directions.                                    |
