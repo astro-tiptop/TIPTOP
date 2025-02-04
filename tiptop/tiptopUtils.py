@@ -78,7 +78,8 @@ def hdr2map(hdr):
                 curr_key = ''                   
     return my_data_map
 
-def plot_directions(parser, ticks_interval=5, labels=None):
+def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
+                    science=True, max_pos=None, add_legend=True):
     '''
     Polar plot with science and GS (sources_HO and sources_LO) directions
 
@@ -92,21 +93,24 @@ def plot_directions(parser, ticks_interval=5, labels=None):
     :return: fig, ax
     :rtype: objects
     '''
-    # SCIENCE
-    if 'PSF_DIRECTIONS' in parser.sections(): # For retro-compatibility
-        th_sci = np.array(eval(parser['PSF_DIRECTIONS']['ScienceAzimuth']))
-        rr_sci = np.array(eval(parser['PSF_DIRECTIONS']['ScienceZenith']))
-    else:
-        th_sci = np.array(eval(parser['sources_science']['Azimuth']))
-        rr_sci = np.array(eval(parser['sources_science']['Zenith']))
-    th_sci = th_sci/180*np.pi
+
     fig = plt.figure('SOURCES DIRECTIONS', figsize=(6,6))
     ax = fig.add_subplot(111, polar=True)
     ax.tick_params(labelsize=10)
     ax.set_rlabel_position(225) # theta position of the radius labels
-    ax.scatter(th_sci, rr_sci, marker='*', color='blue', s=120, label='sources_science')
-    #ax.set_thetamin(-10)
-    #ax.set_thetamax(100)
+    
+    # SCIENCE
+    if science:
+        if 'PSF_DIRECTIONS' in parser.sections(): # For retro-compatibility
+            th_sci = np.array(eval(parser['PSF_DIRECTIONS']['ScienceAzimuth']))
+            rr_sci = np.array(eval(parser['PSF_DIRECTIONS']['ScienceZenith']))
+        else:
+            th_sci = np.array(eval(parser['sources_science']['Azimuth']))
+            rr_sci = np.array(eval(parser['sources_science']['Zenith']))
+        th_sci = th_sci/180*np.pi
+        ax.scatter(th_sci, rr_sci, marker='*', color='blue', s=120, label='sources_science')
+        #ax.set_thetamin(-10)
+        #ax.set_thetamax(100)
 
     # LGS
     th_HO = np.array(eval(parser['sources_HO']['Azimuth']))
@@ -121,7 +125,12 @@ def plot_directions(parser, ticks_interval=5, labels=None):
     ax.scatter(th_LO, rr_LO, marker='*', color='red', s=120, label='sources_LO')
 
     # Set ticks position
-    max_pos = np.max([rr_sci.max(), rr_HO.max(), rr_LO.max()]) + 2*ticks_interval
+    if max_pos is None:
+        if science:
+            max_pos = np.max([rr_sci.max(), rr_HO.max(), rr_LO.max()]) + 2*ticks_interval
+        else:
+            max_pos = np.max([rr_HO.max(), rr_LO.max()]) + 2*ticks_interval
+    ax.set_ylim(0, max_pos)
     ax.yaxis.set_major_locator(ticker.FixedLocator(np.arange(0,max_pos,ticks_interval)))
     r_labels = [item.get_text() for item in ax.get_yticklabels()]
     for i in range(len(r_labels)):
@@ -132,9 +141,13 @@ def plot_directions(parser, ticks_interval=5, labels=None):
     if labels is not None:
         for i,lab in enumerate(labels):
             ax.text(th_sci[i],rr_sci[i],str(lab),color='black',fontsize=11)
+    if LO_labels is not None:
+        for i,lab in enumerate(LO_labels):
+            ax.text(th_LO[i],rr_LO[i],str(lab),color='black',fontsize=11)
 
     # Legend
-    ax.legend(loc='lower left', bbox_to_anchor=(1, 0))
+    if add_legend:
+        ax.legend(loc='lower left', bbox_to_anchor=(1, 0))
     plt.show()
 
     return fig, ax
