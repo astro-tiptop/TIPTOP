@@ -399,7 +399,7 @@ class baseSimulation(object):
         pf  = FourierUtils.pistonFilter(2*self.tel_radius,k)
         psdOL = Field(self.wvl, self.N, self.freq_range, 'rad')
         temp = self.fao.ao.atm.spectrum(k) * pf
-        psdOL.sampling = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf * (self.fao.freq.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
+        psdOL.sampling = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf * (self.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
         # Get the OPEN-LOOP PSF
         self.psfOL = longExposurePsf(self.mask, psdOL)
         # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
@@ -460,7 +460,7 @@ class baseSimulation(object):
             psdPointingsArray, psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO,mask,
                                                                        self.wvl, self.N, self.sx, self.grid_diameter,
                                                                        self.freq_range, self.dk, self.nPixPSF, self.psInMas,
-                                                                       self.wvl, opdMap=self.opdMap)
+                                                                       self.wvlRef, opdMap=self.opdMap)
 
             # -----------------------------------------------------------------
             ## Merit functions
@@ -539,7 +539,7 @@ class baseSimulation(object):
         psdArray, psfLE_NGS = psdSetToPsfSet(PSD_NGS,maskLO,
                                              self.LO_wvl,self.N, self.sx, self.grid_diameter,
                                              self.freq_range, self.dk, self.nPixPSF, self.psInMas,
-                                             self.wvl, opdMap=self.opdMap)
+                                             self.wvlRef, opdMap=self.opdMap)
 
         # -----------------------------------------------------------------
         # Merit functions
@@ -624,7 +624,7 @@ class baseSimulation(object):
                 psdArray, psfLE_Focus = psdSetToPsfSet(PSD_Focus,maskFocus,
                                                        self.Focus_wvl,self.N, self.sx, self.grid_diameter,
                                                        self.freq_range, self.dk, self.nPixPSF, self.psInMas,
-                                                       self.wvl, opdMap=self.opdMap)
+                                                       self.wvlRef, opdMap=self.opdMap)
 
                 # -----------------------------------------------------------------
                 ## Merit functions
@@ -746,6 +746,7 @@ class baseSimulation(object):
             self.sx            = int(2*np.round(self.tel_radius/self.pitch))
             # dk is the same as in p3.aoSystem.powerSpectrumDensity except that it is multiplied by 1e9 instead of 2.
             self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
+            self.wvlRef        = self.fao.freq.wvlRef
             # Define the pupil shape
             self.mask = Field(self.wvl, self.N, self.grid_diameter)
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
