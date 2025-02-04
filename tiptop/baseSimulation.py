@@ -526,9 +526,14 @@ class baseSimulation(object):
         maskLO = maskSA(nSA, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.tel.pupil))
 
         for i in range(self.nNaturalGS_field):
-            if nSA[i] != 1:
+            # This is needed when the AsterismSelection has many more stars than the length of nSA.
+            if len(nSA) == self.nNaturalGS_field:
+                nSAi = nSA[i]
+            else:
+                nSAi = nSA[0]
+            if nSAi != 1:
                 # piston filter for the sub-aperture size
-                pf = FourierUtils.pistonFilter(2*self.tel_radius/nSA[i],k)
+                pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAi,k)
                 PSD_NGS[i] = PSD_NGS[i] * pf
 
         # -----------------------------------------------------------------
@@ -610,9 +615,14 @@ class baseSimulation(object):
                 maskFocus = maskSA(nSAfocus, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.tel.pupil))
 
                 for i in range(self.nNaturalGS_field):
-                    if nSAfocus[i] != 1:
+                    # This is needed when the AsterismSelection has many more stars than the length of nSAfocus.
+                    if len(nSAfocus) == self.nNaturalGS_field:
+                        nSAfocusI = nSAfocus[i]
+                    else:
+                        nSAfocusI = nSAfocus[0]
+                    if nSAfocusI != 1:
                         # --- piston filter for the sub-aperture size
-                        pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAfocus[i],k)
+                        pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAfocusI,k)
                         PSD_Focus[i] = PSD_Focus[i] * pf
 
 
@@ -746,6 +756,7 @@ class baseSimulation(object):
             self.sx            = int(2*np.round(self.tel_radius/self.pitch))
             # dk is the same as in p3.aoSystem.powerSpectrumDensity except that it is multiplied by 1e9 instead of 2.
             self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
+            # wvlRef from P3 is required to scale correctly the PSD from rad to m
             self.wvlRef        = self.fao.freq.wvlRef
             # Define the pupil shape
             self.mask = Field(self.wvl, self.N, self.grid_diameter)
