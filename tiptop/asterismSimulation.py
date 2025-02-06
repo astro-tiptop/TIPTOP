@@ -150,7 +150,7 @@ class asterismSimulation(baseSimulation):
                     self.magnitudesRange = [11,20]
                     self.fovRange = [self.techFovRadius,self.techFovRadius]
                     self.minStars = 1
-                    self.maxStars = 20
+                    self.maxStars = 200
                 else:
                     self.magnitudesRange = [11,20]
                     self.fovRange = [self.techFovRadius,self.techFovRadius]
