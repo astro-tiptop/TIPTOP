@@ -891,7 +891,7 @@ class baseSimulation(object):
             self.computeDL_PSD()
             self.cubeResults = []
             for img in self.results:
-                self.cubeResults.append(img.sampling)
+                self.cubeResults.append(cpuArray(img.sampling))
             self.cubeResultsArray = np.array(self.cubeResults)
             self.computePSF1D()
             if self.verbose:
