@@ -494,13 +494,14 @@ class baseSimulation(object):
             ## HO PSF
             PSD_HO = arrayP3toMastsel(self.PSD[0:self.nPointings])
             mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
+            padPSD = self.nWvl > 1
 
             if self.verbose:
                 print('******** HO PSF')
             psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO,mask,
                                                     self.wvl, self.N, self.sx, self.grid_diameter,
                                                     self.freq_range, self.dk, self.nPixPSF,
-                                                    self.wvlMax, opdMap=self.opdMap)
+                                                    self.wvlMax, opdMap=self.opdMap, padPSD=padPSD)
 
             # -----------------------------------------------------------------
             ## Merit functions
@@ -829,7 +830,8 @@ class baseSimulation(object):
             self.fao = fourierModel( self.fullPathFilename, calcPSF=False, verbose=self.verbose
                                , display=False, getPSDatNGSpositions=self.LOisOn
                                , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
-                               , getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False)
+                               , getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False
+                               , PSDexpansion=True)
 
             if 'sensor_LO' in self.my_data_map.keys():
                 self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
@@ -848,7 +850,7 @@ class baseSimulation(object):
             self.PSD           = self.PSD.transpose()
             self.N             = self.PSD[0].shape[0]
             self.nPointings    = self.pointings.shape[1]
-            self.nPixPSF       = int(self.fao.freq.nOtf /self.fao.freq.kRef_)
+            self.nPixPSF       = self.my_data_map['sensor_science']['FieldOfView']
             self.freq_range    = self.N*self.fao.freq.PSDstep
             self.pitch         = 1/self.freq_range
             self.grid_diameter = self.pitch*self.N
