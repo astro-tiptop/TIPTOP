@@ -463,7 +463,7 @@ class baseSimulation(object):
                 print('******** HO PSF')
             psdPointingsArray, psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO,mask,
                                                                        self.wvl, self.N, self.sx, self.grid_diameter,
-                                                                       self.freq_range, self.dk, self.nPixPSF, self.psInMas,
+                                                                       self.freq_range, self.dk, self.nPixPSF,
                                                                        self.wvlRef, opdMap=self.opdMap)
 
             # -----------------------------------------------------------------
@@ -513,12 +513,16 @@ class baseSimulation(object):
 
     def ngsPSF(self):
         # pixel size for LO
-        self.LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvl
+        LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvl
         # error messages for wrong pixel size
-        if self.LO_PSFsInMas > self.LO_psInMas:
-            raise ValueError("LO PSF pixel pitch, {}, is greater than sensor_LO.PixelScale, {}"
-                             ", please reduce sensor_science.PixelScale to at least {}. Unit is mas."
-                             .format(self.LO_PSFsInMas,self.LO_psInMas,self.LO_psInMas*self.wvl/self.LO_wvl))
+        if LO_PSFsInMas > self.LO_psInMas:
+            extraOversampLO = np.ceil(self.LO_psInMas/LO_PSFsInMas)
+            NLO = extraOversampLO*self.N
+            nPixPSFLO = extraOversampLO*self.nPixPSF
+            LO_PSFsInMas /= extraOversampLO
+        else:
+            NLO = self.N
+            nPixPSFLO = self.nPixPSF
 
         # -----------------------------------------------------------------
         # PSD and sub-aperture mask for NGS directions
@@ -545,9 +549,9 @@ class baseSimulation(object):
 
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
-        psdArray, psfLE_NGS = psdSetToPsfSet(PSD_NGS,maskLO,
-                                             self.LO_wvl,self.N, self.sx, self.grid_diameter,
-                                             self.freq_range, self.dk, self.nPixPSF, self.psInMas,
+        psdArray, psfLE_NGS = psdSetToPsfSet(PSD_NGS, maskLO,
+                                             self.LO_wvl, NLO, self.sx, self.grid_diameter,
+                                             self.freq_range, self.dk, nPixPSFLO,
                                              self.wvlRef, opdMap=self.opdMap)
 
         # -----------------------------------------------------------------
@@ -561,11 +565,11 @@ class baseSimulation(object):
             s1 = cpuArray(PSD_NGS[idx]).sum()
             SR = np.exp(-s1*(2*np.pi*1e-9/self.LO_wvl)**2) # Strehl-ratio at the sensing wavelength
             self.NGS_SR_field.append(SR)
-            FWHMx,FWHMy = getFWHM(img.sampling, self.LO_PSFsInMas, method='contour', nargout=2)
+            FWHMx,FWHMy = getFWHM(img.sampling, LO_PSFsInMas, method='contour', nargout=2)
             FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
             self.NGS_FWHM_mas_field.append(FWHM)
-            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.LO_PSFsInMas,
-                                         center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
+            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
+                                         center=(nPixPSFLO/2,nPixPSFLO/2), nargout=2)
             ee_ *= 1/np.max(ee_)
             ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
             # max is used to compute EE on at least a radius of one pixel
@@ -591,7 +595,7 @@ class baseSimulation(object):
                 maskField.sampling = congrid(maskLO, [self.sx, self.sx])
                 maskField.sampling = zeroPad(maskField.sampling, (self.N-self.sx)//2)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
-            FWHMx,FWHMy  = getFWHM( psfNgsDL.sampling, self.LO_PSFsInMas, method='contour', nargout=2)
+            FWHMx,FWHMy  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
             self.NGS_DL_FWHM_mas = np.sqrt(FWHMx*FWHMy)
         else:
             self.NGS_DL_FWHM_mas = None
@@ -600,12 +604,16 @@ class baseSimulation(object):
         # optional Focus error
         if self.addFocusError:
             # pixel size for Focus
-            self.Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvl
+            Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvl
             # error messages for wrong pixel size
-            if self.Focus_PSFsInMas > self.Focus_psInMas:
-                raise ValueError("Focus PSF pixel pitch, {}, is greater than sensor_Focus.PixelScale, {}"
-                                 ", please reduce sensor_science.PixelScale to at least {}. Unit is mas."
-                                 .format(self.Focus_PSFsInMas,self.Focus_psInMas,self.Focus_psInMas*self.wvl/self.Focus_wvl))
+            if Focus_PSFsInMas > self.Focus_psInMas:
+                extraOversampFocus = np.ceil(self.Focus_psInMas/Focus_PSFsInMas)
+                NFocus = extraOversampFocus*N
+                nPixPSFFocus = extraOversampFocus*self.nPixPSF
+                Focus_PSFsInMas /= extraOversampFocus
+            else:
+                NFocus = self.N
+                nPixPSFFocus = self.nPixPSF
 
             if 'sensor_Focus' in self.my_data_map.keys():
                 if self.verbose:
@@ -635,9 +643,9 @@ class baseSimulation(object):
 
                 if self.verbose:
                     print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
-                psdArray, psfLE_Focus = psdSetToPsfSet(PSD_Focus,maskFocus,
-                                                       self.Focus_wvl,self.N, self.sx, self.grid_diameter,
-                                                       self.freq_range, self.dk, self.nPixPSF, self.psInMas,
+                psdArray, psfLE_Focus = psdSetToPsfSet(PSD_Focus, maskFocus,
+                                                       self.Focus_wvl, NFocus, self.sx, self.grid_diameter,
+                                                       self.freq_range, self.dk, nPixPSFFocus,
                                                        self.wvlRef, opdMap=self.opdMap)
 
                 # -----------------------------------------------------------------
@@ -651,11 +659,11 @@ class baseSimulation(object):
                     s1 = cpuArray(PSD_Focus[idx]).sum()
                     SR = np.exp(-s1*(2*np.pi*1e-9/self.Focus_wvl)**2) # Strehl-ratio at the sensing wavelength
                     self.Focus_SR_field.append(SR)
-                    FWHMx,FWHMy = getFWHM(img.sampling, self.Focus_PSFsInMas, method='contour', nargout=2)
+                    FWHMx,FWHMy = getFWHM(img.sampling, Focus_PSFsInMas, method='contour', nargout=2)
                     FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
                     self.Focus_FWHM_mas_field.append(FWHM)
-                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.Focus_PSFsInMas,
-                                                 center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
+                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
+                                                 center=(nPixPSFFocus/2,nPixPSFFocus/2), nargout=2)
                     ee_ *= 1/np.max(ee_)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     # max is used to compute EE on at least a radius of one pixel
