@@ -148,11 +148,10 @@ class baseSimulation(object):
         self.tel_radius = self.my_data_map['telescope']['TelescopeDiameter']/2  # mas
         wvl_temp = self.my_data_map['sources_science']['Wavelength']
         if isinstance(wvl_temp, list):
-            self.wvl = wvl_temp[0]  # lambda
-            if len(wvl_temp) > 1:
-                print('WARNING: TIPTOP is not supporting multi-wavelength case, it will provide \
-                       PSF for the first wavelength of the list',wvl_temp,'.')
+            self.wvlMax = max(wvl_temp)
+            self.wvl = wvl_temp     # lambda
         else:
+            self.wvlMax = wvl_temp
             self.wvl = wvl_temp     # lambda
         self.zenithSrc  = self.my_data_map['sources_science']['Zenith']
         self.azimuthSrc = self.my_data_map['sources_science']['Azimuth']
@@ -335,7 +334,11 @@ class baseSimulation(object):
         hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr1['CONTENT'] = "PSF CUBE"
         hdr1['SIZE'] = str(self.cubeResultsArray.shape)
-        hdr1['WL_NM'] = str(int(self.wvl*1e9))
+        if isinstance(self.wvl, list):
+            for i in range(len(self.wvl)):
+                hdr1['WL_NM'+str(i).zfill(4)] = str(int(self.wvl[i]*1e9))
+        else:
+            hdr1['WL_NM'] = str(int(self.wvl*1e9))
         hdr1['PIX_MAS'] = str(self.psInMas)
         hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(self.pointings.shape[1])+" SOURCES"
         for i in range(self.pointings.shape[1]):
@@ -401,7 +404,7 @@ class baseSimulation(object):
         # OPEN-LOOP PSD
         k   = np.sqrt(self.fao.freq.k2_)
         pf  = FourierUtils.pistonFilter(2*self.tel_radius,k)
-        psdOL = Field(self.wvl, self.N, self.freq_range, 'rad')
+        psdOL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
         temp = self.fao.ao.atm.spectrum(k) * pf
         psdOL.sampling = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf * (self.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
         # Get the OPEN-LOOP PSF
@@ -419,12 +422,13 @@ class baseSimulation(object):
 
     def computeDL_PSD(self):
         # DIFFRACTION LIMITED PSD
-        psdDL = Field(self.wvl, self.N, self.freq_range, 'rad')
+        psdDL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
         self.psfDL = longExposurePsf(self.mask, psdDL)
         # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
-        if self.psfDL.sampling.shape[0] > self.nPixPSF:
-            self.psfDL.sampling = self.psfDL.sampling[int(self.psfDL.sampling.shape[0]/2-self.nPixPSF/2):int(self.psfDL.sampling.shape[0]/2+self.nPixPSF/2),
-                                            int(self.psfDL.sampling.shape[1]/2-self.nPixPSF/2):int(self.psfDL.sampling.shape[1]/2+self.nPixPSF/2)]
+        if self.psfDL.N > self.nPixPSF:
+            start_x = (self.psfDL.N - self.nPixPSF) // 2
+            start_y = (self.psfDL.N - self.nPixPSF) // 2
+            self.psfDL.sampling = self.psfDL.sampling[start_x:start_x + self.nPixPSF, start_y:start_y + self.nPixPSF]
         if self.doPlot:
             fig, ax2 = plt.subplots(1,1)
             im = ax2.imshow(np.log(np.abs(self.psfDL.sampling) + 1e-20), cmap='hot')
@@ -440,14 +444,14 @@ class baseSimulation(object):
         # FINAl CONVOLUTION
         # Optimization: Non NEED to perform this convolutions if this is the asterism selection procedure ???
         for ellp, psfLongExp in zip(self.cov_ellipses, self.psfLongExpPointingsArr):
-            resSpec = residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
+            resSpec = residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
             temp = convolve(psfLongExp, resSpec)
             if self.jitter_FWHM is not None:
                 if isinstance(self.jitter_FWHM, list):
                     ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
                 else:
                     ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                resSpecJ = residualToSpectrum(ellpJ, self.wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
+                resSpecJ = residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
                 temp = convolve(temp, resSpecJ)
             self.results.append(temp)
 
@@ -461,10 +465,10 @@ class baseSimulation(object):
 
             if self.verbose:
                 print('******** HO PSF')
-            psdPointingsArray, psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO,mask,
-                                                                       self.wvl, self.N, self.sx, self.grid_diameter,
-                                                                       self.freq_range, self.dk, self.nPixPSF,
-                                                                       self.wvlRef, opdMap=self.opdMap)
+            psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO,mask,
+                                                    self.wvl, self.N, self.sx, self.grid_diameter,
+                                                    self.freq_range, self.dk, self.nPixPSF,
+                                                    self.wvlMax, opdMap=self.opdMap)
 
             # -----------------------------------------------------------------
             ## Merit functions
@@ -477,9 +481,9 @@ class baseSimulation(object):
                 self.pointings_FWHM_mas.append(FWHM)
                 if self.verbose:
                     s1 = cpuArray(PSD_HO[idx]).sum()
-                    SR = np.exp(-s1*(2*np.pi*1e-9/self.wvl)**2) # Strehl-ratio at the sensing wavelength
-                    print('SR(@',int(self.wvl*1e9),'nm)        :', "%.5f" % SR)
-                    print('FWHM(@',int(self.wvl*1e9),'nm) [mas]:', "%.3f" % FWHM)
+                    SR = np.exp(-s1*(2*np.pi*1e-9/self.wvlRef)**2) # Strehl-ratio at the sensing wavelength
+                    print('SR(@',int(self.wvlRef*1e9),'nm)        :', "%.5f" % SR)
+                    print('FWHM(@',int(self.wvlRef*1e9),'nm) [mas]:', "%.3f" % FWHM)
                 idx += 1
 
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
@@ -507,13 +511,13 @@ class baseSimulation(object):
                     else:
                         ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
                     self.results.append(convolve(psfLongExp,
-                                   residualToSpectrum(ellp, self.wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))))
+                                   residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))))
                 else:
                     self.results.append(psfLongExp)
 
     def ngsPSF(self):
         # pixel size for LO
-        LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvl
+        LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvlMax
         # error messages for wrong pixel size
         if LO_PSFsInMas > self.LO_psInMas:
             extraOversampLO = np.ceil(self.LO_psInMas/LO_PSFsInMas)
@@ -549,10 +553,10 @@ class baseSimulation(object):
 
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
-        psdArray, psfLE_NGS = psdSetToPsfSet(PSD_NGS, maskLO,
-                                             self.LO_wvl, NLO, self.sx, self.grid_diameter,
-                                             self.freq_range, self.dk, nPixPSFLO,
-                                             self.wvlRef, opdMap=self.opdMap)
+        psfLE_NGS = psdSetToPsfSet(PSD_NGS, maskLO,
+                                   self.LO_wvl, NLO, self.sx, self.grid_diameter,
+                                   self.freq_range, self.dk, nPixPSFLO,
+                                   self.wvlMax, opdMap=self.opdMap)
 
         # -----------------------------------------------------------------
         # Merit functions
@@ -604,7 +608,7 @@ class baseSimulation(object):
         # optional Focus error
         if self.addFocusError:
             # pixel size for Focus
-            Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvl
+            Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvlMax
             # error messages for wrong pixel size
             if Focus_PSFsInMas > self.Focus_psInMas:
                 extraOversampFocus = np.ceil(self.Focus_psInMas/Focus_PSFsInMas)
@@ -643,10 +647,10 @@ class baseSimulation(object):
 
                 if self.verbose:
                     print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
-                psdArray, psfLE_Focus = psdSetToPsfSet(PSD_Focus, maskFocus,
-                                                       self.Focus_wvl, NFocus, self.sx, self.grid_diameter,
-                                                       self.freq_range, self.dk, nPixPSFFocus,
-                                                       self.wvlRef, opdMap=self.opdMap)
+                psfLE_Focus = psdSetToPsfSet(PSD_Focus, maskFocus,
+                                             self.Focus_wvl, NFocus, self.sx, self.grid_diameter,
+                                             self.freq_range, self.dk, nPixPSFFocus,
+                                             self.wvlMax, opdMap=self.opdMap)
 
                 # -----------------------------------------------------------------
                 ## Merit functions
@@ -692,7 +696,7 @@ class baseSimulation(object):
                     self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
             else:
                 self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
-            self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvl*1e9)**2) )
+            self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvlRef*1e9)**2) )
             scale = (np.pi/(180*3600*1000) * self.TelescopeDiameter / (4*1e-9))
             fwhms_lo = 2.355 * self.LO_res/scale / np.sqrt(2)
             self.fwhm.append(np.sqrt(fwhms_lo**2 + np.asarray(self.pointings_FWHM_mas)**2))
@@ -768,10 +772,10 @@ class baseSimulation(object):
             self.sx            = int(2*np.round(self.tel_radius/self.pitch))
             # dk is the same as in p3.aoSystem.powerSpectrumDensity except that it is multiplied by 1e9 instead of 2.
             self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
-            # wvlRef from P3 is required to scale correctly the PSD from rad to m
+            # wvlRef from P3 is required to scale correctly the OL PSD from rad to m
             self.wvlRef        = self.fao.freq.wvlRef
             # Define the pupil shape
-            self.mask = Field(self.wvl, self.N, self.grid_diameter)
+            self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
             # error messages for wrong pixel size
