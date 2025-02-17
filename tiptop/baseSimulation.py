@@ -492,10 +492,10 @@ class baseSimulation(object):
                     resSpecJ = residualToSpectrum(ellpJ, wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
                     temp = convolve(temp, resSpecJ)
                 resultList.append(temp)
-                if self.nWvl>1:
-                    self.results.append(resultList)
-                else:
-                    self.results = resultList
+            if self.nWvl>1:
+                self.results.append(resultList)
+            else:
+                self.results = resultList
 
     def finalPSF(self,astIndex):
         if astIndex is None or self.firstSimCall:
