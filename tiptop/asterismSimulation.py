@@ -78,6 +78,9 @@ class asterismSimulation(baseSimulation):
                           doPlot=False, addSrAndFwhm=addSrAndFwhm,
                           verbose=verbose, getHoErrorBreakDown=getHoErrorBreakDown,
                           savePSDs=False)
+        if self.nWvl>1:
+            raise ValueError("sources_science.Wavelength, '{}', has more than one element, it is not compatible with asterismSimulation"
+                         .format(self.my_data_map['sources_science']['Wavelength']))
         self.nNGS = 0
         self.firstConfigCall = True
         self.simulName = simulName
