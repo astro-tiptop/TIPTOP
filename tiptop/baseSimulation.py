@@ -353,7 +353,7 @@ class baseSimulation(object):
             for i in range(self.nWvl):
                 hdr1['WL_NM'+str(i).zfill(3)] = str(int(self.wvl[i]*1e9))
         else:
-            hdr1['WL_NM'] = str(int(self.wvl*1e9))
+            hdr1['WL_NM'] = str(int(self.wvl[0]*1e9))
         hdr1['PIX_MAS'] = str(self.psInMas)
         hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(self.pointings.shape[1])+" SOURCES"
         for i in range(self.pointings.shape[1]):
