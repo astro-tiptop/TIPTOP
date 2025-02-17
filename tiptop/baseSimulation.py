@@ -351,7 +351,7 @@ class baseSimulation(object):
         hdr1['SIZE'] = str(self.cubeResultsArray.shape)
         if isinstance(self.wvl, list):
             for i in range(len(self.wvl)):
-                hdr1['WL_NM'+str(i).zfill(4)] = str(int(self.wvl[i]*1e9))
+                hdr1['WL_NM'+str(i).zfill(3)] = str(int(self.wvl[i]*1e9))
         else:
             hdr1['WL_NM'] = str(int(self.wvl*1e9))
         hdr1['PIX_MAS'] = str(self.psInMas)
@@ -371,17 +371,26 @@ class baseSimulation(object):
             hdr1['RESF'] = "Global Focus residual in nm RMS (included in PSD)"
             hdr1['RESF0000'] = str(self.GF_res)
         if self.addSrAndFwhm:
+            rad2mas = 3600 * 180 * 1000 / np.pi
             for i in range(self.nWvl):
                 if self.nWvl>1:
                     cubeResultsArray = self.cubeResultsArray[i]
-                    wTxt = 'W'+str(i).zfill(4)
+                    wTxt = 'W'+str(i).zfill(2)
+                    fTxt = 'FW'
+                    eTxt = 'EE'
+                    Nfill = 2
+                    samp  = np.asarray(self.wvl[i]) * rad2mas / (self.psInMas*2*self.tel_radius)
                 else:
                     cubeResultsArray = self.cubeResultsArray
                     wTxt = ''
+                    fTxt = 'FWHM'
+                    eTxt = 'EE'+str(np.round(self.eeRadiusInMas))
+                    Nfill = 4
+                    samp  = float(self.wvl) * rad2mas / (self.psInMas*2*self.tel_radius)
                 for j in range(cubeResultsArray.shape[0]):
-                    hdr1['SR'+str(j).zfill(4)+wTxt]   = float(getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
+                    hdr1['SR'+str(j).zfill(Nfill)+wTxt]   = float(getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil, samp, method='otf'))
                 for j in range(cubeResultsArray.shape[0]):
-                    hdr1['FWHM'+str(j).zfill(4)+wTxt] = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
+                    hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
                 for j in range(cubeResultsArray.shape[0]):
                     if self.ensquaredEnergy:
                         ee = cpuArray(getEnsquaredEnergy(cubeResultsArray[j,:,:]))
@@ -389,7 +398,7 @@ class baseSimulation(object):
                     else:
                         ee,rr = getEncircledEnergy(cubeResultsArray[j,:,:], pixelscale=self.psInMas, center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
                     ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
-                    hdr1['EE'+str(np.round(self.eeRadiusInMas))+str(j).zfill(4)+wTxt] = ee_at_radius_fn(self.eeRadiusInMas).take(0)
+                    hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = ee_at_radius_fn(self.eeRadiusInMas).take(0)
 
         # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
@@ -466,10 +475,10 @@ class baseSimulation(object):
         # FINAl CONVOLUTION
         for i in range(self.nWvl):
             if self.nWvl>1:
-                psfList = psfLongExpPointingsArr[i]
+                psfList = self.psfLongExpPointingsArr[i]
                 wvl = self.wvl[i]
             else:
-                psfList = psfLongExpPointingsArr
+                psfList = self.psfLongExpPointingsArr
                 wvl = self.wvl
             resultList = []
             for ellp, psfLongExp in zip(self.cov_ellipses, psfList):
@@ -498,10 +507,11 @@ class baseSimulation(object):
 
             if self.verbose:
                 print('******** HO PSF')
-            psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO,mask,
+            psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask,
                                                     self.wvl, self.N, self.sx, self.grid_diameter,
                                                     self.freq_range, self.dk, self.nPixPSF,
-                                                    self.wvlMax, opdMap=self.opdMap, padPSD=padPSD)
+                                                    self.wvlMax, self.overSamp,
+                                                    opdMap=self.opdMap, padPSD=padPSD)
 
             # -----------------------------------------------------------------
             ## Merit functions
@@ -622,7 +632,8 @@ class baseSimulation(object):
         psfLE_NGS = psdSetToPsfSet(PSD_NGS, maskLO,
                                    self.LO_wvl, NLO, self.sx, self.grid_diameter,
                                    self.freq_range, self.dk, nPixPSFLO,
-                                   self.wvlMax, opdMap=self.opdMap)
+                                   self.wvlMax, self.overSamp,
+                                   opdMap=self.opdMap)
 
         # -----------------------------------------------------------------
         # Merit functions
@@ -716,7 +727,8 @@ class baseSimulation(object):
                 psfLE_Focus = psdSetToPsfSet(PSD_Focus, maskFocus,
                                              self.Focus_wvl, NFocus, self.sx, self.grid_diameter,
                                              self.freq_range, self.dk, nPixPSFFocus,
-                                             self.wvlMax, opdMap=self.opdMap)
+                                             self.wvlMax, self.overSamp,
+                                             opdMap=self.opdMap)
 
                 # -----------------------------------------------------------------
                 ## Merit functions
@@ -851,6 +863,7 @@ class baseSimulation(object):
             self.N             = self.PSD[0].shape[0]
             self.nPointings    = self.pointings.shape[1]
             self.nPixPSF       = self.my_data_map['sensor_science']['FieldOfView']
+            self.overSamp      = int(self.fao.freq.kRef_)
             self.freq_range    = self.N*self.fao.freq.PSDstep
             self.pitch         = 1/self.freq_range
             self.grid_diameter = self.pitch*self.N
@@ -874,8 +887,10 @@ class baseSimulation(object):
                 self.opdMap = None
 
             if self.verbose:
-                print('freq_range:', self.freq_range)
-                print('PSD.shape:', self.PSD.shape)
+                print('PSD step:', self.fao.freq.PSDstep)
+                print('PSD freq range:', self.freq_range)
+                print('PSD shape:', self.PSD.shape)
+                print('oversampling:', self.overSamp)
                 print('sensor_science.PixelScale:', self.psInMas)
 
             # ----------------------------------------------------------------------------
