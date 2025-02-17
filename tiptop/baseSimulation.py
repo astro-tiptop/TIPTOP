@@ -277,10 +277,10 @@ class baseSimulation(object):
                 cubeResults = self.cubeResults
             psf1dList= []
             psf1d_radiusList = []
-            for psfs in cubeResults:
-                psfRadius = psfs.shape[0]/2
-                center = np.unravel_index(np.argmax(psfs), psfs.shape)
-                rr, radialprofile, ee = radial_profile(psfs, ext=0, pixelscale=self.psInMas, ee=True,
+            for psf in cubeResults:
+                psfRadius = psf.shape[0]/2
+                center = np.unravel_index(np.argmax(psf), psf.shape)
+                rr, radialprofile, ee = radial_profile(psf, ext=0, pixelscale=self.psInMas, ee=True,
                                                        center=center, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
                                                        normalize='total', pa_range=None, slice=0, nargout=2, verbose=self.verbose)
                 psf1dList.append(radialprofile)
