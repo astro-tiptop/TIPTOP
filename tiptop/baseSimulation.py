@@ -349,8 +349,8 @@ class baseSimulation(object):
         hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr1['CONTENT'] = "PSF CUBE"
         hdr1['SIZE'] = str(self.cubeResultsArray.shape)
-        if isinstance(self.wvl, list):
-            for i in range(len(self.wvl)):
+        if self.nWvl>1:
+            for i in range(self.nWvl):
                 hdr1['WL_NM'+str(i).zfill(3)] = str(int(self.wvl[i]*1e9))
         else:
             hdr1['WL_NM'] = str(int(self.wvl*1e9))
@@ -386,7 +386,7 @@ class baseSimulation(object):
                     fTxt = 'FWHM'
                     eTxt = 'EE'+str(np.round(self.eeRadiusInMas))
                     Nfill = 4
-                    samp  = float(self.wvl) * rad2mas / (self.psInMas*2*self.tel_radius)
+                    samp  = self.wvl[0] * rad2mas / (self.psInMas*2*self.tel_radius)
                 for j in range(cubeResultsArray.shape[0]):
                     hdr1['SR'+str(j).zfill(Nfill)+wTxt]   = float(getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil, samp, method='otf'))
                 for j in range(cubeResultsArray.shape[0]):
@@ -479,7 +479,7 @@ class baseSimulation(object):
                 wvl = self.wvl[i]
             else:
                 psfList = self.psfLongExpPointingsArr
-                wvl = self.wvl
+                wvl = self.wvl[0]
             resultList = []
             for ellp, psfLongExp in zip(self.cov_ellipses, psfList):
                 resSpec = residualToSpectrum(ellp, wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
@@ -523,7 +523,7 @@ class baseSimulation(object):
                     wvl = self.wvl[i]
                 else:
                     psfList = psfLongExpPointingsArr
-                    wvl = self.wvl
+                    wvl = self.wvl[0]
                 FWHMlist = []
                 idx = 0
                 for img in psfList:
@@ -796,7 +796,7 @@ class baseSimulation(object):
                     wvl = self.wvl[i]
                 else:
                     results = self.results
-                    wvl = self.wvl
+                    wvl = self.wvl[0]
                 sr = []
                 fwhm = []
                 ee = []
