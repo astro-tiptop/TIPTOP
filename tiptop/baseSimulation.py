@@ -476,7 +476,7 @@ class baseSimulation(object):
         # CONVULUTION KERNELS
         resSpecList = []
         resSpecListJ = []
-        for ellp, psfLongExp in zip(self.cov_ellipses, psfList):
+        for ellp in zip(self.cov_ellipses):
             resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
             if self.jitter_FWHM is not None:
                 if isinstance(self.jitter_FWHM, list):
@@ -495,7 +495,7 @@ class baseSimulation(object):
                 psfList = self.psfLongExpPointingsArr
                 wvl = self.wvl[0]
             resultList = []
-            for ellp, psfLongExp, resSpec, resSpecJ in zip(self.cov_ellipses, psfList, resSpecList, resSpecListJ):
+            for psfLongExp, resSpec, resSpecJ in zip(psfList, resSpecList, resSpecListJ):
                 temp = convolve(psfLongExp, resSpec)
                 if self.jitter_FWHM is not None:
                     temp = convolve(temp, resSpecJ)
