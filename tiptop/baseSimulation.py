@@ -532,23 +532,22 @@ class baseSimulation(object):
                 else:
                     psfList = psfLongExpPointingsArr
                     wvl = self.wvl[0]
-                FWHMlist = []
+                fwhmList = []
                 idx = 0
                 for img in psfList:
                     # Get SFWHM in mas the star positions at the sensing wavelength
                     fwhmX,fwhmY = getFWHM(img.sampling, self.psInMas, method='contour', nargout=2)
-                    FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
-                    FWHMlist.append(FWHM)
+                    fwhmList.append(np.sqrt(fwhmX*fwhmY)) #average over major and minor axes
                     if self.verbose:
                         s1 = cpuArray(PSD_HO[idx]).sum()
-                        SR = np.exp(-s1*(2*np.pi*1e-9/wvl)**2) # Strehl-ratio at the sensing wavelength
-                        print('SR(@',int(wvl*1e9),'nm)        :', "%.5f" % SR)
-                        print('FWHM(@',int(wvl*1e9),'nm) [mas]:', "%.3f" % FWHM)
+                        sr = np.exp(-s1*(2*np.pi*1e-9/wvl)**2) # Strehl-ratio at the sensing wavelength
+                        print('SR(@',int(wvl*1e9),'nm)        :', "%.5f" % sr)
+                        print('FWHM(@',int(wvl*1e9),'nm) [mas]:', "%.3f" % fwhm)
                     idx += 1
                 if self.nWvl>1:
-                    self.pointings_FWHM_mas.append(FWHMlist)
+                    self.pointings_FWHM_mas.append(fwhmList)
                 else:
-                    self.pointings_FWHM_mas = FWHMlist
+                    self.pointings_FWHM_mas = fwhmList
 
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
 
