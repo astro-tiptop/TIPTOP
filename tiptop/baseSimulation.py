@@ -591,6 +591,7 @@ class baseSimulation(object):
                     psfList = self.psfLongExpPointingsArr
                 resultList = []
                 for psfLongExp in psfList:
+                    if self.jitter_FWHM is not None:
                         resultList.append(convolve(psfLongExp,resSpecJ))
                     else:
                         resultList.append(psfLongExp)
