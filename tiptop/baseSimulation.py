@@ -476,7 +476,7 @@ class baseSimulation(object):
         # CONVULUTION KERNELS
         resSpecList = []
         resSpecListJ = []
-        for ellp in zip(self.cov_ellipses):
+        for ellp in self.cov_ellipses:
             resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
             if self.jitter_FWHM is not None:
                 if isinstance(self.jitter_FWHM, list):
