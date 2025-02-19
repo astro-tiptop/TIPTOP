@@ -855,7 +855,7 @@ class baseSimulation(object):
                                , display=False, getPSDatNGSpositions=self.LOisOn
                                , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
                                , getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False
-                               , PSDexpansion=True)
+                               , psdExpansion=True)
 
             if 'sensor_LO' in self.my_data_map.keys():
                 self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
