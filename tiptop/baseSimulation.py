@@ -537,7 +537,8 @@ class baseSimulation(object):
                 for img in psfList:
                     # Get SFWHM in mas the star positions at the sensing wavelength
                     fwhmX,fwhmY = getFWHM(img.sampling, self.psInMas, method='contour', nargout=2)
-                    fwhmList.append(np.sqrt(fwhmX*fwhmY)) #average over major and minor axes
+                    fwhm = np.sqrt(fwhmX*fwhmY)
+                    fwhmList.append(fwhm) #average over major and minor axes
                     if self.verbose:
                         s1 = cpuArray(PSD_HO[idx]).sum()
                         sr = np.exp(-s1*(2*np.pi*1e-9/wvl)**2) # Strehl-ratio at the sensing wavelength
