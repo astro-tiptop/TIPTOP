@@ -473,6 +473,19 @@ class baseSimulation(object):
             for n in range(self.cov_ellipses.shape[0]):
                 print('cov_ellipses #',n,': ', self.cov_ellipses[n,:], ' (unit: rad, mas, mas)')
             print('******** FINAL CONVOLUTION')
+        # CONVULUTION KERNELS
+        resSpecList = []
+        resSpecListJ = []
+        for ellp, psfLongExp in zip(self.cov_ellipses, psfList):
+            resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
+            if self.jitter_FWHM is not None:
+                if isinstance(self.jitter_FWHM, list):
+                    ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                else:
+                    ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
+            else:
+                resSpecListJ.append(0)
         # FINAl CONVOLUTION
         for i in range(self.nWvl):
             if self.nWvl>1:
@@ -482,15 +495,9 @@ class baseSimulation(object):
                 psfList = self.psfLongExpPointingsArr
                 wvl = self.wvl[0]
             resultList = []
-            for ellp, psfLongExp in zip(self.cov_ellipses, psfList):
-                resSpec = residualToSpectrum(ellp, wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
+            for ellp, psfLongExp, resSpec, resSpecJ in zip(self.cov_ellipses, psfList, resSpecList, resSpecListJ):
                 temp = convolve(psfLongExp, resSpec)
                 if self.jitter_FWHM is not None:
-                    if isinstance(self.jitter_FWHM, list):
-                        ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
-                    else:
-                        ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                    resSpecJ = residualToSpectrum(ellpJ, wvl, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
                     temp = convolve(temp, resSpecJ)
                 resultList.append(temp)
             if self.nWvl>1:
@@ -529,8 +536,8 @@ class baseSimulation(object):
                 idx = 0
                 for img in psfList:
                     # Get SFWHM in mas the star positions at the sensing wavelength
-                    FWHMx,FWHMy = getFWHM(img.sampling, self.psInMas, method='contour', nargout=2)
-                    FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
+                    fwhmX,fwhmY = getFWHM(img.sampling, self.psInMas, method='contour', nargout=2)
+                    FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
                     FWHMlist.append(FWHM)
                     if self.verbose:
                         s1 = cpuArray(PSD_HO[idx]).sum()
@@ -571,6 +578,12 @@ class baseSimulation(object):
                     else:
                         self.results = resultList
         else:
+            if self.jitter_FWHM is not None:
+                if isinstance(self.jitter_FWHM, list):
+                    ellp = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                else:
+                    ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                resSpecJ = residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
             for i in range(self.nWvl):
                 if self.nWvl>1:
                     psfList = self.psfLongExpPointingsArr[i]
@@ -578,13 +591,7 @@ class baseSimulation(object):
                     psfList = self.psfLongExpPointingsArr
                 resultList = []
                 for psfLongExp in psfList:
-                    if self.jitter_FWHM is not None:
-                        if isinstance(self.jitter_FWHM, list):
-                            ellp = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
-                        else:
-                            ellp = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                        resultList.append(convolve(psfLongExp,
-                                       residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))))
+                        resultList.append(convolve(psfLongExp,resSpecJ))
                     else:
                         resultList.append(psfLongExp)
                 if self.nWvl>1:
@@ -598,16 +605,18 @@ class baseSimulation(object):
         # error messages for wrong pixel size
         if LO_PSFsInMas > self.LO_psInMas:
             extraOversampLO = np.ceil(self.LO_psInMas/LO_PSFsInMas)
-            NLO = extraOversampLO*self.N
+            overSampLO = self.overSamp * extraOversampLO
+            nLO = extraOversampLO*self.N
             nPixPSFLO = extraOversampLO*self.nPixPSF
             LO_PSFsInMas /= extraOversampLO
         else:
-            NLO = self.N
+            overSampLO = self.overSamp
+            nLO = self.N
             nPixPSFLO = self.nPixPSF
 
         # -----------------------------------------------------------------
         # PSD and sub-aperture mask for NGS directions
-        PSD_NGS = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
+        psdNGS = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
         k  = np.sqrt(self.fao.freq.k2_)
 
         # Define the LO sub-aperture shape
@@ -623,17 +632,17 @@ class baseSimulation(object):
             if nSAi != 1:
                 # piston filter for the sub-aperture size
                 pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAi,k)
-                PSD_NGS[i] = PSD_NGS[i] * pf
+                psdNGS[i] = psdNGS[i] * pf
 
         # -----------------------------------------------------------------
         # PSF for NGS directions
 
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
-        psfLE_NGS = psdSetToPsfSet(PSD_NGS, maskLO,
-                                   self.LO_wvl, NLO, self.sx, self.grid_diameter,
+        psfLE_NGS = psdSetToPsfSet(psdNGS, maskLO,
+                                   self.LO_wvl, nLO, self.sx, self.grid_diameter,
                                    self.freq_range, self.dk, nPixPSFLO,
-                                   self.wvlMax, self.overSamp,
+                                   self.wvlMax, overSampLO,
                                    opdMap=self.opdMap)
 
         # -----------------------------------------------------------------
@@ -644,11 +653,11 @@ class baseSimulation(object):
         idx = 0
         for img in psfLE_NGS:
             # Get SR, FWHM in mas and EE at the NGSs positions at the sensing wavelength
-            s1 = cpuArray(PSD_NGS[idx]).sum()
+            s1 = cpuArray(psdNGS[idx]).sum()
             SR = np.exp(-s1*(2*np.pi*1e-9/self.LO_wvl)**2) # Strehl-ratio at the sensing wavelength
             self.NGS_SR_field.append(SR)
-            FWHMx,FWHMy = getFWHM(img.sampling, LO_PSFsInMas, method='contour', nargout=2)
-            FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
+            fwhmX,fwhmY = getFWHM(img.sampling, LO_PSFsInMas, method='contour', nargout=2)
+            FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
             self.NGS_FWHM_mas_field.append(FWHM)
             ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
                                          center=(nPixPSFLO/2,nPixPSFLO/2), nargout=2)
@@ -677,8 +686,8 @@ class baseSimulation(object):
                 maskField.sampling = congrid(maskLO, [self.sx, self.sx])
                 maskField.sampling = zeroPad(maskField.sampling, (self.N-self.sx)//2)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
-            FWHMx,FWHMy  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
-            self.NGS_DL_FWHM_mas = np.sqrt(FWHMx*FWHMy)
+            fwhmX,fwhmY  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
+            self.NGS_DL_FWHM_mas = np.sqrt(fwhmX*fwhmY)
         else:
             self.NGS_DL_FWHM_mas = None
 
@@ -690,11 +699,13 @@ class baseSimulation(object):
             # error messages for wrong pixel size
             if Focus_PSFsInMas > self.Focus_psInMas:
                 extraOversampFocus = np.ceil(self.Focus_psInMas/Focus_PSFsInMas)
-                NFocus = extraOversampFocus*N
+                overSampFocus = self.overSamp * extraOversampFocus
+                nFocus = extraOversampFocus*N
                 nPixPSFFocus = extraOversampFocus*self.nPixPSF
                 Focus_PSFsInMas /= extraOversampFocus
             else:
-                NFocus = self.N
+                overSampFocus = self.overSamp
+                nFocus = self.N
                 nPixPSFFocus = self.nPixPSF
 
             if 'sensor_Focus' in self.my_data_map.keys():
@@ -705,7 +716,7 @@ class baseSimulation(object):
 
                 # Define the LO sub-aperture shape
                 nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
-                PSD_Focus = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
+                psdFocus = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
                 maskFocus = maskSA(nSAfocus, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.tel.pupil))
 
                 for i in range(self.nNaturalGS_field):
@@ -717,7 +728,7 @@ class baseSimulation(object):
                     if nSAfocusI != 1:
                         # --- piston filter for the sub-aperture size
                         pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAfocusI,k)
-                        PSD_Focus[i] = PSD_Focus[i] * pf
+                        psdFocus[i] = psdFocus[i] * pf
 
 
                 # -----------------------------------------------------------------
@@ -725,10 +736,10 @@ class baseSimulation(object):
 
                 if self.verbose:
                     print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
-                psfLE_Focus = psdSetToPsfSet(PSD_Focus, maskFocus,
-                                             self.Focus_wvl, NFocus, self.sx, self.grid_diameter,
+                psfLE_Focus = psdSetToPsfSet(psdFocus, maskFocus,
+                                             self.Focus_wvl, nFocus, self.sx, self.grid_diameter,
                                              self.freq_range, self.dk, nPixPSFFocus,
-                                             self.wvlMax, self.overSamp,
+                                             self.wvlMax, overSampFocus,
                                              opdMap=self.opdMap)
 
                 # -----------------------------------------------------------------
@@ -739,11 +750,11 @@ class baseSimulation(object):
                 idx = 0
                 for img in psfLE_Focus:
                     # Get SR, FWHM in mas and EE at the NGSs positions at the sensing wavelength
-                    s1 = cpuArray(PSD_Focus[idx]).sum()
+                    s1 = cpuArray(psdFocus[idx]).sum()
                     SR = np.exp(-s1*(2*np.pi*1e-9/self.Focus_wvl)**2) # Strehl-ratio at the sensing wavelength
                     self.Focus_SR_field.append(SR)
-                    FWHMx,FWHMy = getFWHM(img.sampling, Focus_PSFsInMas, method='contour', nargout=2)
-                    FWHM = np.sqrt(FWHMx*FWHMy) #average over major and minor axes
+                    fwhmX,fwhmY = getFWHM(img.sampling, Focus_PSFsInMas, method='contour', nargout=2)
+                    FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
                     self.Focus_FWHM_mas_field.append(FWHM)
                     ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
                                                  center=(nPixPSFFocus/2,nPixPSFFocus/2), nargout=2)
