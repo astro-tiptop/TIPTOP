@@ -16,6 +16,8 @@ rc("text", usetex=False)
 
 import json
 
+rad2mas = 3600 * 180 * 1000 / np.pi
+
 class baseSimulation(object):
     
     def raiseMissingRequiredOpt(self,sec,opt):
@@ -372,7 +374,6 @@ class baseSimulation(object):
             hdr1['RESF'] = "Global Focus residual in nm RMS (included in PSD)"
             hdr1['RESF0000'] = str(self.GF_res)
         if self.addSrAndFwhm:
-            rad2mas = 3600 * 180 * 1000 / np.pi
             for i in range(self.nWvl):
                 if self.nWvl>1:
                     cubeResultsArray = self.cubeResultsArray[i]
@@ -380,16 +381,17 @@ class baseSimulation(object):
                     fTxt = 'FW'
                     eTxt = 'EE'
                     Nfill = 2
-                    samp  = np.asarray(self.wvl[i]) * rad2mas / (self.psInMas*2*self.tel_radius)
+
                 else:
                     cubeResultsArray = self.cubeResultsArray
                     wTxt = ''
                     fTxt = 'FWHM'
                     eTxt = 'EE'+str(np.round(self.eeRadiusInMas))
                     Nfill = 4
-                    samp  = self.wvl[0] * rad2mas / (self.psInMas*2*self.tel_radius)
+                samp = self.wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
                 for j in range(cubeResultsArray.shape[0]):
-                    hdr1['SR'+str(j).zfill(Nfill)+wTxt]   = float(getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil, samp, method='otf'))
+                    hdr1['SR'+str(j).zfill(Nfill)+wTxt] = float(getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil,
+                                                                          2*self.tel_radius, samp, method='max', psfInOnePix=True))
                 for j in range(cubeResultsArray.shape[0]):
                     hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
                 for j in range(cubeResultsArray.shape[0]):
@@ -803,18 +805,18 @@ class baseSimulation(object):
                     self.penalty.append( HO_res )
             if self.verbose:
                 print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
+
             for i in range(self.nWvl):
                 if self.nWvl>1:
                     results = self.results[i]
-                    wvl = self.wvl[i]
                 else:
                     results = self.results
-                    wvl = self.wvl[0]
+                samp = wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
                 sr = []
                 fwhm = []
                 ee = []
                 for img in results:
-                    sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, self.fao.freq.sampRef, method='otf'))
+                    sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, 2*self.tel_radius, samp, method='max', psfInOnePix=True))
                     fwhm.append(getFWHM(img.sampling, self.psInMas, method='contour', nargout=1))
                     if self.ensquaredEnergy:
                         ee_ = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
