@@ -155,7 +155,7 @@ class baseSimulation(object):
             self.nWvl = len(wvl_temp)
         else:
             self.wvlMax = wvl_temp
-            self.wvl = wvl_temp     # lambda
+            self.wvl = [wvl_temp]     # lambda
             self.nWvl = 1
         self.zenithSrc  = self.my_data_map['sources_science']['Zenith']
         self.azimuthSrc = self.my_data_map['sources_science']['Azimuth']
@@ -492,10 +492,8 @@ class baseSimulation(object):
         for i in range(self.nWvl):
             if self.nWvl>1:
                 psfList = self.psfLongExpPointingsArr[i]
-                wvl = self.wvl[i]
             else:
                 psfList = self.psfLongExpPointingsArr
-                wvl = self.wvl[0]
             resultList = []
             for psfLongExp, resSpec, resSpecJ in zip(psfList, resSpecList, resSpecListJ):
                 temp = convolve(psfLongExp, resSpec)
@@ -679,16 +677,14 @@ class baseSimulation(object):
             if self.verbose:
                 print('Adding aliasing error on LO!')
             # DIFFRACTION LIMITED PSD and PSF
-            psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
-            maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
+            psdDL = Field(self.LO_wvl, nLO, self.freq_range, 'rad')
+            maskField = Field(self.LO_wvl, nLO, self.grid_diameter)
             if isinstance(maskLO, list):
                 maskField.sampling = congrid(maskLO[i], [self.sx, self.sx])
-                maskField.sampling = zeroPad(maskField.sampling, (self.N-self.sx)//2)
-                psfNgsDL = longExposurePsf(maskField, psdDL)
             else:
                 maskField.sampling = congrid(maskLO, [self.sx, self.sx])
-                maskField.sampling = zeroPad(maskField.sampling, (self.N-self.sx)//2)
-                psfNgsDL = longExposurePsf(maskField, psdDL)
+            maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
+            psfNgsDL = longExposurePsf(maskField, psdDL)
             fwhmX,fwhmY  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
             self.NGS_DL_FWHM_mas = np.sqrt(fwhmX*fwhmY)
         else:
@@ -811,7 +807,7 @@ class baseSimulation(object):
                     results = self.results[i]
                 else:
                     results = self.results
-                samp = wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
+                samp = self.wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
                 sr = []
                 fwhm = []
                 ee = []
