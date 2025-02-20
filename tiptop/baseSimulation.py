@@ -681,12 +681,10 @@ class baseSimulation(object):
             maskField = Field(self.LO_wvl, nLO, self.grid_diameter)
             if isinstance(maskLO, list):
                 maskField.sampling = congrid(maskLO[i], [self.sx, self.sx])
-                maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
-                psfNgsDL = longExposurePsf(maskField, psdDL)
             else:
                 maskField.sampling = congrid(maskLO, [self.sx, self.sx])
-                maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
-                psfNgsDL = longExposurePsf(maskField, psdDL)
+            maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
+            psfNgsDL = longExposurePsf(maskField, psdDL)
             fwhmX,fwhmY  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
             self.NGS_DL_FWHM_mas = np.sqrt(fwhmX*fwhmY)
         else:
