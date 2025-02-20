@@ -660,12 +660,15 @@ class baseSimulation(object):
             fwhmX,fwhmY = getFWHM(img.sampling, LO_PSFsInMas, method='contour', nargout=2)
             FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
             self.NGS_FWHM_mas_field.append(FWHM)
-            ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
-                                         center=(nPixPSFLO/2,nPixPSFLO/2), nargout=2)
-            ee_ *= 1/np.max(ee_)
-            ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-            # max is used to compute EE on at least a radius of one pixel
-            ee_NGS = ee_at_radius_fn(max([FWHM,self.LO_psInMas]))
+            if FWHM >= nLO*LO_PSFsInMas:
+                ee_NGS = 1
+            else:
+                ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
+                                             center=(nPixPSFLO/2,nPixPSFLO/2), nargout=2)
+                ee_ *= 1/np.max(ee_)
+                ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
+                # max is used to compute EE on at least a radius of one pixel
+                ee_NGS = ee_at_radius_fn(max([FWHM,self.LO_psInMas]))
             self.NGS_EE_field.append(ee_NGS)
             if self.verbose:
                 print('SR(@',int(self.LO_wvl*1e9),'nm)        :', "%.5f" % SR)
@@ -755,12 +758,15 @@ class baseSimulation(object):
                     fwhmX,fwhmY = getFWHM(img.sampling, Focus_PSFsInMas, method='contour', nargout=2)
                     FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
                     self.Focus_FWHM_mas_field.append(FWHM)
-                    ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
-                                                 center=(nPixPSFFocus/2,nPixPSFFocus/2), nargout=2)
-                    ee_ *= 1/np.max(ee_)
-                    ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-                    # max is used to compute EE on at least a radius of one pixel
-                    ee_Focus = ee_at_radius_fn(max([FWHM,self.Focus_psInMas]))
+                    if FWHM >= nFocus*Focus_PSFsInMas:
+                        ee_Focus = 1
+                    else:
+                        ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
+                                                     center=(nPixPSFFocus/2,nPixPSFFocus/2), nargout=2)
+                        ee_ *= 1/np.max(ee_)
+                        ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
+                        # max is used to compute EE on at least a radius of one pixel
+                        ee_Focus = ee_at_radius_fn(max([FWHM,self.Focus_psInMas]))
                     self.Focus_EE_field.append(ee_Focus)
                     if self.verbose:
                         print('SR(@',int(self.Focus_wvl*1e9),'nm)        :', "%.5f" % SR)
