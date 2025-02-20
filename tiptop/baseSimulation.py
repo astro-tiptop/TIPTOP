@@ -677,8 +677,8 @@ class baseSimulation(object):
             if self.verbose:
                 print('Adding aliasing error on LO!')
             # DIFFRACTION LIMITED PSD and PSF
-            psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
-            maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
+            psdDL = Field(self.LO_wvl, nLO, self.freq_range, 'rad')
+            maskField = Field(self.LO_wvl, nLO, self.grid_diameter)
             if isinstance(maskLO, list):
                 maskField.sampling = congrid(maskLO[i], [self.sx, self.sx])
                 maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
