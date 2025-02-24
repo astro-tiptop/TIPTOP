@@ -78,7 +78,7 @@ def hdr2map(hdr):
                 curr_key = ''                   
     return my_data_map
 
-def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
+def plot_directions(parser, ticks_interval=5, labels=None, lo_labels=None,
                     science=True, max_pos=None, add_legend=True):
     '''
     Polar plot with science and GS (sources_HO and sources_LO) directions
@@ -141,8 +141,8 @@ def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
     if labels is not None:
         for i,lab in enumerate(labels):
             ax.text(th_sci[i],rr_sci[i],str(lab),color='black',fontsize=11)
-    if LO_labels is not None:
-        for i,lab in enumerate(LO_labels):
+    if lo_labels is not None:
+        for i,lab in enumerate(lo_labels):
             ax.text(th_LO[i],rr_LO[i],str(lab),color='black',fontsize=11)
 
     # Legend
