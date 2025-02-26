@@ -318,8 +318,8 @@ class baseSimulation(object):
         hdul1 = fits.HDUList()
         hdul1.append(fits.PrimaryHDU())
         hdul1.append(fits.ImageHDU(data=self.cubeResultsArray))
-        hdul1.append(fits.ImageHDU(data=self.psfOL.sampling)) # append open-loop PSF
-        hdul1.append(fits.ImageHDU(data=self.psfDL.sampling)) # append diffraction limited PSF
+        hdul1.append(fits.ImageHDU(data=cpuArray(self.psfOL.sampling))) # append open-loop PSF
+        hdul1.append(fits.ImageHDU(data=cpuArray(self.psfDL.sampling))) # append diffraction limited PSF
         if self.savePSDs:
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
         hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
@@ -436,36 +436,37 @@ class baseSimulation(object):
 
     def computeOL_PSD(self):
         # OPEN-LOOP PSD
-        k   = np.sqrt(self.fao.freq.k2_)
-        pf  = FourierUtils.pistonFilter(2*self.tel_radius,k)
+        k = np.sqrt(self.fao.freq.k2_)
+        pf = FourierUtils.pistonFilter(2*self.tel_radius,k)
+        spectrum = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf)
         psdOL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
-        temp = self.fao.ao.atm.spectrum(k) * pf
-        psdOL.sampling = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf * (self.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
-        # Get the OPEN-LOOP PSF
-        self.psfOL = longExposurePsf(self.mask, psdOL)
-        # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
-#        if self.psfOL.sampling.shape[0] > nPixPSF:
-#            self.psfOL.sampling = self.psfOL.sampling[int(self.psfOL.sampling.shape[0]/2-nPixPSF/2):int(self.psfOL.sampling.shape[0]/2+nPixPSF/2),
-#                                            int(self.psfOL.sampling.shape[1]/2-nPixPSF/2):int(self.psfOL.sampling.shape[1]/2+nPixPSF/2)]
-#        self.psfOL.sampling = cpuArray(psdOL.sampling)
+        psdOL.sampling = arrayP3toMastsel(spectrum * (self.dk*self.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
+        padPSD = self.nWvl > 1
+        mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
+        psfOL = psdSetToPsfSet([psdOL.sampling], mask,
+                                self.wvlRef, self.N, self.sx, self.grid_diameter,
+                                self.freq_range, self.dk, self.nPixPSF,
+                                self.wvlMax, self.overSamp, padPSD=padPSD)
+        self.psfOL = psfOL[0]
         if self.doPlot:
             fig, ax1 = plt.subplots(1,1)
-            im = ax1.imshow(np.log(np.abs(self.psfOL.sampling) + 1e-20), cmap='hot')
+            im = ax1.imshow(np.log(np.abs(cpuArray(self.psfOL.sampling)) + 1e-20), cmap='hot')
             ax1.set_title('open loop PSF', color='black')
 
 
     def computeDL_PSD(self):
         # DIFFRACTION LIMITED PSD
         psdDL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
-        self.psfDL = longExposurePsf(self.mask, psdDL)
-        # It cuts the PSF if the PSF is larger than the requested dimension (N>nPixPSF)
-        if self.psfDL.N > self.nPixPSF:
-            start_x = (self.psfDL.N - self.nPixPSF) // 2
-            start_y = (self.psfDL.N - self.nPixPSF) // 2
-            self.psfDL.sampling = self.psfDL.sampling[start_x:start_x + self.nPixPSF, start_y:start_y + self.nPixPSF]
+        padPSD = self.nWvl > 1
+        mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
+        psfDL = psdSetToPsfSet([psdDL.sampling], mask,
+                                self.wvlRef, self.N, self.sx, self.grid_diameter,
+                                self.freq_range, self.dk, self.nPixPSF,
+                                self.wvlMax, self.overSamp, padPSD=padPSD)
+        self.psfDL = psfDL[0]
         if self.doPlot:
             fig, ax2 = plt.subplots(1,1)
-            im = ax2.imshow(np.log(np.abs(self.psfDL.sampling) + 1e-20), cmap='hot')
+            im = ax2.imshow(np.log(np.abs(cpuArray(self.psfDL.sampling)) + 1e-20), cmap='hot')
             ax2.set_title('diffraction limited PSF', color='black')
 
 
