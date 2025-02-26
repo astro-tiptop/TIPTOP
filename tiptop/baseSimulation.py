@@ -440,7 +440,7 @@ class baseSimulation(object):
         pf = FourierUtils.pistonFilter(2*self.tel_radius,k)
         spectrum = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf)
         psdOL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
-        psdOL.sampling = arrayP3toMastsel(spectrum * (self.dk*self.wvlRef/np.pi)**2) # the PSD must be provided in m^2.m^2
+        psdOL.sampling = spectrum * (self.dk*self.wvlRef/np.pi)**2 # the PSD must be provided in m^2.m^2
         padPSD = self.nWvl > 1
         mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
         psfOL = psdSetToPsfSet([psdOL.sampling], mask,
