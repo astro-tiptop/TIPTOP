@@ -42,7 +42,7 @@ class baseSimulation(object):
             return False
     
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=True,
-                          doPlot=False, addSrAndFwhm=False,
+                          doPlot=False, addSrAndFwhm=True,
                           verbose=False, getHoErrorBreakDown=False,
                           savePSDs=False, ensquaredEnergy=False,
                           eeRadiusInMas=50):
@@ -360,19 +360,19 @@ class baseSimulation(object):
         hdr1['PIX_MAS'] = str(self.psInMas)
         hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(self.pointings.shape[1])+" SOURCES"
         for i in range(self.pointings.shape[1]):
-            hdr1['CCX'+str(i).zfill(4)] = self.pointings[0,i]
-            hdr1['CCY'+str(i).zfill(4)] = self.pointings[1,i]
+            hdr1['CCX' + str(i).zfill(4)] = np.round(self.pointings[0, i], 3).item()
+            hdr1['CCY' + str(i).zfill(4)] = np.round(self.pointings[1, i], 3).item()
         if hasattr(self,'HO_res'):
             hdr1['RESH'] = "High Order residual in nm RMS"
             for i in range(self.HO_res.shape[0]):
-                hdr1['RESH'+str(i).zfill(4)] = str(self.HO_res[i])
+                hdr1['RESH'+str(i).zfill(4)] =  np.round(cpuArray(self.HO_res[i]),3)
         if hasattr(self,'LO_res'):
             hdr1['RESL'] = "Low Order residual in nm RMS"
             for i in range(self.LO_res.shape[0]):
-                hdr1['RESL'+str(i).zfill(4)] = str(self.LO_res[i])
+                hdr1['RESL'+str(i).zfill(4)] = np.round(cpuArray(self.LO_res[i]),3)
         if hasattr(self,'GF_res'):
             hdr1['RESF'] = "Global Focus residual in nm RMS (included in PSD)"
-            hdr1['RESF0000'] = str(self.GF_res)
+            hdr1['RESF0000'] = np.round(cpuArray(self.GF_res),3)
         if self.addSrAndFwhm:
             for i in range(self.nWvl):
                 if self.nWvl>1:
@@ -381,7 +381,6 @@ class baseSimulation(object):
                     fTxt = 'FW'
                     eTxt = 'EE'
                     Nfill = 2
-
                 else:
                     cubeResultsArray = self.cubeResultsArray
                     wTxt = ''
@@ -390,18 +389,21 @@ class baseSimulation(object):
                     Nfill = 4
                 samp = self.wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
                 for j in range(cubeResultsArray.shape[0]):
-                    hdr1['SR'+str(j).zfill(Nfill)+wTxt] = float(getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil,
-                                                                          2*self.tel_radius, samp, method='max', psfInOnePix=True))
+                    sr_temp = getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil,
+                                        samp, method='max', psfInOnePix=True)
+                    hdr1['SR'+str(j).zfill(Nfill)+wTxt] = float(np.round(sr_temp,5))
                 for j in range(cubeResultsArray.shape[0]):
-                    hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
+                    fwhm_temp = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
+                    hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = np.round(fwhm_temp,3)
                 for j in range(cubeResultsArray.shape[0]):
                     if self.ensquaredEnergy:
                         ee = cpuArray(getEnsquaredEnergy(cubeResultsArray[j,:,:]))
                         rr = np.arange(1, ee.shape[0]*2, 2) * self.psInMas * 0.5
                     else:
-                        ee,rr = getEncircledEnergy(cubeResultsArray[j,:,:], pixelscale=self.psInMas, center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
+                        ee,rr = getEncircledEnergy(cubeResultsArray[j,:,:], pixelscale=self.psInMas,
+                                                   center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
                     ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
-                    hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = ee_at_radius_fn(self.eeRadiusInMas).take(0)
+                    hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = np.round(ee_at_radius_fn(self.eeRadiusInMas).take(0),5)
 
         # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
