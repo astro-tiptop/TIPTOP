@@ -821,7 +821,7 @@ class baseSimulation(object):
                 fwhm = []
                 ee = []
                 for img in results:
-                    sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, 2*self.tel_radius, samp, method='max', psfInOnePix=True))
+                    sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, samp, method='max', psfInOnePix=True))
                     fwhm.append(getFWHM(img.sampling, self.psInMas, method='contour', nargout=1))
                     if self.ensquaredEnergy:
                         ee_ = cpuArray(getEnsquaredEnergy(self.cubeResultsArray[i,:,:]))
