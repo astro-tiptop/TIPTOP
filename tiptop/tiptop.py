@@ -73,7 +73,7 @@ def gpuSelect(gpuIndex):
 #                            .format(sec))
 
 def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve=True,
-                      doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=False,
+                      doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
                       eeRadiusInMas=50, savePSDs=False, saveJson=False, gpuIndex=0):
     """
