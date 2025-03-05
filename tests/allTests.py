@@ -14,10 +14,10 @@ class TestTiptop(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         pass
-#        path = "data/ini/"
+#        path = "tiptop/data/ini/"
 #        parametersFile = 'mavisParams'
 #        fullPathFilename = path + parametersFile + '.ini'
-#        windPsdFile = 'data/windpsd_mavis.fits'
+#        windPsdFile = 'tiptop/data/windpsd_mavis.fits'
 #        TestMavisLO.mLO = MavisLO(path, parametersFile, verbose=True)
 #        overallSimulation("perfTest", "SOUL", 'perfTest', 'testSOUL', doPlot=True, doConvolve=True)
 
