@@ -14,7 +14,7 @@ Create a Anaconda environment for TIPTOP with python>=3.11 (below for example
    conda create --name tiptop python=3.11
    conda activate tiptop
 
-We only support python>=3.9.
+We only support python>=3.11.
 
 if you want to beneficiate from GPU acceleration, and you have a GPU, install cupy::
 
