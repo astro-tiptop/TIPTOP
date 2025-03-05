@@ -661,9 +661,6 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
-|simpleVarianceComputation|No       |string  |Set to it to False to activate the more complex and slower MASTSEL LO     |
-|                         |         |        |noise computation, that is more accurate in low flux regimes.             |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+
 |platform                 |No       |string  |*default: 'GPU'* Set to it to 'CPU' to forcy the library to use numpy     |
 |                         |         |        |instead of cupy.                                                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
