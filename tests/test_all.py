@@ -14,10 +14,10 @@ class TestTiptop(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         pass
-#        path = "data/ini/"
+#        path = "tiptop/data/ini/"
 #        parametersFile = 'mavisParams'
 #        fullPathFilename = path + parametersFile + '.ini'
-#        windPsdFile = 'data/windpsd_mavis.fits'
+#        windPsdFile = 'tiptop/data/windpsd_mavis.fits'
 #        TestMavisLO.mLO = MavisLO(path, parametersFile, verbose=True)
 #        overallSimulation("perfTest", "SOUL", 'perfTest', 'testSOUL', doPlot=True, doConvolve=True)
 
@@ -28,14 +28,14 @@ class TestMavis(TestTiptop):
         """
         Test
         """
-        computed_result = overallSimulation("perfTest", "MAVIS", 'perfTest', 'testMAVIS', doPlot=False, doConvolve=True, returnRes=True)
+        computed_result = overallSimulation("perfTest", "MAVIStest", 'perfTest', 'testMAVIS', doPlot=False, doConvolve=True, returnRes=True)
         
         ii = 0 
 #        for aa in computed_result:
 #            with open('tests/mavisResult' + str(ii) +  '.npy', 'wb') as f:
 #                np.save(f, cpuArray(aa))
 #            ii += 1 
-        
+
         stored_result0 = np.load('tests/mavisResult0.npy')
         stored_result1 = np.load('tests/mavisResult1.npy')
 
