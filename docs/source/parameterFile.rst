@@ -648,8 +648,6 @@ Can be set but not used
 |LoopDelaySteps_Focus     |No/Yes if|integer |*default: None*, Global focus loop delays in [frames]. If                 |
 |                         |Focus    |        |``[sensor_Focus]`` section is present it must be set.                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|ResidualError            |No       |?       |*Default: None*, ?                                                        |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 [COMPUTATION]
 -------------
