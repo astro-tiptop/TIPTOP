@@ -223,7 +223,7 @@ We now go more in detail for each section:
 |                         |         |        |number of directions required ([sources_science] Zenith and Azimuth) and  |
 |                         |         |        |Npix is the size required for the PSFs ([sensor_science] FieldOfView).    |
 |                         |         |        |If a single elements is present the fits file is a 3D array with          |
-|                         |         |        |dimension (Ns, Npix, Npix)                                                |
+|                         |         |        |dimension (Ns, Npix, Npix).                                               |
 |                         |         |        |Instead the profiles will be a 3D array (fourth fits file extension) with |
 |                         |         |        |dimensions (2*Nw, Ns, Npix/2). The first Nw elements contain the radius   |
 |                         |         |        |and the second Nw elements the profile values (the first radius and       |
@@ -231,12 +231,11 @@ We now go more in detail for each section:
 |                         |         |        |radius=data[1,0,:] profile=data[Nw+1,0,:], ...)                           |
 |                         |         |        |json file: two lists, radius and psf with dimensions (Nw, Ns, Npix/2)     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|Zenith                   |Yes      |list of |Zenithal coordinate in arcsec (distance from axis) of science sources     |
-|                         |         |float   |given in ``Wavelength``. Must be the same length as ``Azimuth``           |
+|Zenith                   |Yes      |list of |Zenithal coordinate in arcsec (distance from axis) of science sources.    |
+|                         |         |float   |Must be the same length as ``Azimuth``                                    |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+   
 |Azimuth                  |Yes      |list of |Azimuthal coordinate in degree (angle from the ref. direction: polar axis |
-|                         |         |float   |is x-axis) of science sources given in ``Wavelength``. Must be the same   |
-|                         |         |        |length as ``Zenith``                                                      |
+|                         |         |float   |is x-axis) of science sources. Must be the same length as ``Zenith``      |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 [sources_HO]
