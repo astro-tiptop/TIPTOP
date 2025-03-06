@@ -89,6 +89,14 @@ def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
     :type ticks_interval: int
     :param labels: optional default=None, list of strings to be plotted next to the science sources
     :type labels: list
+    :param LO_labels: optional default=None, list of strings to be plotted next to the LO sources
+    :type LO_labels: list
+    :param science: optional default=True, activate plot of science sources
+    :type science: bool
+    :param max_pos: optional default=None, maximum distance from axis
+    :type max_pos: float
+    :param add_legend: optional default=True, activate legend
+    :type add_legend: bool
     
     :return: fig, ax
     :rtype: objects

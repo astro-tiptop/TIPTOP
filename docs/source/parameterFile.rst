@@ -216,20 +216,26 @@ We now go more in detail for each section:
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
-|Wavelength               |Yes      |list of |list of central wavelengths for each frame in meters. you can have more   |
-|                         |         |float   |than one science target. needs explaining why the science sources can be  |
-|                         |         |or float|multiple. (polychromatic? several targets? you can set many taget of the  |
-|                         |         |        |same wavelength by only setting more than one Zenith and Azimuth but      |
-|                         |         |        |leaving the wavelength as a float. It produces one PSF per target. The    |
-|                         |         |        |number of PSF is the number of wavelength times the number of             |
-|                         |         |        |Azimuth/Zenith couple.                                                    |
+|Wavelength               |Yes      |list of |list of wavelengths in meters.                                            |
+|                         |         |float   |When more than one elements is present the output PSF saved in the fits   |
+|                         |         |or float|file is a 4D array with dimension (Nw, Ns, Npix, Npix), where Nw is the   |
+|                         |         |        |number of wavelengths required ([sources_science] Wavelength), Ns is the  |
+|                         |         |        |number of directions required ([sources_science] Zenith and Azimuth) and  |
+|                         |         |        |Npix is the size required for the PSFs ([sensor_science] FieldOfView).    |
+|                         |         |        |If a single elements is present the fits file is a 3D array with          |
+|                         |         |        |dimension (Ns, Npix, Npix).                                               |
+|                         |         |        |Instead the profiles will be a 3D array (fourth fits file extension) with |
+|                         |         |        |dimensions (2*Nw, Ns, Npix/2). The first Nw elements contain the radius   |
+|                         |         |        |and the second Nw elements the profile values (the first radius and       |
+|                         |         |        |profile pair is radius=data[0,0,:] profile=data[Nw,0,:], the second is    |
+|                         |         |        |radius=data[1,0,:] profile=data[Nw+1,0,:], ...)                           |
+|                         |         |        |json file: two lists, radius and psf with dimensions (Nw, Ns, Npix/2)     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|Zenith                   |Yes      |list of |Zenithal coordinate in arcsec (distance from axis) of science sources     |
-|                         |         |float   |given in ``Wavelength``. Must be the same length as ``Azimuth``           |
+|Zenith                   |Yes      |list of |Zenithal coordinate in arcsec (distance from axis) of science sources.    |
+|                         |         |float   |Must be the same length as ``Azimuth``                                    |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+   
 |Azimuth                  |Yes      |list of |Azimuthal coordinate in degree (angle from the ref. direction: polar axis |
-|                         |         |float   |is x-axis) of science sources given in ``Wavelength``. Must be the same   |
-|                         |         |        |length as ``Zenith``                                                      |
+|                         |         |float   |is x-axis) of science sources. Must be the same length as ``Zenith``      |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 [sources_HO]
@@ -642,8 +648,6 @@ Can be set but not used
 |LoopDelaySteps_Focus     |No/Yes if|integer |*default: None*, Global focus loop delays in [frames]. If                 |
 |                         |Focus    |        |``[sensor_Focus]`` section is present it must be set.                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|ResidualError            |No       |?       |*Default: None*, ?                                                        |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 [COMPUTATION]
 -------------
@@ -655,9 +659,6 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
-|simpleVarianceComputation|No       |string  |Set to it to False to activate the more complex and slower MASTSEL LO     |
-|                         |         |        |noise computation, that is more accurate in low flux regimes.             |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+
 |platform                 |No       |string  |*default: 'GPU'* Set to it to 'CPU' to forcy the library to use numpy     |
 |                         |         |        |instead of cupy.                                                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
