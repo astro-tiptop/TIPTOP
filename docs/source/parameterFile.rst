@@ -100,6 +100,9 @@ We now go more in detail for each section:
 |                          |          |       |(TBC) need to find how does the pathStatModes fits file work.             |
 |                          |          |       |From P3, not supported in TIPTOP.                                         |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
+|windPsdFile               |No        |string |*default: ''*, file name of a fits file with a 2D array with a frequency  |
+|                          |          |       |vector and PSD of tip and tilt windshake.                                 |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
 |extraErrorNm              |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
 |                          |          |       |is not otherwise considered)                                              |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
@@ -217,8 +220,9 @@ We now go more in detail for each section:
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
 |Wavelength               |Yes      |list of |list of wavelengths in meters.                                            |
-|                         |         |float   |When more than one elements is present the output PSF saved in the fits   |
-|                         |         |or float|file is a 4D array with dimension (Nw, Ns, Npix, Npix), where Nw is the   |
+|                         |         |float   |                                                                          |
+|                         |         |or float|When more than one elements is present the output PSF saved in the fits   |
+|                         |         |        |file is a 4D array with dimension (Nw, Ns, Npix, Npix), where Nw is the   |
 |                         |         |        |number of wavelengths required ([sources_science] Wavelength), Ns is the  |
 |                         |         |        |number of directions required ([sources_science] Zenith and Azimuth) and  |
 |                         |         |        |Npix is the size required for the PSFs ([sensor_science] FieldOfView).    |
@@ -229,7 +233,17 @@ We now go more in detail for each section:
 |                         |         |        |and the second Nw elements the profile values (the first radius and       |
 |                         |         |        |profile pair is radius=data[0,0,:] profile=data[Nw,0,:], the second is    |
 |                         |         |        |radius=data[1,0,:] profile=data[Nw+1,0,:], ...)                           |
-|                         |         |        |json file: two lists, radius and psf with dimensions (Nw, Ns, Npix/2)     |
+|                         |         |        |json file: two lists, radius and psf with dimensions (Nw, Ns, Npix/2).    |
+|                         |         |        |                                                                          |
+|                         |         |        |In this case more memory is required and small differences with respect   |
+|                         |         |        |to monochromatic PSF will be present because: (1) errors Differential     | 
+|                         |         |        |refractive anisoplanatism and Chromatism from P3 are computed for a       |
+|                         |         |        |single wavelength (the shortest one) (2) effective field-of-view of the   |
+|                         |         |        |PSF is typically larger to guarantee that the PSF at the shortest         |
+|                         |         |        |wavelength has the required field-of-view (3) The PSF is typically        |
+|                         |         |        |computed with a higher sampling to guarantee that the longest wavelength  |
+|                         |         |        |has the required sampling and then the PSFs at the shorter wavelengths    |
+|                         |         |        |are rebinned.                                                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |Zenith                   |Yes      |list of |Zenithal coordinate in arcsec (distance from axis) of science sources.    |
 |                         |         |float   |Must be the same length as ``Azimuth``                                    |
