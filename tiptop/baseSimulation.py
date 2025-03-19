@@ -300,17 +300,19 @@ class baseSimulation(object):
 
     def savePSFprofileJSON(self):
         now = datetime.now()
-        data = {}
-        data['radius'] = self.psf1d_radius.tolist()
-        data['psf'] = self.psf1d.tolist()
+        psf_data = {}
+        psf_data['radius'] = self.psf1d_radius.tolist()
+        psf_data['psf'] = self.psf1d.tolist()
         filename = os.path.join(self.outputDir, self.outputFile + '1D_PSF' + '.json')
-        dict = {}
-        dict['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        dict['TIPTOP version'] = __version__
+        execution_infos = {}
+        execution_infos['TIME'] = now.strftime("%Y%m%d_%H%M%S")
+        execution_infos['TIPTOP version'] = __version__
+        jsondict = {}
+        jsondict['execution_infos'] = execution_infos
+        jsondict['infos'] = self.my_data_map
+        jsondict['psf'] = psf_data
         with open(filename, 'w') as f:
-            json.dump(dict, f)
-            json.dump(self.my_data_map, f)
-            json.dump(data, f)
+            json.dump(jsondict, f)
 
 
     def saveResults(self):
