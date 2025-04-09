@@ -685,16 +685,25 @@ class baseSimulation(object):
             if self.verbose:
                 print('Adding aliasing error on LO!')
             # DIFFRACTION LIMITED PSD and PSF
-            psdDL = Field(self.LO_wvl, nLO, self.freq_range, 'rad')
-            maskField = Field(self.LO_wvl, nLO, self.grid_diameter)
             if isinstance(maskLO, list):
-                maskField.sampling = congrid(maskLO[i], [self.sx, self.sx])
+                self.NGS_DL_FWHM_mas = []
             else:
-                maskField.sampling = congrid(maskLO, [self.sx, self.sx])
-            maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
-            psfNgsDL = longExposurePsf(maskField, psdDL)
-            fwhmX,fwhmY  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
-            self.NGS_DL_FWHM_mas = np.sqrt(fwhmX*fwhmY)
+                self.NGS_DL_FWHM_mas = None
+            for i in range(len(nSA)):
+                if isinstance(maskLO, list):
+                    maskI = maskLO[i]
+                else:
+                    maskI = maskLO
+                psdDL = Field(self.LO_wvl, nLO, self.freq_range, 'rad')
+                maskField = Field(self.LO_wvl, nLO, self.grid_diameter)
+                maskField.sampling = congrid(maskI, [self.sx, self.sx])
+                maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
+                psfNgsDL = longExposurePsf(maskField, psdDL)
+                fwhmX,fwhmY  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
+                if self.NGS_DL_FWHM_mas is None:
+                    self.NGS_DL_FWHM_mas = np.sqrt(fwhmX*fwhmY)
+                else:
+                    self.NGS_DL_FWHM_mas.append(np.sqrt(fwhmX*fwhmY))
         else:
             self.NGS_DL_FWHM_mas = None
 
