@@ -271,14 +271,15 @@ class baseSimulation(object):
 
     def computePSF1D(self):
         psf1d = []
-        psf1d_radius = []
+        psf1d_radius = None
+        psf1d_radius_list_list = []
         for i in range(self.nWvl):
             if self.nWvl>1:
                 cubeResults = self.cubeResults[i]
             else:
                 cubeResults = self.cubeResults
             psf1dList= []
-            psf1d_radiusList = []
+            psf1d_radius_list = []
             for psf in cubeResults:
                 psfRadius = psf.shape[0]/2
                 center = np.unravel_index(np.argmax(psf), psf.shape)
@@ -286,16 +287,14 @@ class baseSimulation(object):
                                                        center=center, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
                                                        normalize='total', pa_range=None, slice=0, nargout=2, verbose=self.verbose)
                 psf1dList.append(radialprofile)
-                psf1d_radiusList.append(rr)
-            if self.nWvl>1:
-                psf1d.append(psf1dList)
-                psf1d_radius.append(psf1d_radiusList)
-            else:
-                psf1d = psf1dList
-                psf1d_radius = psf1d_radiusList
+                psf1d_radius = rr
+                psf1d_radius_list.append(rr)
+            psf1d.append(psf1dList)
+            psf1d_radius_list_list.append(psf1d_radius_list)
         self.psf1d = np.asarray(psf1d)
         self.psf1d_radius = np.asarray(psf1d_radius)
-        self.psf1d_data = np.vstack( (self.psf1d_radius, self.psf1d) )
+        self.psf1d_radius_list_list = np.asarray(psf1d_radius_list_list)
+        self.psf1d_data = np.vstack( (self.psf1d_radius_list_list, self.psf1d) )
 
 
     def savePSFprofileJSON(self):
