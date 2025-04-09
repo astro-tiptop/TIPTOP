@@ -633,8 +633,10 @@ class baseSimulation(object):
             # This is needed when the AsterismSelection has many more stars than the length of nSA.
             if len(nSA) == self.nNaturalGS_field:
                 nSAi = nSA[i]
+                len_nSA = len(nSA)
             else:
                 nSAi = nSA[0]
+                len_nSA = 1
             if nSAi != 1:
                 # piston filter for the sub-aperture size
                 pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAi,k)
@@ -689,7 +691,7 @@ class baseSimulation(object):
                 self.NGS_DL_FWHM_mas = []
             else:
                 self.NGS_DL_FWHM_mas = None
-            for i in range(len(nSA)):
+            for i in range(len_nSA):
                 if isinstance(maskLO, list):
                     maskI = maskLO[i]
                 else:
