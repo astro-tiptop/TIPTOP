@@ -81,6 +81,9 @@ We now go more in detail for each section:
 |PathStaticOn              |No        |string |*default: None*, path to a map of static aberrations (nm) in              |
 |                          |          |       |.fits file. if absent or '', not used.                                    |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
+|zCoefStaticOn             |No        |list of|*default: None*, default: None, vector with zernike amplitudes (nm) of    |
+|                          |          |float  |a static aberration. if absent not used.                                  |
++--------------------------+----------+-------+--------------------------------------------------------------------------+
 |PathStaticOff             |No        |string |*default: None*, No clue what this does. if absent or '', not used.       |
 |                          |          |       |From P3, not supported in TIPTOP.                                         |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
@@ -103,8 +106,8 @@ We now go more in detail for each section:
 |windPsdFile               |No        |string |*default: ''*, file name of a fits file with a 2D array with a frequency  |
 |                          |          |       |vector and PSD of tip and tilt windshake.                                 |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorNm              |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
-|                          |          |       |is not otherwise considered)                                              |
+|extraErrorNm              |No        |float  |*default: 0*, nm RMS of the additional wavefront error to be added (an    |
+|                          |          |       |error that is not otherwise considered)                                   |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |extraErrorExp             |No        |float  |*default: -2*, exponent of the power of spatial frequencies used to       |
 |                          |          |       |generate the PSD associated with extraErrorNm                             |
@@ -118,8 +121,8 @@ We now go more in detail for each section:
 |                          |          |       |Note: 0 means maximum frequency is the one present in the spatial         |
 |                          |          |       |frequency array of the PSDs.                                              |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
-|extraErrorLoNm            |No        |float  |*default: 0*, nm RMS of the additional error to be added (an error that   |
-|                          |          |       |is not otherwise considered).                                             |
+|extraErrorLoNm            |No        |float  |*default: 0*, nm RMS of the additional wavefront error to be added (an    |
+|                          |          |       |error that is not otherwise considered).                                  |
 |                          |          |       |                                                                          |
 |                          |          |       |It can be a list of two values, the on-axis error and the error at the    |
 |                          |          |       |edge of the technical field ([telescope]TechnicalFoV)                     |
