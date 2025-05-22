@@ -607,16 +607,15 @@ class baseSimulation(object):
     def ngsPSF(self):
         # pixel size for LO
         LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvlMax
-        # error messages for wrong pixel size
-        if LO_PSFsInMas > self.LO_psInMas:
-            extraOversampLO = int(np.ceil(self.LO_psInMas/LO_PSFsInMas))
-            overSampLO = self.overSamp * extraOversampLO
-            nLO = extraOversampLO*self.N
-            nPixPSFLO = extraOversampLO*self.nPixPSF
-            LO_PSFsInMas /= extraOversampLO
+
+        # skip reshape to get high sampling PSF if sampling is raw
+        skip_reshape = False
+        ratioLO = LO_PSFsInMas/self.LO_psInMas
+        if ratioLO > 1 and self.overSamp >= np.ceil(ratioLO):
+            skip_reshape = True
+            LO_PSFsInMas /= self.overSamp
+            nPixPSFLO = int(self.overSamp * self.nPixPSF)
         else:
-            overSampLO = self.overSamp
-            nLO = self.N
             nPixPSFLO = self.nPixPSF
 
         # -----------------------------------------------------------------
@@ -647,10 +646,10 @@ class baseSimulation(object):
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
         psfLE_NGS = psdSetToPsfSet(psdNGS, maskLO,
-                                   self.LO_wvl, nLO, self.sx, self.grid_diameter,
+                                   self.LO_wvl, self.N, self.sx, self.grid_diameter,
                                    self.freq_range, self.dk, nPixPSFLO,
-                                   self.wvlMax, overSampLO,
-                                   opdMap=self.opdMap)
+                                   self.wvlMax, self.overSamp,
+                                   opdMap=self.opdMap, skip_reshape=skip_reshape)
 
         # -----------------------------------------------------------------
         # Merit functions
@@ -713,16 +712,15 @@ class baseSimulation(object):
         if self.addFocusError:
             # pixel size for Focus
             Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvlMax
-            # error messages for wrong pixel size
-            if Focus_PSFsInMas > self.Focus_psInMas:
-                extraOversampFocus = int(np.ceil(self.Focus_psInMas/Focus_PSFsInMas))
-                overSampFocus = self.overSamp * extraOversampFocus
-                nFocus = extraOversampFocus*N
-                nPixPSFFocus = extraOversampFocus*self.nPixPSF
-                Focus_PSFsInMas /= extraOversampFocus
+
+            # skip reshape to get high sampling PSF if sampling is raw
+            skip_reshape = False
+            ratioFocus = Focus_PSFsInMas/self.Focus_psInMas
+            if ratioFocus > 1 and self.overSamp >= np.ceil(ratioFocus):
+                skip_reshape = True
+                Focus_PSFsInMas /= self.overSamp
+                nPixPSFFocus = int(self.overSamp * self.nPixPSF)
             else:
-                overSampFocus = self.overSamp
-                nFocus = self.N
                 nPixPSFFocus = self.nPixPSF
 
             if 'sensor_Focus' in self.my_data_map.keys():
@@ -754,10 +752,10 @@ class baseSimulation(object):
                 if self.verbose:
                     print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
                 psfLE_Focus = psdSetToPsfSet(psdFocus, maskFocus,
-                                             self.Focus_wvl, nFocus, self.sx, self.grid_diameter,
+                                             self.Focus_wvl, self.N, self.sx, self.grid_diameter,
                                              self.freq_range, self.dk, nPixPSFFocus,
-                                             self.wvlMax, overSampFocus,
-                                             opdMap=self.opdMap)
+                                             self.wvlMax, self.overSamp,
+                                             opdMap=self.opdMap, skip_reshape=skip_reshape)
 
                 # -----------------------------------------------------------------
                 ## Merit functions
@@ -896,10 +894,10 @@ class baseSimulation(object):
             self.nPointings    = self.pointings.shape[1]
             self.nPixPSF       = self.my_data_map['sensor_science']['FieldOfView']
             self.overSamp      = int(self.fao.freq.kRef_)
-            self.freq_range    = self.N*self.fao.freq.PSDstep
-            self.pitch         = 1/self.freq_range
-            self.grid_diameter = self.pitch*self.N
-            self.sx            = int(2*np.round(self.tel_radius/self.pitch))
+            self.PSDstep       = self.fao.freq.PSDstep
+            self.freq_range    = self.N*self.PSDstep
+            self.grid_diameter = 1/self.PSDstep
+            self.sx            = int(2*np.round(self.tel_radius*self.freq_range))
             # dk is the same as in p3.aoSystem.powerSpectrumDensity except that it is multiplied by 1e9 instead of 2.
             self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
             # wvlRef from P3 is required to scale correctly the OL PSD from rad to m
@@ -919,7 +917,7 @@ class baseSimulation(object):
                 self.opdMap = None
 
             if self.verbose:
-                print('PSD step:', self.fao.freq.PSDstep)
+                print('PSD step:', self.PSDstep)
                 print('PSD freq range:', self.freq_range)
                 print('PSD shape:', self.PSD.shape)
                 print('oversampling:', self.overSamp)
