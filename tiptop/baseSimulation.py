@@ -613,7 +613,7 @@ class baseSimulation(object):
             overSampLO = self.overSamp * extraOversampLO
             nLO = extraOversampLO*self.N
             nPixPSFLO = extraOversampLO*self.nPixPSF
-            LO_PSFsInMas /= float(extraOversampLO)
+            LO_PSFsInMas /= extraOversampLO
         else:
             overSampLO = self.overSamp
             nLO = self.N
@@ -715,7 +715,7 @@ class baseSimulation(object):
             Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvlMax
             # error messages for wrong pixel size
             if Focus_PSFsInMas > self.Focus_psInMas:
-                extraOversampFocus = np.ceil(self.Focus_psInMas/Focus_PSFsInMas)
+                extraOversampFocus = int(np.ceil(self.Focus_psInMas/Focus_PSFsInMas))
                 overSampFocus = self.overSamp * extraOversampFocus
                 nFocus = extraOversampFocus*N
                 nPixPSFFocus = extraOversampFocus*self.nPixPSF
