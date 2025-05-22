@@ -609,11 +609,11 @@ class baseSimulation(object):
         LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvlMax
         # error messages for wrong pixel size
         if LO_PSFsInMas > self.LO_psInMas:
-            extraOversampLO = np.ceil(self.LO_psInMas/LO_PSFsInMas)
+            extraOversampLO = int(np.ceil(self.LO_psInMas/LO_PSFsInMas))
             overSampLO = self.overSamp * extraOversampLO
             nLO = extraOversampLO*self.N
             nPixPSFLO = extraOversampLO*self.nPixPSF
-            LO_PSFsInMas /= extraOversampLO
+            LO_PSFsInMas /= float(extraOversampLO)
         else:
             overSampLO = self.overSamp
             nLO = self.N
