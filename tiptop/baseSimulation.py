@@ -193,10 +193,13 @@ class baseSimulation(object):
         else:
             self.LO_wvl = LO_wvl_temp     # lambda
 
-        self.LO_psInMas         = self.my_data_map['sensor_LO']['PixelScale']
         self.LO_zen_field       = self.my_data_map['sources_LO']['Zenith']
         self.LO_az_field        = self.my_data_map['sources_LO']['Azimuth']
         self.LO_fluxes_field    = self.my_data_map['sensor_LO']['NumberPhotons']
+        self.LO_psInMas         = self.my_data_map['sensor_LO']['PixelScale']
+        # if self.LO_psInMas is a scalar makes a list on n elements
+        if not isinstance(self.LO_psInMas, list):
+            self.LO_psInMas = [self.LO_psInMas] * len(self.LO_zen_field)
         self.LO_freqs_field     = self.my_data_map['RTC']['SensorFrameRate_LO']
         if not isinstance(self.LO_freqs_field, list):
             self.LO_freqs_field = [self.LO_freqs_field] * len(self.LO_zen_field)
@@ -208,6 +211,9 @@ class baseSimulation(object):
         if self.check_section_key('sensor_Focus'):
             self.Focus_fluxes4s_field   = self.my_data_map['sensor_Focus']['NumberPhotons']
             self.Focus_psInMas          = self.my_data_map['sensor_Focus']['PixelScale']
+            # if self.Focus_psInMas is a scalar makes a list on n elements
+            if not isinstance(self.Focus_psInMas, list):
+                self.Focus_psInMas = [self.Focus_psInMas] * len(self.LO_zen_field)
             if self.check_section_key('sources_Focus'):
                 Focus_wvl_temp          = self.my_data_map['sources_Focus']['Wavelength']
             else:
@@ -609,7 +615,7 @@ class baseSimulation(object):
         LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvlMax
 
         # skip reshape in psdSetToPsfSet to get a high sampling PSF if original sampling is low
-        if LO_PSFsInMas/self.LO_psInMas > 1 and self.overSamp > 1:
+        if LO_PSFsInMas/min(self.LO_psInMas) > 1 and self.overSamp > 1:
             skip_reshape = True
             LO_PSFsInMas /= self.overSamp
             nPixPSFLO = int(self.overSamp * self.nPixPSF)
@@ -672,7 +678,7 @@ class baseSimulation(object):
                 ee_ *= 1/np.max(ee_)
                 ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                 # max is used to compute EE on at least a radius of one pixel
-                ee_NGS = ee_at_radius_fn(max([FWHM,self.LO_psInMas]))
+                ee_NGS = ee_at_radius_fn(max([FWHM,self.LO_psInMas[idx]]))
             self.NGS_EE_field.append(ee_NGS)
             if self.verbose:
                 print('SR(@',int(self.LO_wvl*1e9),'nm)        :', "%.5f" % SR)
@@ -713,7 +719,7 @@ class baseSimulation(object):
             Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvlMax
 
             # skip reshape in psdSetToPsfSet to get a high sampling PSF if original sampling is low
-            if Focus_PSFsInMas/self.Focus_psInMas > 1 and self.overSamp > 1:
+            if Focus_PSFsInMas/min(self.Focus_psInMas) > 1 and self.overSamp > 1:
                 skip_reshape = True
                 Focus_PSFsInMas /= self.overSamp
                 nPixPSFFocus = int(self.overSamp * self.nPixPSF)
@@ -777,7 +783,7 @@ class baseSimulation(object):
                         ee_ *= 1/np.max(ee_)
                         ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                         # max is used to compute EE on at least a radius of one pixel
-                        ee_Focus = ee_at_radius_fn(max([FWHM,self.Focus_psInMas]))
+                        ee_Focus = ee_at_radius_fn(max([FWHM,self.Focus_psInMas[idx]]))
                     self.Focus_EE_field.append(ee_Focus)
                     if self.verbose:
                         print('SR(@',int(self.Focus_wvl*1e9),'nm)        :', "%.5f" % SR)
