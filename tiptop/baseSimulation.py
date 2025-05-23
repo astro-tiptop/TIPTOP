@@ -608,14 +608,13 @@ class baseSimulation(object):
         # pixel size for LO
         LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvlMax
 
-        # skip reshape to get high sampling PSF if sampling is raw
-        skip_reshape = False
-        ratioLO = LO_PSFsInMas/self.LO_psInMas
-        if ratioLO > 1 and self.overSamp >= np.ceil(ratioLO):
+        # skip reshape in psdSetToPsfSet to get a high sampling PSF if original sampling is low
+        if LO_PSFsInMas/self.LO_psInMas > 1 and self.overSamp > 1:
             skip_reshape = True
             LO_PSFsInMas /= self.overSamp
             nPixPSFLO = int(self.overSamp * self.nPixPSF)
         else:
+            skip_reshape = False
             nPixPSFLO = self.nPixPSF
 
         # -----------------------------------------------------------------
@@ -665,7 +664,7 @@ class baseSimulation(object):
             fwhmX,fwhmY = getFWHM(img.sampling, LO_PSFsInMas, method='contour', nargout=2)
             FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
             self.NGS_FWHM_mas_field.append(FWHM)
-            if FWHM >= nLO*LO_PSFsInMas:
+            if FWHM >= nPixPSFLO*LO_PSFsInMas:
                 ee_NGS = 1
             else:
                 ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
@@ -694,10 +693,10 @@ class baseSimulation(object):
                     maskI = maskLO[i]
                 else:
                     maskI = maskLO
-                psdDL = Field(self.LO_wvl, nLO, self.freq_range, 'rad')
-                maskField = Field(self.LO_wvl, nLO, self.grid_diameter)
+                psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
+                maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
                 maskField.sampling = congrid(maskI, [self.sx, self.sx])
-                maskField.sampling = zeroPad(maskField.sampling, (nLO-self.sx)//2)
+                maskField.sampling = zeroPad(maskField.sampling, (self.N-self.sx)//2)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
                 fwhmX,fwhmY  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
                 if self.NGS_DL_FWHM_mas is None:
@@ -713,14 +712,13 @@ class baseSimulation(object):
             # pixel size for Focus
             Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvlMax
 
-            # skip reshape to get high sampling PSF if sampling is raw
-            skip_reshape = False
-            ratioFocus = Focus_PSFsInMas/self.Focus_psInMas
-            if ratioFocus > 1 and self.overSamp >= np.ceil(ratioFocus):
+            # skip reshape in psdSetToPsfSet to get a high sampling PSF if original sampling is low
+            if Focus_PSFsInMas/self.Focus_psInMas > 1 and self.overSamp > 1:
                 skip_reshape = True
                 Focus_PSFsInMas /= self.overSamp
                 nPixPSFFocus = int(self.overSamp * self.nPixPSF)
             else:
+                skip_reshape = False
                 nPixPSFFocus = self.nPixPSF
 
             if 'sensor_Focus' in self.my_data_map.keys():
@@ -771,7 +769,7 @@ class baseSimulation(object):
                     fwhmX,fwhmY = getFWHM(img.sampling, Focus_PSFsInMas, method='contour', nargout=2)
                     FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
                     self.Focus_FWHM_mas_field.append(FWHM)
-                    if FWHM >= nFocus*Focus_PSFsInMas:
+                    if FWHM >= nPixPSFFocus*Focus_PSFsInMas:
                         ee_Focus = 1
                     else:
                         ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
