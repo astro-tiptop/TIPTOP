@@ -62,7 +62,7 @@ We now go more in detail for each section:
 +==========================+==========+=======+==========================================================================+
 |TelescopeDiameter         |Yes       |float  |Set the outer diameter of the telescope pupil in unit of meters.          |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
-|Resolution                |Yes       |integer|Number of pixels across the pupil diameter                                |
+|Resolution                |No        |integer|*Default : 256*, Number of pixels across the pupil diameter               |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |ObscurationRatio          |No/Yes if |float  |*Default : 0.0*, Defines the central obstruction                          |
 |                          |LO        |       |due to the secondary as a ratio of the TelescopeDiameter                  |
@@ -201,15 +201,10 @@ We now go more in detail for each section:
 |                         |         |       |*Warning* : extremely confusing error message if absent when it must be   |
 |                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
-|WindDirection            |No/Yes   |list of|*Default : [0.0]*, wind direction for each layer in degrees. 0 degree is  |
-|                         |if LO    |float  |?? then anticlockwise.                                                    |
+|WindDirection            |No       |list of|*Default : a list of 0 of the length of WindSpeed*, wind direction for    |
+|                         |         |float  |each layer in degrees. 0 degree is alogn the x axis then anticlockwise.   |
 |                         |         |       |Must have the same length as ``Cn2Weights``, ``Cn2Heights`` and           |
 |                         |         |       |``WindSpeed``.                                                            |
-|                         |         |       |                                                                          |
-|                         |         |       |*Warning* : required if ``Cn2Weights``, ``Cn2Heights`` or ``WindSpeed``   |
-|                         |         |       |are defined                                                               |
-|                         |         |       |*Warning* : extremely confusing error message if absent when it must be   |
-|                         |         |       |defined                                                                   |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
 |r0_Value                 |No       |float  |Set the atmospere Fried parameter. If not set TIPTOP uses ``seeing`` .    |
 +-------------------------+---------+-------+--------------------------------------------------------------------------+
@@ -464,10 +459,8 @@ Can be set but not used
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
 |PixelScale               |Yes      |float   |LO WFS pixel scale in [mas],                                              |
-|                         |         |        |*Warning*: gives a confusing error message if missing                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |FieldOfView              |Yes      |integer |not used. Number of pixels per subaperture,                               |
-|                         |         |        |*Warning*: gives a confusing error message if missing                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NumberPhotons            |Yes      |list of |Detected flux in [nph/frame/subaperture], Must be the same length as      |
 |                         |         |integer |NumberLenslet                                                             |
@@ -539,10 +532,8 @@ Can be set but not used
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
 |PixelScale               |Yes      |float   |Focus WFS pixel scale in [mas],                                           |
-|                         |         |        |*Warning*: gives a confusing error message if missing                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |FieldOfView              |Yes      |integer |not used. Number of pixels per subaperture,                               |
-|                         |         |        |*Warning*: gives a confusing error message if missing                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NumberPhotons            |Yes      |list of |Detected flux in [nph/frame/subaperture], Must be the same length as      |
 |                         |         |integer |NumberLenslet                                                             |
@@ -584,14 +575,14 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
-|NumberActuators          |Yes      |list of |Number of actuator on the pupil diameter. why a list of int? Must be the  |
-|                         |         |integer |same length as DmPitchs. *Warning*: gives a confusing error message if    |
-|                         |         |        |missing. *Warning*: not used in TIPTOP!                                   |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+
 |DmPitchs                 |Yes      |list of |DM actuators pitch in meters, on the meta pupil at the conjugasion        |
 |                         |         |float   |altitude, used for fitting error computation. Must be the same length as  |
-|                         |         |        |NumberActuators? *Warning*: gives a confusing error message if missing    |
-+-------------------------+---------+--------+--------------------------------------------------------------------------+    
+|                         |         |        |NumberActuators?                                                          |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|NumberActuators          |No       |list of |*default: computed from diameter, technical FoV, DM altitude and DM pitch*|
+|                         |         |integer |Number of actuator on the pupil diameter. Must be the same length as      |
+|                         |         |        |DmPitchs. *Warning*: not used in TIPTOP!                                  |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 |InfModel                 |No       |string  |*default: 'gaussian'*, DM influence function model. Not used in TIPTOP but| 
 |                         |         |        |used in the psf reconstruction. What are the other possible one?          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
@@ -600,7 +591,8 @@ Can be set but not used
 |                         |         |        |Must be the same length as NumberActuators?                               |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |DmHeights                |No/Yes if|list of |*default: [0.0]*, DM altitude in meters, Must be the same length as       |
-|                         |LO       |float   |NumberActuators and DmPitchs                                              |
+|                         |LO or    |float   |NumberActuators and DmPitchs                                              |
+|                         |multi DMs|        |                                                                          |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+   
 |OptimizationZenith       |No       |float   |*default: [0.0]*, Zenith position in arcsec (distance from axis) of the   |
 |                         |         |        |direction in which the AO correction is optimized. Must be the same length|
