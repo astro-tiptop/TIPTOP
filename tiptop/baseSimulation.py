@@ -615,7 +615,7 @@ class baseSimulation(object):
         LO_PSFsInMas = self.psInMas*self.LO_wvl/self.wvlMax
 
         # skip reshape in psdSetToPsfSet to get a high sampling PSF if original sampling is low
-        if LO_PSFsInMas/min(self.LO_psInMas) > 1 and self.overSamp > 1:
+        if LO_PSFsInMas/np.min(self.LO_psInMas) > 1 and self.overSamp > 1:
             skip_reshape = True
             LO_PSFsInMas /= self.overSamp
             nPixPSFLO = int(self.overSamp * self.nPixPSF)
@@ -678,7 +678,11 @@ class baseSimulation(object):
                 ee_ *= 1/np.max(ee_)
                 ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                 # max is used to compute EE on at least a radius of one pixel
-                ee_NGS = ee_at_radius_fn(max([FWHM,self.LO_psInMas[idx]]))
+                if isinstance(self.LO_psInMas,list):
+                    LO_psInMas_i = self.LO_psInMas[idx]
+                else:
+                    LO_psInMas_i = self.LO_psInMas
+                ee_NGS = ee_at_radius_fn(max([FWHM,LO_psInMas_i]))
             self.NGS_EE_field.append(ee_NGS)
             if self.verbose:
                 print('SR(@',int(self.LO_wvl*1e9),'nm)        :', "%.5f" % SR)
@@ -719,7 +723,7 @@ class baseSimulation(object):
             Focus_PSFsInMas = self.psInMas*self.Focus_wvl/self.wvlMax
 
             # skip reshape in psdSetToPsfSet to get a high sampling PSF if original sampling is low
-            if Focus_PSFsInMas/min(self.Focus_psInMas) > 1 and self.overSamp > 1:
+            if Focus_PSFsInMas/np.min(self.Focus_psInMas) > 1 and self.overSamp > 1:
                 skip_reshape = True
                 Focus_PSFsInMas /= self.overSamp
                 nPixPSFFocus = int(self.overSamp * self.nPixPSF)
@@ -783,7 +787,11 @@ class baseSimulation(object):
                         ee_ *= 1/np.max(ee_)
                         ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                         # max is used to compute EE on at least a radius of one pixel
-                        ee_Focus = ee_at_radius_fn(max([FWHM,self.Focus_psInMas[idx]]))
+                        if isinstance(self.Focus_psInMas,list):
+                            Focus_psInMas_i = self.Focus_psInMas[idx]
+                        else:
+                            Focus_psInMas_i = self.Focus_psInMas
+                        ee_Focus = ee_at_radius_fn(max([FWHM,Focus_psInMas_i]))
                     self.Focus_EE_field.append(ee_Focus)
                     if self.verbose:
                         print('SR(@',int(self.Focus_wvl*1e9),'nm)        :', "%.5f" % SR)
