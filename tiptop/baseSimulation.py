@@ -670,7 +670,7 @@ class baseSimulation(object):
             fwhmX,fwhmY = getFWHM(img.sampling, LO_PSFsInMas, method='contour', nargout=2)
             FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
             self.NGS_FWHM_mas_field.append(FWHM)
-            if FWHM >= nPixPSFLO*LO_PSFsInMas:
+            if 2*FWHM >= nPixPSFLO*LO_PSFsInMas:
                 ee_NGS = 1
             else:
                 ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
@@ -779,7 +779,7 @@ class baseSimulation(object):
                     fwhmX,fwhmY = getFWHM(img.sampling, Focus_PSFsInMas, method='contour', nargout=2)
                     FWHM = np.sqrt(fwhmX*fwhmY) #average over major and minor axes
                     self.Focus_FWHM_mas_field.append(FWHM)
-                    if FWHM >= nPixPSFFocus*Focus_PSFsInMas:
+                    if 2*FWHM >= nPixPSFFocus*Focus_PSFsInMas:
                         ee_Focus = 1
                     else:
                         ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
