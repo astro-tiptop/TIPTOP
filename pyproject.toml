@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "astro-tiptop"
 authors = [
     {name = "Fabio Rossi", email = "fabio.rossi@inaf.it"},
+    {name = "Guido Agapito", email = "guido.agapito@inaf.it"},
 ]
 description = "Analytical simulator for astronomical adaptive optics systems"
 readme = "README.md"
@@ -16,8 +17,8 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pyyaml",
-    "astro-p3>=1.3.10",
-    "mastsel>=1.3.7",
+    "astro-p3>=1.4.1",
+    "mastsel>=1.3.8",
     "torch>=2.1.2",
     "torchmetrics>=1.4.0",
     "mpl_scatter_density>=0.7",
