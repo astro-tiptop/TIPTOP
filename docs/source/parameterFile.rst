@@ -575,13 +575,17 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 | Parameter               | Required| Type   | Description                                                              |
 +=========================+=========+========+==========================================================================+
-|DmPitchs                 |Yes      |list of |DM actuators pitch in meters, on the meta pupil at the conjugasion        |
-|                         |         |float   |altitude, used for fitting error computation. Must be the same length as  |
-|                         |         |        |NumberActuators?                                                          |
+|DmPitchs                 |Yes      |list of |DM actuators pitch in meters, on the meta pupil at the conjugation        |
+|                         |         |float   |altitude, used for fitting error computation.                             |
+|                         |         |        | *Warning*: if it is smaller than [sensor_HO] SizeLenslets                |
+|                         |         |        |(= [Telescope] TelescopeDiameter/[sensor_HO] NumberLenslet ) aliasing     |
+|                         |         |        |error will be significant.                                                |
+|                         |         |        |Must be the same length as NumberActuators                                |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NumberActuators          |No       |list of |*default: computed from diameter, technical FoV, DM altitude and DM pitch*|
 |                         |         |integer |Number of actuator on the pupil diameter. Must be the same length as      |
-|                         |         |        |DmPitchs. *Warning*: not used in TIPTOP!                                  |
+|                         |         |        |DmPitchs.                                                                 |
+|                         |         |        | *Warning*: not used in TIPTOP!                                           |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |InfModel                 |No       |string  |*default: 'gaussian'*, DM influence function model. Not used in TIPTOP but| 
 |                         |         |        |used in the psf reconstruction. What are the other possible one?          |
