@@ -18,7 +18,7 @@ dependencies = [
     "numpy",
     "pyyaml",
     "astro-p3>=1.4.1",
-    "mastsel>=1.3.8",
+    "mastsel>=1.3.9",
     "torch>=2.1.2",
     "torchmetrics>=1.4.0",
     "mpl_scatter_density>=0.7",
