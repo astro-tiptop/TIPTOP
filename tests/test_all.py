@@ -28,7 +28,7 @@ class TestMavis(TestTiptop):
         """
         Test
         """
-        computed_result = overallSimulation("perfTest", "MAVIStest", 'perfTest', 'testMAVIS', doPlot=False, doConvolve=True, returnRes=True)
+        computed_result = overallSimulation("tiptop/perfTest", "MAVIStest", 'tiptop/perfTest', 'testMAVIS', doPlot=False, doConvolve=True, returnRes=True)
         
         ii = 0 
 #        for aa in computed_result:
