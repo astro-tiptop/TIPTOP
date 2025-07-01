@@ -9,11 +9,11 @@ rc("text", usetex=False)
 # can be done once for all, as long as the system parameters are not changed
 # can be run multiple times (i.e. if a parameter is changed)
 # the first time will also generate the input data, to regenerate the data delete the files savedRandom*.npy
-sr, fw, ee, covs, simul = asterismSelection("TestERISRandom", "astTest", "ERISastRandom", 'astTest', 'testERISRandom', doPlot=False)
+sr, fw, ee, covs, simul = asterismSelection("TestERISRandom", "tiptop/astTest", "ERISastRandom", 'tiptop/astTest', 'testERISRandom', doPlot=False)
 
 # 2
 # reloads the data, assumes 1 was done before 
-sr, fw, ee, covs, simul = reloadAsterismSelection("TestERISRandom", "astTest", "ERISastRandom", 'astTest', 
+sr, fw, ee, covs, simul = reloadAsterismSelection("TestERISRandom", "tiptop/astTest", "ERISastRandom", 'tiptop/astTest', 
                                                   'testERISRandom', doPlot=False)
 
 # 3
@@ -29,7 +29,7 @@ simul.testHeuristicModel(799, 999, 'randomData0_799', [])
 # first all the stars are evaluated using the heuristic model, and sorted in order of increasing penalty
 # then the actual jitters, strehls and fwhm are computed, one at a time 
 
-simulation = asterismSimulation("TestERISSingles", "astTest", "ERISastSingles1", 'astTest', 
+simulation = asterismSimulation("TestERISSingles", "tiptop/astTest", "ERISastSingles1", 'tiptop/astTest', 
                                 'testERISSingles', doPlot=False, addSrAndFwhm=True, verbose=False)
 
 print('*************************************************************')
