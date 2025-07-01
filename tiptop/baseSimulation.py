@@ -865,9 +865,9 @@ class baseSimulation(object):
 
     def doOverallSimulation(self, astIndex=None):
 
-        if self.LOisOn:        
+        if self.LOisOn:
             self.configLO(astIndex)
-        
+
         self.results = []
 
         # ------------------------------------------------------------
@@ -885,7 +885,7 @@ class baseSimulation(object):
                                , display=False, getPSDatNGSpositions=self.LOisOn
                                , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
                                , getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False
-                               , psdExpansion=True)
+                               , psdExpansion=True, reduce_memory=True)
 
             if 'sensor_LO' in self.my_data_map.keys():
                 self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
@@ -940,11 +940,11 @@ class baseSimulation(object):
             if self.LOisOn:
                 if self.verbose:
                     print('******** LO PART')
-                    
+
                 # ------------------------------------------------------------------------
                 # --- NGS PSDs, PSFs and merit functions on PSFs
                 self.ngsPSF()
-                
+
                 # ------------------------------------------------------------------------
                 # --- initialize MASTSEL MavisLO object
                 self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
@@ -982,7 +982,7 @@ class baseSimulation(object):
                         PSDho += self.GF_res**2 * FocusFilter
                     self.GFinPSD = True
                 # ---------------------------------------------------------------------
-            else:                  
+            else:
                 if self.firstSimCall:
                     self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
@@ -1006,7 +1006,7 @@ class baseSimulation(object):
                                                                   np.array(self.cartSciencePointingCoords),
                                                                   np.array(self.cartNGSCoords_asterism),
                                                                   self.NGS_fluxes_asterism)
-                
+
                 # --------------------------------------------------------------------
                 # --- optional total focus covariance matrix Ctot
                 if self.addFocusError:
