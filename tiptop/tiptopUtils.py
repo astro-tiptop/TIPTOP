@@ -1,9 +1,17 @@
+# some of these imports are not used here, but are used in other modules
+import os
+import itertools
+from datetime import datetime
 from collections import defaultdict
+from configparser import ConfigParser
+import yaml
 
 import numpy as np
+from scipy.interpolate import interp1d
 
 import matplotlib.pyplot as plt
 from matplotlib import ticker
+from matplotlib import rc
 
 from mastsel import gpuEnabled as gpuMastsel
 from p3.aoSystem import gpuEnabled as gpuP3
