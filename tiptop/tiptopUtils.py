@@ -1,6 +1,8 @@
+# some of these imports are not used here, but are used in other modules
 import os
 import itertools
 from datetime import datetime
+from collections import defaultdict
 from configparser import ConfigParser
 import yaml
 
@@ -34,6 +36,19 @@ APPEND_TOKEN = '&&&'
 def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
     '''
     This functions add an element of the parmaters dictionary into the fits file header
+    
+    :param hdr: FITS header object
+    :type hdr: astropy.io.fits.Header
+    :param key_primary: Primary key for the header keyword
+    :type key_primary: str
+    :param key_secondary: Secondary key for the header keyword
+    :type key_secondary: str
+    :param val: Value to be added to the header keyword
+    :type val: str, int, float, or list
+    :param iii: Optional index for the primary key
+    :type iii: int, optional
+    :param jjj: Optional index for the secondary key
+    :type jjj: int, optional
     '''
     val_string = str(val)
     key = 'HIERARCH '+ key_primary +' '+ key_secondary
@@ -55,28 +70,85 @@ def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
 
 def hdr2map(hdr):
     '''
-    Conversion of a fits file header into a dictionary
+    Conversion of a fits file header into a dictionary.
+    Reconstructs vectors from indexed keys and handles split values.
+
+    :param hdr: FITS header object
+    :type hdr: astropy.io.fits.Header
+
+    :return: Nested dictionary with sections and parameters
+    :rtype: dict
     '''
+
     hdr_keys = list(hdr.keys())
     my_data_map = {}
     curr_value = ''
     curr_key = ''
+
     for key in hdr_keys:
         separator_index = key.find(' ')
         if separator_index > 0:            
             section = key[0:separator_index]
             if not section in my_data_map:
                 my_data_map[section] = {}
+
             ext_indx = key.find('+')
-            curr_key += key[separator_index+1:ext_indx]
+
+            # Fix 1: Handle key extraction properly to avoid truncation
+            if ext_indx == -1:
+                # No '+' found, take the rest of the string
+                curr_key += key[separator_index+1:]
+            else:
+                # '+' found, take up to the '+'
+                curr_key += key[separator_index+1:ext_indx]
+
             val_str = str(hdr[key])
-            val_last_index = val_str.find(APPEND_TOKEN)            
-            curr_value += val_str[:val_last_index]            
-            if ext_indx==-1:
-                my_data_map[section].update({curr_key:curr_value})
+            val_last_index = val_str.find(APPEND_TOKEN)
+
+            # Handle split values
+            if val_last_index != -1:
+                curr_value += val_str[:val_last_index]
+            else:
+                curr_value += val_str
+
+            # Store value when no '+' (final part)
+            if ext_indx == -1:
+                my_data_map[section].update({curr_key.strip(): curr_value.strip()})
                 curr_value = ''
-                curr_key = ''                   
-    return my_data_map
+                curr_key = ''
+
+    # Fix 2: Reconstruct vectors from indexed parameters
+    result = {}
+    for section, params in my_data_map.items():
+        result[section] = {}
+
+        # Group parameters by base name to reconstruct vectors
+        vector_groups = defaultdict(dict)
+
+        for param_name, value in params.items():
+            # Check if parameter ends with a number (index)
+            parts = param_name.split()
+            if len(parts) > 1 and parts[-1].isdigit():
+                # It's an indexed parameter like "Cn2Heights 0"
+                base_name = ' '.join(parts[:-1])
+                index = int(parts[-1])
+                vector_groups[base_name][index] = value
+            else:
+                # Regular scalar parameter
+                result[section][param_name] = value
+
+        # Convert indexed parameters to ordered lists
+        for base_name, indexed_values in vector_groups.items():
+            if indexed_values:
+                # Find the maximum index to create the list
+                max_index = max(indexed_values.keys())
+                # Create ordered list with None for missing indices
+                vector = []
+                for i in range(max_index + 1):
+                    vector.append(indexed_values.get(i, None))
+                result[section][base_name] = vector
+
+    return result
 
 def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
                     science=True, max_pos=None, add_legend=True):
