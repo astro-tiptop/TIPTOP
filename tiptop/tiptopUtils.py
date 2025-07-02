@@ -36,6 +36,19 @@ APPEND_TOKEN = '&&&'
 def add_hdr_keyword(hdr, key_primary, key_secondary, val, iii=None, jjj=None):
     '''
     This functions add an element of the parmaters dictionary into the fits file header
+    
+    :param hdr: FITS header object
+    :type hdr: astropy.io.fits.Header
+    :param key_primary: Primary key for the header keyword
+    :type key_primary: str
+    :param key_secondary: Secondary key for the header keyword
+    :type key_secondary: str
+    :param val: Value to be added to the header keyword
+    :type val: str, int, float, or list
+    :param iii: Optional index for the primary key
+    :type iii: int, optional
+    :param jjj: Optional index for the secondary key
+    :type jjj: int, optional
     '''
     val_string = str(val)
     key = 'HIERARCH '+ key_primary +' '+ key_secondary
@@ -59,9 +72,10 @@ def hdr2map(hdr):
     '''
     Conversion of a fits file header into a dictionary.
     Reconstructs vectors from indexed keys and handles split values.
-    
+
     :param hdr: FITS header object
     :type hdr: astropy.io.fits.Header
+
     :return: Nested dictionary with sections and parameters
     :rtype: dict
     '''
