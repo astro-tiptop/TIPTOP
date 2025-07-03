@@ -61,8 +61,9 @@ We now go more in detail for each section:
 | Parameter                | Required | Type  | Description                                                              |
 +==========================+==========+=======+==========================================================================+
 |TelescopeDiameter         |Yes       |float  |Set the outer diameter of the telescope pupil in unit of meters.          |
+|                          |          |       |This value is used in computation of the telescope OTF.                   |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
-|Resolution                |No        |integer|*Default : 256*, Number of pixels across the pupil diameter               |
+|Resolution                |No        |integer|*Default : 256*, Number of pixels across the pupil diameter.              |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |ObscurationRatio          |No/Yes if |float  |*Default : 0.0*, Defines the central obstruction                          |
 |                          |LO        |       |due to the secondary as a ratio of the TelescopeDiameter                  |
@@ -317,7 +318,7 @@ We now go more in detail for each section:
 |                         |         |        |                                                                          |
 |                         |         |        |*Warning*: confusing error message if missing                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
-|FieldOfView              |Yes      |float   |Field of view of the camera in pixel/spaxel.                              |
+|FieldOfView              |Yes      |integer |Field of view of the camera in pixel/spaxel.                              |
 |                         |         |        |                                                                          |
 |                         |         |        |*Warning*: confusing error massage if missing                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
