@@ -61,9 +61,9 @@ We now go more in detail for each section:
 | Parameter                | Required | Type  | Description                                                              |
 +==========================+==========+=======+==========================================================================+
 |TelescopeDiameter         |Yes       |float  |Set the outer diameter of the telescope pupil in unit of meters.          |
-|                          |          |       |This value is used in computation of the telescope OTF.                   |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |Resolution                |No        |integer|*Default : 256*, Number of pixels across the pupil diameter.              |
+|                          |          |       |This value is used in computation of the telescope OTF.                   |
 +--------------------------+----------+-------+--------------------------------------------------------------------------+
 |ObscurationRatio          |No/Yes if |float  |*Default : 0.0*, Defines the central obstruction                          |
 |                          |LO        |       |due to the secondary as a ratio of the TelescopeDiameter                  |
