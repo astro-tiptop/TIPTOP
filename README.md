@@ -10,4 +10,6 @@ the simulations are done in the Fourier domain. This allows to reach a very
 fast computation time (few seconds per PSF with GPU acceleration), and
 efficiently explore the wide parameter space.
 
-See the documentation here: https://tiptop.readthedocs.io
+See the documentation here: https://astro-tiptop-services.github.io/astro-tiptop-services/
+
+Please note that the documentation included in the repository at https://tiptop.readthedocs.io will no longer be available in future.
