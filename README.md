@@ -12,4 +12,4 @@ efficiently explore the wide parameter space.
 
 See the documentation here: https://astro-tiptop-services.github.io/astro-tiptop-services/
 
-Note that the documentation included in  the repository, https://tiptop.readthedocs.io, will be no more available in the future.
+Please note that the documentation included in the repository at https://tiptop.readthedocs.io will no longer be available in future.
