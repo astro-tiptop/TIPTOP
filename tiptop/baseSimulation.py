@@ -116,6 +116,16 @@ class baseSimulation(object):
                 len(self.my_data_map['sources_science']['Azimuth'])):
                 self.raiseNotSameLength('sources_science', ['Zenith','Azimuth'])
             
+            if not self.check_config_key('sensor_science', 'Super_Sampling'):
+                 self.my_data_map['sensor_science']['Super_Sampling'] = None
+            else:
+                if not (isinstance(self.my_data_map['sensor_science']['Super_Sampling'], (list, tuple)) 
+                   and len(self.my_data_map['sensor_science']['Super_Sampling']) == 2):
+                    raise KeyError("Super_Sampling must be a list or tuple of two values.")
+                if int(self.my_data_map['sensor_science']['Super_Sampling'][1]) not in (1, 2):
+                    raise ValueError("The second value of Super_Sampling must be 1 (1D interpolation) or 2 (2D polar grid).")
+
+
             #TODO should an error be raised if sensor_LO is defined but not source_LO or vice versa?
             if self.check_section_key('sources_LO') and not self.check_section_key('sensor_LO'):
                 raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
@@ -163,6 +173,7 @@ class baseSimulation(object):
         self.xxSciencePointigs         = self.pointings[0,:]
         self.yySciencePointigs         = self.pointings[1,:]
         self.psInMas = self.my_data_map['sensor_science']['PixelScale']
+        self.SupSamp = self.my_data_map['sensor_science']['Super_Sampling']
         # it checks if LO parameters are set and then it acts accordingly
         if 'sensor_LO' in self.my_data_map.keys():
             self.LOisOn = True
@@ -279,6 +290,17 @@ class baseSimulation(object):
         psf1d = []
         psf1d_radius = None
         psf1d_radius_list_list = []
+        # === Precompute polar grid once if interp_flag == 2 ===
+        use_polar_interp = self.SupSamp and self.SupSamp[1] == 2
+        polar_grid = None
+        r_vals_interp = None
+        if use_polar_interp:
+            step_interp = self.SupSamp[0]
+            first_psf = self.cubeResults[0][0] if self.nWvl > 1 else self.cubeResults[0]
+            center = np.unravel_index(np.argmax(first_psf), first_psf.shape)
+            maxradius = self.psInMas * (first_psf.shape[0] / 2)
+            r_vals_interp, polar_grid = precompute_polar_grid(step=step_interp, pixelscale=self.psInMas,
+                                                              maxradius=maxradius, center=center)
         for i in range(self.nWvl):
             if self.nWvl>1:
                 cubeResults = self.cubeResults[i]
@@ -291,7 +313,8 @@ class baseSimulation(object):
                 center = np.unravel_index(np.argmax(psf), psf.shape)
                 rr, radialprofile, ee = radial_profile(psf, ext=0, pixelscale=self.psInMas, ee=True,
                                                        center=center, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
-                                                       normalize='total', pa_range=None, slice=0, nargout=2, verbose=self.verbose)
+                                                       normalize='total', pa_range=None, slice=0, nargout=2, supersamp=self.SupSamp, 
+                                                       polar_grid=polar_grid, r_vals=r_vals_interp, verbose=self.verbose)
                 psf1dList.append(radialprofile)
                 psf1d_radius = rr
                 psf1d_radius_list.append(rr)
@@ -438,6 +461,8 @@ class baseSimulation(object):
         hdr5['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr5['CONTENT'] = "Final PSFs profiles"
         hdr5['SIZE'] = str(self.psf1d_data.shape)
+        if self.SupSamp:
+            hdr5['SAMP_MAS'] = str(self.SupSamp[0])
 
         hdul1.writeto( os.path.join(self.outputDir, self.outputFile + '.fits'), overwrite=True)
         if self.verbose:
