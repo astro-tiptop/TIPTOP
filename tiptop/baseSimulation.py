@@ -116,15 +116,27 @@ class baseSimulation(object):
                 len(self.my_data_map['sources_science']['Azimuth'])):
                 self.raiseNotSameLength('sources_science', ['Zenith','Azimuth'])
             
+            # === Handle sensor_science.Super_Sampling parameter ===
             if not self.check_config_key('sensor_science', 'Super_Sampling'):
                  self.my_data_map['sensor_science']['Super_Sampling'] = None
             else:
-                if not (isinstance(self.my_data_map['sensor_science']['Super_Sampling'], (list, tuple)) 
-                   and len(self.my_data_map['sensor_science']['Super_Sampling']) == 2):
-                    raise KeyError("Super_Sampling must be a list or tuple of two values.")
-                if int(self.my_data_map['sensor_science']['Super_Sampling'][1]) not in (1, 2):
-                    raise ValueError("The second value of Super_Sampling must be 1 (1D interpolation) or 2 (2D polar grid).")
-
+                # default Super_Sampling to option 2 (2D interpolation), 
+                # keep option 1 (1D interpolation) available
+                SupSamp_val = self.my_data_map['sensor_science']['Super_Sampling']
+                # Case 1: user provides a single scalar
+                if isinstance(SupSamp_val, (int,float)):
+                    self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val), 2]
+                # Case 2: user provides a list/tuple with one element
+                elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 1:
+                    self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val[0]), 2]
+                # Case 3: user explicitly provides [pixel_scale, option]
+                # Keep backward compatibility, option=1 (1D interpolation) still allowed
+                elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 2:
+                    if int(SupSamp_val[1]) not in (1, 2):
+                        raise ValueError("Second value of Super_Sampling must be 1 (1D interpolation) or 2 (2D polar grid).")
+                # Case 4: anything else is invalid
+                else:
+                    raise KeyError("Super_Sampling must be a scalar or list of one/two values.")
 
             #TODO should an error be raised if sensor_LO is defined but not source_LO or vice versa?
             if self.check_section_key('sources_LO') and not self.check_section_key('sensor_LO'):
@@ -290,7 +302,7 @@ class baseSimulation(object):
         psf1d = []
         psf1d_radius = None
         psf1d_radius_list_list = []
-        # === Precompute polar grid once if interp_flag == 2 ===
+        # === Precompute polar grid once if SupSamp flag ===
         use_polar_interp = self.SupSamp and self.SupSamp[1] == 2
         polar_grid = None
         r_vals_interp = None
