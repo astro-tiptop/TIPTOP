@@ -322,6 +322,11 @@ We now go more in detail for each section:
 |                         |         |        |                                                                          |
 |                         |         |        |*Warning*: confusing error massage if missing                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|Super_Sampling           |No       |float   |Desired radial interpolation sampling step in milliarcsec.                |
+|                         |         |        |                                                                          |
+|                         |         |        |If provided, TipTop performs a 2D polar interpolation of the PSF to       |
+|                         |         |        |produce a radial profile resampled at the requested scale.                |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 .. note::
 
