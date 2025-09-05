@@ -74,7 +74,7 @@ class TestAsterismSimulation(TestTiptop):
         simulation = asterismSimulation("TestERISSingle", "tiptop/astTest", "ERISastSinglesTest",
                                        'tiptop/astTest', 'testERISSingle', 
                                        doPlot=False, verbose=False)
-        
+
         if simulation.hasAsterismSection and len(simulation.cumAstSizes) > 1:
             # Test the calculation of a single asterism (index 0)
             result = simulation.computeAsterisms(eeRadiusInMas=50, index=0, doConvolve=False)
@@ -127,7 +127,7 @@ class TestHoAsterismSimulation(TestTiptop):
         simulation = asterismSimulationHo("TestERISHOSingle", "tiptop/astTest", "ERISastHO",
                                          'tiptop/astTest', 'testERISHOSingle', 
                                          doPlot=False, verbose=False)
-        
+
         if simulation.hasHoAsterismSection and len(simulation.cumAstSizes) > 1:
             # Test the calculation of a single HO configuration (index 0)
             result = simulation.computeHoAsterisms(eeRadiusInMas=50, index=0)
@@ -154,10 +154,10 @@ class TestHoAsterismSimulation(TestTiptop):
         """
         Test that the creation of temporary files works correctly
         """
-        simulation = asterismSimulationHo("TestERISHOTemp", "tiptop/astTest", "ERISastHO", 
+        simulation = asterismSimulationHo("TestERISHOTemp", "tiptop/astTest", "ERISastHO",
                                          'tiptop/astTest', 'testERISHOTemp', 
                                          doPlot=False, verbose=False)
-        
+
         if simulation.hasHoAsterismSection:
             # Test the HO configuration (which creates temporary files)
             simulation.configHO(0)
@@ -169,7 +169,7 @@ class TestHoAsterismSimulation(TestTiptop):
             # Check that the temporary file exists
             temp_file = os.path.join(simulation.temp_path, simulation.temp_parametersFile + '.ini')
             self.assertTrue(os.path.exists(temp_file))
-            
+
             # Cleanup
             if os.path.exists(temp_file):
                 os.remove(temp_file)
