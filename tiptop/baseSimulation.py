@@ -150,9 +150,6 @@ class baseSimulation(object):
             elif not self.check_config_key('RTC', 'SensorFrameRate_LO'):
                 self.raiseMissingRequiredOpt('RTC', 'SensorFrameRate_LO')
 
-        else:
-            raise FileNotFoundError('No .yml or .ini can be found in '+ self.path)
-
         self.tel_radius = self.my_data_map['telescope']['TelescopeDiameter']/2  # mas
         wvl_temp = self.my_data_map['sources_science']['Wavelength']
         if isinstance(wvl_temp, list):
@@ -217,7 +214,7 @@ class baseSimulation(object):
                 for name,value in config.items(section):
                     self.my_data_map[section].update({name:eval(value)})
         else:
-            raise FileNotFoundError('No .yml or .ini can be found in '+ path)
+            raise FileNotFoundError('No .yml or .ini (' + parametersFile + ') can be found in '+ path)
 
 
     def configLO(self, astIndex=None):
