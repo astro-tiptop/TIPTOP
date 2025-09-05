@@ -16,7 +16,7 @@ def gpuSelect(gpuIndex):
 
 # def checkParameterFile(data2check):
 #     '''
-#     This function can be used to verify that the parameters in the parameter file 
+#     This function can be used to verify that the parameters in the parameter file
 #     fulfill basic requirements. Currently this only support the core requirements.
 #     TODO:
 #         verification of the type of optionnal parameter
@@ -35,14 +35,14 @@ def gpuSelect(gpuIndex):
 
 #     '''
     
-#     myRequiredPar = {'telescope': {'TelescopeDiameter':8.,'Resolution': 128}, 
-#                      'atmosphere': {'Seeing': 0.6}, 
-#                      'sources_science': {'Wavelength': [1.6e-06], 'Zenith': [0.0], 
-#                                          'Azimuth': [0.0]}, 
-#                      'sources_HO': {'Wavelength': [7.5e-07]}, 
-#                      'sensor_science': {'PixelScale': 40, 'FieldOfView': 256}, 
-#                      'sensor_HO': {'PixelScale': 832, 'FieldOfView': 6, 
-#                                    'NumberPhotons': [200.0], 'SigmaRON': 0.0}, 
+#     myRequiredPar = {'telescope': {'TelescopeDiameter':8.,'Resolution': 128},
+#                      'atmosphere': {'Seeing': 0.6},
+#                      'sources_science': {'Wavelength': [1.6e-06], 'Zenith': [0.0],
+#                                          'Azimuth': [0.0]},
+#                      'sources_HO': {'Wavelength': [7.5e-07]},
+#                      'sensor_science': {'PixelScale': 40, 'FieldOfView': 256},
+#                      'sensor_HO': {'PixelScale': 832, 'FieldOfView': 6,
+#                                    'NumberPhotons': [200.0], 'SigmaRON': 0.0},
 #                      'DM': {'NumberActuators': [20], 'DmPitchs': [0.25]}}
     
 #     for sec in myRequiredPar.keys():
@@ -132,14 +132,14 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
         if simulation.LOisOn:
             return simulation.HO_res, simulation.LO_res
         else:
-            return simulation.HO_res  
+            return simulation.HO_res
     elif returnMetrics:
         simulation.computeMetrics()
         return simulation.sr, simulation.fwhm, simulation.ee
     else:
         simulation.saveResults()
 
-        
+
 def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
@@ -192,11 +192,11 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot, addSrAndFwhm, verbose, progressStatus=progressStatus)
 
-    
+
     if simulation.hasAsterismSection and simulation.LOisOn:
- 
+
         simulation.computeAsterisms(eeRadiusInMas, doConvolve=doConvolve, plotGS=plotInComputeAsterisms)
-        
+
         if returnRes:
             return simulation.HO_res_Asterism, simulation.LO_res_Asterism, simulation
         elif returnMetrics:
@@ -207,11 +207,75 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
         return
 
 
+def hoAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
+                        doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
+                        verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
+                        eeRadiusInMas=50, progressStatus=False, gpuIndex=0):
+    """
+    Function to run HO asterism evaluation using P3 fourierModel only
+    
+    :param simulName: required, name of the simulation
+    :type simulName: str
+    :param path2param: required, path to the parameter file
+    :type path2param: str
+    :param parametersFile: required, name of the parameter file without extension
+    :type parametersFile: str
+    :param outputDir: required, path to output directory
+    :type outputDir: str
+    :param outputFile: required, name of output file
+    :type outputFile: str
+    :param doPlot: optional default: False, plot results
+    :type doPlot: bool
+    :param returnRes: optional default: False, return HO residuals
+    :type returnRes: bool
+    :param returnMetrics: optional default: True, return metrics
+    :type returnMetrics: bool
+    :param addSrAndFwhm: optional default: True, add SR and FWHM to output
+    :type addSrAndFwhm: bool
+    :param verbose: optional default: False, verbose output
+    :type verbose: bool
+    :param getHoErrorBreakDown: optional default: False, get HO error breakdown
+    :type getHoErrorBreakDown: bool
+    :param ensquaredEnergy: optional default: False, use ensquared energy
+    :type ensquaredEnergy: bool
+    :param eeRadiusInMas: optional default: 50, radius for encircled energy
+    :type eeRadiusInMas: float
+    :param progressStatus: optional default: False, show progress
+    :type progressStatus: bool
+    :param gpuIndex: optional default: 0, GPU index
+    :type gpuIndex: int
+    
+    :return: Results based on return flags
+    :rtype: Various
+    """
+
+    gpuSelect(gpuIndex)
+    
+    simulation = asterismSimulationHo(simulName, path2param, parametersFile, outputDir, outputFile,
+                                     doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, progressStatus)
+
+    if simulation.hasHoAsterismSection:
+        results = simulation.computeHoAsterisms(eeRadiusInMas)
+
+        if doPlot:
+            simulation.plotHoResults()
+
+        if returnRes:
+            return simulation.ho_res_HoAsterism, simulation
+        elif returnMetrics:
+            return simulation.strehl_HoAsterism, simulation.fwhm_HoAsterism, simulation.ee_HoAsterism, simulation
+        else:
+            return simulation
+    else:
+        print("No HO_ASTERISM_SELECTION section found in parameter file")
+        return None
+
+
 def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile,
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
                       eeRadiusInMas=50, gpuIndex=0):
-    
+
     gpuSelect(gpuIndex)
 
     simulation = asterismSimulation(simulName, path2param, parametersFile, outputDir, outputFile,
@@ -222,14 +286,14 @@ def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, ou
 
 def generateHeuristicModel(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doTest=True,
                       share = 0.9, eeRadiusInMas=50, gpuIndex=0):
-    
+
     sr, fw, ee, covs, simul = asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doConvolve=False, gpuIndex=gpuIndex)
-    
+
     sr, fw, ee, covs, simul = reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=doPlot, gpuIndex=gpuIndex)
 
     simul.fitHeuristicModel(0, int(share*simul.nfields), parametersFile.split('.')[0]+'_hmodel')
-    
+
     if doTest:
         simul.testHeuristicModel(int(share*simul.nfields), simul.nfields-1, parametersFile.split('.')[0]+'_hmodel', [])
-    
+
     return simul
