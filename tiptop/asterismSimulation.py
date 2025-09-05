@@ -861,7 +861,7 @@ class asterismSimulation(baseSimulation):
                 grid_y = trainInput[1,idx]
                 jitterApproxTrainM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
             current_pointings_FWHM_mas = self.monoModel[len(idxV)]
-            current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+            current_HO_res = np.asarray(cpuArray(self.monoModel[len(idxV)+1]))
 
             jitterApproxTrain = np.exp(jitterApproxTrainM)-1
 
@@ -996,7 +996,7 @@ class asterismSimulation(baseSimulation):
                 grid_y = inputDataTestCpu[1,idx]
                 jitterApproxM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
         current_pointings_FWHM_mas = np.asarray(self.monoModel[len(idxV)])
-        current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+        current_HO_res = np.asarray(cpuArray(self.monoModel[len(idxV)+1]))
         jitterApprox = np.exp(jitterApproxM)-1
         strehls = np.exp( -4*np.pi**2 * ( (jitterApprox)**2 )/(self.wvl*1e9)**2)
         vv = jitterApprox**2 - current_HO_res**2
@@ -1064,7 +1064,7 @@ class asterismSimulation(baseSimulation):
                 grid_y = inputDataTestCpu[1,idx]
                 jitterApproxM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
             current_pointings_FWHM_mas = self.monoModel[len(idxV)]
-            current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+            current_HO_res = np.asarray(cpuArray(self.monoModel[len(idxV)+1]))
             inputDataTestCpu = inputDataTestCpu.transpose()
         else:
             inputIndicesPlots = [0,3,6,8]
