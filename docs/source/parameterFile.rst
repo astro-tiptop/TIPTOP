@@ -6,7 +6,7 @@ Introduction
 
 To run TIPTOP you need two things: to execute the function and to create a parameter file. This section explaines
 what should your parameter file contain and the various parameters you can set. You can already find example parameter 
-files in the `github <https://github.com/FabioRossiArcetri/TIPTOP/tree/main/perfTest>`_ .
+files in the `github <https://github.com/astro-tiptop/TIPTOP/tree/main/tiptop/perfTest>`_ .
 
 
 The parameter files are divided in sections and they can contain multiple parameter. It is very important that each 
