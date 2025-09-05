@@ -1,5 +1,6 @@
 from .baseSimulation import *
 from .asterismSimulation import *
+from .asterismSimulationHo import *
 
 
 def gpuSelect(gpuIndex):
