@@ -2,6 +2,7 @@ from .baseSimulation import *
 from dataclasses import dataclass
 from typing import List
 import itertools
+from configparser import ConfigParser
 
 @dataclass
 class HoStar:
@@ -84,20 +85,8 @@ class asterismSimulationHo(baseSimulation):
                 self.asterismsInputDataHo = unrollHoAsterismData(all_combos, zenith, azimuth, wavelength, photons)
                 self.allHoAsterismsIndices = np.asarray(all_combos)
 
-            elif self.asterismMode == 'MultipleHO':
-                # Multiple HO stars configurations
-                n_stars_per_config = self.my_data_map['HO_ASTERISM_SELECTION'].get('starsPerConfig', 3)
-                all_combos = list(itertools.combinations(list(range(self.nHoStars)), n_stars_per_config))
-                self.nfieldsSizes = [len(all_combos)]
-                self.cumAstSizes.append(self.nfieldsSizes[0])
-
-                zenith = np.array(listZ, dtype=np.float64)
-                azimuth = np.array(listA, dtype=np.float64)
-                wavelength = np.array(listW, dtype=np.float64)
-                photons = np.array(listP, dtype=np.float64)
-
-                self.asterismsInputDataHo = unrollHoAsterismData(all_combos, zenith, azimuth, wavelength, photons)
-                self.allHoAsterismsIndices = np.asarray(all_combos)
+            else:
+                raise ValueError(f"Unknown HO asterism mode: {self.asterismMode}")
 
             if self.verbose:
                 print(f'HO Asterism mode: {self.asterismMode}')
@@ -115,16 +104,58 @@ class asterismSimulationHo(baseSimulation):
         ho_asterism_data = self.asterismsInputDataHo[hoAsterismIndex]
 
         # Update sources_HO in the configuration
-        self.my_data_map['sources_HO']['Zenith'] = ho_asterism_data[0].tolist()
-        self.my_data_map['sources_HO']['Azimuth'] = ho_asterism_data[1].tolist()
-        self.my_data_map['sources_HO']['Wavelength'] = ho_asterism_data[2].tolist()
-        self.my_data_map['sensor_HO']['NumberPhotons'] = ho_asterism_data[3].tolist()
+        if len(ho_asterism_data[0]) == 1:
+            self.my_data_map['sources_HO']['Zenith'] = [float(ho_asterism_data[0][0])]
+            self.my_data_map['sources_HO']['Azimuth'] = [float(ho_asterism_data[1][0])]
+            self.my_data_map['sources_HO']['Wavelength'] = [float(ho_asterism_data[2][0])]
+            self.my_data_map['sensor_HO']['NumberPhotons'] = [float(ho_asterism_data[3][0])]
+        else:
+            self.my_data_map['sources_HO']['Zenith'] = ho_asterism_data[0].tolist()
+            self.my_data_map['sources_HO']['Azimuth'] = ho_asterism_data[1].tolist()
+            self.my_data_map['sources_HO']['Wavelength'] = ho_asterism_data[2].tolist()
+            self.my_data_map['sensor_HO']['NumberPhotons'] = ho_asterism_data[3].tolist()
 
-        if self.verbose:
-            print(f'Configured HO asterism {hoAsterismIndex} with {len(ho_star_indices)} stars')
-            for i, idx in enumerate(ho_star_indices):
-                print(f'  HO Star {i}: Zenith={ho_asterism_data[0][i]:.2f}, Azimuth={ho_asterism_data[1][i]:.2f}, '
-                      f'Wavelength={ho_asterism_data[2][i]*1e9:.0f}nm, Photons={ho_asterism_data[3][i]:.1f}')
+        # Write a temporary configuration file for this asterism
+        temp_filename = f"{self.parametersFile}_temp_{hoAsterismIndex}"
+        temp_fullpath = os.path.join(self.outputDir, temp_filename + '.ini')
+
+        try:
+            # Write the temporary file
+            config = ConfigParser()
+            config.optionxform = str
+            for section_name, section_data in self.my_data_map.items():
+                if section_name == 'HO_ASTERISM_SELECTION':
+                    continue
+                config.add_section(section_name)
+                for key, value in section_data.items():
+                    if isinstance(value, str):
+                        config.set(section_name, key, f"'{value}'")
+                    else:
+                        config.set(section_name, key, str(value))
+
+            with open(temp_fullpath, 'w') as f:
+                config.write(f)
+
+            # Update the path for fourierModel
+            self.temp_parametersFile = temp_filename
+            self.temp_path = self.outputDir
+
+            if self.verbose:
+                print(f'Configured HO asterism {hoAsterismIndex} with {len(ho_star_indices)} stars')
+                print(f'Temporary config file: {temp_fullpath}')
+                for i, idx in enumerate(ho_star_indices):
+                    print(f'  HO Star {i}: Zenith={ho_asterism_data[0][i]:.2f}, Azimuth={ho_asterism_data[1][i]:.2f}, '
+                        f'Wavelength={ho_asterism_data[2][i]*1e9:.0f}nm, Photons={ho_asterism_data[3][i]:.1f}')
+
+        except Exception as e:
+            print(f"Error creating temporary configuration file: {e}")
+            # Remove temp attributes if file creation failed
+            if hasattr(self, 'temp_parametersFile'):
+                delattr(self, 'temp_parametersFile')
+            if hasattr(self, 'temp_path'):
+                delattr(self, 'temp_path')
+            raise
+
 
     def computeHoAsterisms(self, eeRadiusInMas=50, index=None):
         """Compute HO asterisms performance"""
@@ -153,17 +184,66 @@ class asterismSimulationHo(baseSimulation):
             # Reset first call flag to force recalculation
             self.firstSimCall = True
 
-            # Run the simulation for this HO configuration
-            self.doOverallSimulation()
+            # Store original values
+            original_path = self.path
+            original_parametersFile = self.parametersFile
+            original_fullPathFilename = self.fullPathFilename
 
-            # Compute and store metrics
-            self.computeMetrics()
+            if hasattr(self, 'temp_path'):
+                print(f'Using temporary path: {self.temp_path}, file: {self.temp_parametersFile}')
+                try:
+                    # Load configuration file
+                    self.loadConfigurationFile(path=self.temp_path, parametersFile=self.temp_parametersFile)
+                except Exception as e:
+                    print(f"Error loading temporary configuration: {e}")
+                    # Restore original values and continue with next config
+                    self.path = original_path
+                    self.parametersFile = original_parametersFile
+                    self.fullPathFilename = original_fullPathFilename
+                    continue
+            else:
+                print('Temporary path or filename not set. Using original configuration.')
 
-            # Store results
-            self.strehl_HoAsterism.append(np.array([cpuArray(x) for x in self.sr]))
-            self.fwhm_HoAsterism.append(self.fwhm)
-            self.ee_HoAsterism.append(self.ee)
-            self.ho_res_HoAsterism.append(np.array([cpuArray(x) for x in self.HO_res]))
+            try:
+                # Run the simulation for this HO configuration
+                self.doOverallSimulation()
+
+                # Compute and store metrics
+                self.computeMetrics()
+
+                # Store results
+                self.strehl_HoAsterism.append(np.array([cpuArray(x) for x in self.sr]))
+                self.fwhm_HoAsterism.append(self.fwhm)
+                self.ee_HoAsterism.append(self.ee)
+                self.ho_res_HoAsterism.append(np.array([cpuArray(x) for x in self.HO_res]))
+
+                if self.verbose:
+                    print(f'Config {config_idx}: SR={self.sr[0]:.4f}, FWHM={self.fwhm[0]:.2f}mas, '
+                        f'EE={self.ee[0]:.4f}, HO_res={self.HO_res[0]:.1f}nm')
+   
+            except Exception as e:
+                print(f"Error in simulation for config {config_idx}: {e}")
+                # Store NaN values for failed simulations
+                self.strehl_HoAsterism.append(np.array([np.nan]))
+                self.fwhm_HoAsterism.append([np.nan])
+                self.ee_HoAsterism.append([np.nan])
+                self.ho_res_HoAsterism.append(np.array([np.nan]))
+
+            finally:
+                # Restore original path and filename
+                self.path = original_path
+                self.parametersFile = original_parametersFile
+                self.fullPathFilename = original_fullPathFilename
+
+                # Clean up temporary file
+                if hasattr(self, 'temp_parametersFile'):
+                    temp_file = os.path.join(self.temp_path, self.temp_parametersFile + '.ini')
+                    if os.path.exists(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except Exception as e:
+                            if self.verbose:
+                                print(f"Warning: Could not remove temporary file {temp_file}: {e}")
 
             if self.verbose:
                 print(f'Config {config_idx}: SR={self.sr[0]:.4f}, FWHM={self.fwhm[0]:.2f}mas, '
