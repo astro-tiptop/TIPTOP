@@ -364,11 +364,11 @@ The High Order WaveFront Sensor can be a pyramid WFS or a Shack-Hartmann. Regard
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NumberLenslets           |No       |list of |*Default : [20]*, Number of WFS lenslets.  Used for both                  |
 |                         |         |int     |Shack-Hartmann and Pyramid sensors. Also used for noise computation if    |
-|                         |         |        | `NoiseVariance` is not set.                                              |
+|                         |         |        |``NoiseVariance`` is not set.                                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |SizeLenslets             |No       |list of |*Default: ``[Telescope] TelescopeDiameter/[sensor_HO] NumberLenslet``*    |
 |                         |         |float   |Size of WFS lenslets in meters. Overrides the ratio between telescope     |
-|                         |         |        |size and Number of lenslet used to compute the matrix size.               |                                                            |
+|                         |         |        |size and Number of lenslet used to compute the matrix size.               |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |PixelScale               |Yes      |integer |High Order WFS pixel scale in [mas],  Not used when a pyramid wavefront   |
 |                         |         |        |sensor has been selected.                                                 |
@@ -610,11 +610,11 @@ Can be set but not used
 |                         |         |        |Must be the same length as ``DmPitchs``.                                  |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |InfModel                 |No       |string  |*default: 'gaussian'*, DM influence function model. Supported values:     |
-|                         |         |        |``'gaussian'`` or ``'xinetics'``.                                         | 
+|                         |         |        |``'gaussian'`` or ``'xinetics'``.                                         |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |InfCoupling              |No       |list of |*default: [0.2]*, Mechanical coupling coefficient (0–1) between DM        |
 |                         |         |float   |actuators. Controls the width of the influence function. Must have the    |
-|                         |         |        |same length as ``NumberActuators`` (one value per DM).                    | 
+|                         |         |        |same length as ``NumberActuators`` (one value per DM).                    |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |DmHeights                |No/Yes if|list of |*default: [0.0]*, DM altitude in meters, Must be the same length as       |
 |                         |LO or    |float   |NumberActuators and DmPitchs                                              |
