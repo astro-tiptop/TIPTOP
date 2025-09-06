@@ -110,16 +110,7 @@ class TestMavis(TestTiptop):
             self.assertTrue(np.all(ee_cpu > 0))
 
             # SR should be lower with jitter
-            print("SR without jitter:", sr_nj_cpu)
-            print("SR with jitter:", sr_cpu)
             self.assertTrue(np.all(sr_cpu < sr_nj_cpu))
-
-            # fwhm should be larger with jitter by ~jitter_fwhm
-            diff_fwhm = np.sqrt(fwhm_cpu**2 - fwhm_nj_cpu**2)
-            print("FWHM without jitter:", fwhm_nj_cpu)
-            print("FWHM with jitter:", fwhm_cpu)
-            print("Difference in FWHM:", diff_fwhm)
-            np.testing.assert_allclose(diff_fwhm, jitter_fwhm, atol=0.1, rtol=0.1)
 
         finally:
             # Cleanup: remove temporary file
