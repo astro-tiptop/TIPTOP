@@ -2,6 +2,10 @@ from tiptop.tiptop import *
 rc("text", usetex=False)
 
 import unittest
+import tempfile
+import os
+from configparser import ConfigParser
+
 
 def cpuArray(v):
     if isinstance(v,np.ndarray) or isinstance(v, list):
@@ -26,22 +30,92 @@ class TestMavis(TestTiptop):
 
     def test_mavis(self):
         """
-        Test
+        Test MAVIS simulation against stored results
         """
-        computed_result = overallSimulation("tiptop/perfTest", "MAVIStest", 'tiptop/perfTest', 'testMAVIS',
+        computed_result = overallSimulation('tiptop/perfTest', 'MAVIStest', 'tiptop/perfTest', 'testMAVIS',
                                             doPlot=False, doConvolve=True, returnRes=True)
 
-        ii = 0
-#        for aa in computed_result:
-#            with open('tests/mavisResult' + str(ii) +  '.npy', 'wb') as f:
-#                np.save(f, cpuArray(aa))
-#            ii += 1
+        # This can be used to save / update the results if needed
+        save_results = False
+        if save_results:
+            ii = 0
+            for aa in computed_result:
+                with open('tests/mavisResult' + str(ii) +  '.npy', 'wb') as f:
+                    np.save(f, cpuArray(aa))
+                ii += 1
 
         stored_result0 = np.load('tests/mavisResult0.npy')
         stored_result1 = np.load('tests/mavisResult1.npy')
 
         self.assertTrue( np.testing.assert_allclose(cpuArray(computed_result[0]), stored_result0, rtol=1e-03, atol=1e-5)==None)
         self.assertTrue( np.testing.assert_allclose(cpuArray(computed_result[1]), stored_result1, rtol=1e-03, atol=1e-5)==None)
+
+    def test_mavis_jitter(self):
+        """
+        Test MAVIS simulation with jitter_FWHM
+        """
+
+        # Run simulation with temporary file
+        sr_nj, fwhm_nj, ee_nj = overallSimulation('tiptop/perfTest', 'MAVIStest', 'tiptop/perfTest', 'testMAVIS',
+                                            doPlot=False, doConvolve=True, returnMetrics=True)
+
+        # Load the base configuration
+        original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
+
+        # Read the original configuration
+        config = ConfigParser()
+        config.optionxform = str
+        config.read(original_config_path)
+
+        jitter_fwhm = 10.0  # Example jitter FWHM value in mas
+
+        # Add jitter_FWHM to the telescope section
+        if not config.has_option('telescope', 'jitter_FWHM'):
+            config.set('telescope', 'jitter_FWHM', str(jitter_fwhm))
+
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
+            config.write(temp_file)
+            temp_filename = temp_file.name
+
+        try:
+            # Extract filename without extension and directory
+            temp_dir = os.path.dirname(temp_filename)
+            temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
+
+            # Run simulation with temporary file
+            sr, fwhm, ee = overallSimulation(temp_dir, temp_basename, 'tiptop/perfTest', 'testMAVISJitter',
+                                              doPlot=False, doConvolve=True, returnMetrics=True)
+
+            # Verify that the result is valid
+            self.assertIsNotNone(sr)
+            self.assertIsNotNone(fwhm)
+            self.assertIsNotNone(ee)
+
+            # Verify that values are reasonable (non-zero)
+            self.assertGreater(len(sr), 0)  # sr should have elements
+            self.assertGreater(len(fwhm), 0)  # fwhm should have elements
+            self.assertGreater(len(ee), 0)  # ee should have elements
+
+            # Verify that values are numeric and positive
+            sr_cpu = np.array(cpuArray(sr))
+            fwhm_cpu = np.array(cpuArray(fwhm))
+            ee_cpu = np.array(cpuArray(ee))
+
+            fwhm_nj_cpu = np.array(cpuArray(fwhm_nj))
+
+            self.assertTrue(np.all(sr_cpu > 0))
+            self.assertTrue(np.all(fwhm_cpu > 0))
+            self.assertTrue(np.all(ee_cpu > 0))
+
+            # fwhm should be larger with jitter by ~jitter_fwhm
+            diff_fwhm = np.sqrt(fwhm_cpu**2 - fwhm_nj_cpu**2)
+            np.testing.assert_allclose(diff_fwhm, jitter_fwhm, atol=0.1, rtol=0.1)
+
+        finally:
+            # Cleanup: remove temporary file
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
 
 
 class TestAsterismSimulation(TestTiptop):
