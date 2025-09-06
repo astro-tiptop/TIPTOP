@@ -97,19 +97,28 @@ class TestMavis(TestTiptop):
             self.assertGreater(len(fwhm), 0)  # fwhm should have elements
             self.assertGreater(len(ee), 0)  # ee should have elements
 
-            # Verify that values are numeric and positive
             sr_cpu = np.array(cpuArray(sr))
             fwhm_cpu = np.array(cpuArray(fwhm))
             ee_cpu = np.array(cpuArray(ee))
 
+            sr_nj_cpu = np.array(cpuArray(sr_nj))
             fwhm_nj_cpu = np.array(cpuArray(fwhm_nj))
 
+            # Verify that values are numeric and positive
             self.assertTrue(np.all(sr_cpu > 0))
             self.assertTrue(np.all(fwhm_cpu > 0))
             self.assertTrue(np.all(ee_cpu > 0))
 
+            # SR should be lower with jitter
+            print("SR without jitter:", sr_nj_cpu)
+            print("SR with jitter:", sr_cpu)
+            self.assertTrue(np.all(sr_cpu < sr_nj_cpu))
+
             # fwhm should be larger with jitter by ~jitter_fwhm
             diff_fwhm = np.sqrt(fwhm_cpu**2 - fwhm_nj_cpu**2)
+            print("FWHM without jitter:", fwhm_nj_cpu)
+            print("FWHM with jitter:", fwhm_cpu)
+            print("Difference in FWHM:", diff_fwhm)
             np.testing.assert_allclose(diff_fwhm, jitter_fwhm, atol=0.1, rtol=0.1)
 
         finally:
