@@ -19,28 +19,28 @@ import json
 rad2mas = 3600 * 180 * 1000 / np.pi
 
 class baseSimulation(object):
-    
+
     def raiseMissingRequiredOpt(self,sec,opt):
         raise ValueError("'{}' is missing from section '{}'"
                          .format(opt,sec))
-        
+
     def raiseMissingRequiredSec(self,sec):
         raise ValueError("The section '{}' is missing from the parameter file"
                          .format(sec))
-        
+
     def raiseNotSameLength(self,sec,opt):
         raise ValueError("'{}' in section '{}' must have the same length"
                          .format(opt,sec))
-    
-    def check_section_key(self, primary):        
+
+    def check_section_key(self, primary):
         return primary in self.my_data_map.keys()
-    
+
     def check_config_key(self, primary, secondary):
         if primary in self.my_data_map.keys():
             return secondary in self.my_data_map[primary].keys()
         else:
             return False
-    
+
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=True,
                           doPlot=False, addSrAndFwhm=True,
                           verbose=False, getHoErrorBreakDown=False,
@@ -68,106 +68,87 @@ class baseSimulation(object):
 #            print('WARNING: returnRes and doPlot cannot both be True, setting doPlot to False.')
 #            self.doPlot = False
 
-        # get the system description (stored in my_data_map) from the ini/yml file
-        fullPathFilename_ini = os.path.join(self.path, self.parametersFile + '.ini')
-        fullPathFilename_yml = os.path.join(self.path, self.parametersFile + '.yml')
-        if os.path.exists(fullPathFilename_yml):
-            self.fullPathFilename = fullPathFilename_yml
-            with open(fullPathFilename_yml) as f:
-                my_yaml_dict = yaml.safe_load(f)        
-            self.my_data_map = my_yaml_dict
-        elif os.path.exists(fullPathFilename_ini):
-            self.fullPathFilename = fullPathFilename_ini
-            config = ConfigParser()
-            config.optionxform = str
-            config.read(fullPathFilename_ini)
-            self.my_data_map = {} 
-            for section in config.sections():
-                self.my_data_map[section] = {}
-                for name,value in config.items(section):
-                    self.my_data_map[section].update({name:eval(value)})
+        # Load configuration file
+        self.loadConfigurationFile()
 
-            #Verify the presence of parameters called in TIPTOP before they are verified 
-            #in P3 or in MASTSEL
-            if not self.check_section_key('telescope'):
-                self.raiseMissingRequiredSec('telescope')
-                
-            if not self.check_config_key('telescope','TelescopeDiameter'):
-                self.raiseMissingRequiredOpt('telescope','TelescopeDiameter')
-            
-            if not self.check_config_key('telescope','glFocusOnNGS'):
-                self.my_data_map['telescope']['glFocusOnNGS'] = False
-            
-            if not self.check_section_key('sources_science') :
-                self.raiseMissingRequiredSec('sources_science') 
-            
-            if not self.check_config_key('sources_science','Wavelength'):
-                self.raiseMissingRequiredOpt('sources_science', 'Wavelength')
-            
-            if not self.check_config_key('sources_science','Zenith'):
-                #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
-                self.my_data_map['sources_science']['Zenith'] = [0.0]
-            
-            if not self.check_config_key('sources_science','Azimuth'):
-                #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
-                self.my_data_map['sources_science']['Azimuth'] = [0.0]
-            
-            if (len(self.my_data_map['sources_science']['Zenith']) != 
-                len(self.my_data_map['sources_science']['Azimuth'])):
-                self.raiseNotSameLength('sources_science', ['Zenith','Azimuth'])
-            
-            # === Handle sensor_science.Super_Sampling parameter ===
-            if not self.check_config_key('sensor_science', 'Super_Sampling'):
-                 self.my_data_map['sensor_science']['Super_Sampling'] = None
-            else:
-                # default Super_Sampling to option 2 (2D interpolation), 
-                # keep option 1 (1D interpolation) available
-                SupSamp_val = self.my_data_map['sensor_science']['Super_Sampling']
-                # Case 1: user provides a single scalar
-                if isinstance(SupSamp_val, (int,float)):
-                    self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val), 2]
-                # Case 2: user provides a list/tuple with one element
-                elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 1:
-                    self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val[0]), 2]
-                # Case 3: user explicitly provides [pixel_scale, option]
-                # Keep backward compatibility, option=1 (1D interpolation) still allowed
-                elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 2:
-                    if int(SupSamp_val[1]) not in (1, 2):
-                        raise ValueError("Second value of Super_Sampling must be 1 (1D interpolation) or 2 (2D polar grid).")
-                # Case 4: anything else is invalid
-                else:
-                    raise KeyError("Super_Sampling must be a scalar or list of one/two values.")
+        #Verify the presence of parameters called in TIPTOP before they are verified
+        #in P3 or in MASTSEL
+        if not self.check_section_key('telescope'):
+            self.raiseMissingRequiredSec('telescope')
 
-            #TODO should an error be raised if sensor_LO is defined but not source_LO or vice versa?
-            if self.check_section_key('sources_LO') and not self.check_section_key('sensor_LO'):
-                raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
-            elif not self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
-                raise KeyError("'sources_LO' must be defined if 'sensor_LO' is defined.")
-            #If both are defined we can proceed.
-            elif self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
-                if not self.check_config_key('sources_LO', 'Wavelength'):
-                    self.raiseMissingRequiredOpt('sources_LO', 'Wavelength')
-                
-                if not self.check_config_key('sources_LO','Zenith'):
-                    self.my_data_map['sources_LO']['Zenith'] = [0.0]
-                    
-                if not self.check_config_key('sources_LO','Azimuth'):
-                    self.my_data_map['sources_LO']['Azimuth'] = [0.0]
-                
-                if (len(self.my_data_map['sources_LO']['Zenith']) != 
-                    len(self.my_data_map['sources_LO']['Azimuth'])):
-                    self.raiseNotSameLength('sources_LO', ['Zenith','Azimuth'])
-                
-                if not self.check_config_key('sensor_LO', 'NumberPhotons'):
-                    raise self.raiseMissingRequiredOpt('sensor_LO', 'NumberPhotons')
-                
-                if not self.check_section_key('RTC'):
-                    self.raiseMissingRequiredSec('RTC')
-                elif not self.check_config_key('RTC', 'SensorFrameRate_LO'):
-                    self.raiseMissingRequiredOpt('RTC', 'SensorFrameRate_LO')
+        if not self.check_config_key('telescope','TelescopeDiameter'):
+            self.raiseMissingRequiredOpt('telescope','TelescopeDiameter')
 
+        if not self.check_config_key('telescope','glFocusOnNGS'):
+            self.my_data_map['telescope']['glFocusOnNGS'] = False
+
+        if not self.check_section_key('sources_science') :
+            self.raiseMissingRequiredSec('sources_science')
+
+        if not self.check_config_key('sources_science','Wavelength'):
+            self.raiseMissingRequiredOpt('sources_science', 'Wavelength')
+
+        if not self.check_config_key('sources_science','Zenith'):
+            #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
+            self.my_data_map['sources_science']['Zenith'] = [0.0]
+
+        if not self.check_config_key('sources_science','Azimuth'):
+            #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
+            self.my_data_map['sources_science']['Azimuth'] = [0.0]
+
+        if (len(self.my_data_map['sources_science']['Zenith']) !=
+            len(self.my_data_map['sources_science']['Azimuth'])):
+            self.raiseNotSameLength('sources_science', ['Zenith','Azimuth'])
+
+        # === Handle sensor_science.Super_Sampling parameter ===
+        if not self.check_config_key('sensor_science', 'Super_Sampling'):
+                self.my_data_map['sensor_science']['Super_Sampling'] = None
         else:
-            raise FileNotFoundError('No .yml or .ini can be found in '+ self.path)
+            # default Super_Sampling to option 2 (2D interpolation),
+            # keep option 1 (1D interpolation) available
+            SupSamp_val = self.my_data_map['sensor_science']['Super_Sampling']
+            # Case 1: user provides a single scalar
+            if isinstance(SupSamp_val, (int,float)):
+                self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val), 2]
+            # Case 2: user provides a list/tuple with one element
+            elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 1:
+                self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val[0]), 2]
+            # Case 3: user explicitly provides [pixel_scale, option]
+            # Keep backward compatibility, option=1 (1D interpolation) still allowed
+            elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 2:
+                if int(SupSamp_val[1]) not in (1, 2):
+                    raise ValueError("Second value of Super_Sampling must be 1 (1D interpolation) or 2 (2D polar grid).")
+            # Case 4: anything else is invalid
+            else:
+                raise KeyError("Super_Sampling must be a scalar or list of one/two values.")
+
+        #TODO should an error be raised if sensor_LO is defined but not source_LO or vice versa?
+        if self.check_section_key('sources_LO') and not self.check_section_key('sensor_LO'):
+            raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
+        elif not self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
+            raise KeyError("'sources_LO' must be defined if 'sensor_LO' is defined.")
+        #If both are defined we can proceed.
+        elif self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
+            if not self.check_config_key('sources_LO', 'Wavelength'):
+                self.raiseMissingRequiredOpt('sources_LO', 'Wavelength')
+
+            if not self.check_config_key('sources_LO','Zenith'):
+                self.my_data_map['sources_LO']['Zenith'] = [0.0]
+
+            if not self.check_config_key('sources_LO','Azimuth'):
+                self.my_data_map['sources_LO']['Azimuth'] = [0.0]
+
+            if (len(self.my_data_map['sources_LO']['Zenith']) !=
+                len(self.my_data_map['sources_LO']['Azimuth'])):
+                self.raiseNotSameLength('sources_LO', ['Zenith','Azimuth'])
+
+            if not self.check_config_key('sensor_LO', 'NumberPhotons'):
+                raise self.raiseMissingRequiredOpt('sensor_LO', 'NumberPhotons')
+
+            if not self.check_section_key('RTC'):
+                self.raiseMissingRequiredSec('RTC')
+            elif not self.check_config_key('RTC', 'SensorFrameRate_LO'):
+                self.raiseMissingRequiredOpt('RTC', 'SensorFrameRate_LO')
 
         self.tel_radius = self.my_data_map['telescope']['TelescopeDiameter']/2  # mas
         wvl_temp = self.my_data_map['sources_science']['Wavelength']
@@ -198,12 +179,42 @@ class baseSimulation(object):
         # initialize self.jitter_FWHM variable with a default value
         self.jitter_FWHM = None
         if 'jitter_FWHM' in self.my_data_map['telescope'].keys():
-            self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']  
+            self.jitter_FWHM = self.my_data_map['telescope']['jitter_FWHM']
 
         self.addFocusError = self.my_data_map['telescope']['glFocusOnNGS']
         self.GFinPSD = False
         if (not self.check_section_key('sensor_Focus')) and self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
             raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS/Focus WFSs have more than one sub-aperture")
+
+
+    def loadConfigurationFile(self, path=None, parametersFile=None):
+        """Load configuration from .ini or .yml file"""
+        if path is None:
+            path = self.path
+        if parametersFile is None:
+            parametersFile = self.parametersFile
+
+        # get the system description (stored in my_data_map) from the ini/yml file
+        fullPathFilename_ini = os.path.join(path, parametersFile + '.ini')
+        fullPathFilename_yml = os.path.join(path, parametersFile + '.yml')
+
+        if os.path.exists(fullPathFilename_yml):
+            self.fullPathFilename = fullPathFilename_yml
+            with open(fullPathFilename_yml) as f:
+                my_yaml_dict = yaml.safe_load(f)
+            self.my_data_map = my_yaml_dict
+        elif os.path.exists(fullPathFilename_ini):
+            self.fullPathFilename = fullPathFilename_ini
+            config = ConfigParser()
+            config.optionxform = str
+            config.read(fullPathFilename_ini)
+            self.my_data_map = {}
+            for section in config.sections():
+                self.my_data_map[section] = {}
+                for name,value in config.items(section):
+                    self.my_data_map[section].update({name:eval(value)})
+        else:
+            raise FileNotFoundError('No .yml or .ini (' + parametersFile + ') can be found in '+ path)
 
 
     def configLO(self, astIndex=None):

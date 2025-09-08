@@ -19,12 +19,14 @@ import time
 from dataclasses import dataclass
 from typing import List
 
+
 @dataclass
 class Star:
     zenith: float
     azimuth: float
     photons: float
     freq: float
+
 
 @dataclass
 class AsterismProperties:
@@ -35,10 +37,12 @@ class AsterismProperties:
     fwhm: float
     encircled_energy: float
 
+
 def funcPolar(X, A0, A, B, C, D, E0, E, F, G, H, I, J, J0, J1):
     r, af = X
     f = af/100
     return (A0 * (r/100) ** 3) + (A * (r/100) ** 2) + (B * r/100 ) + (C * r ** 0.5) + (D * r ** 0.25) + (E0 * (0.1/f) ** 3) + (E * (0.1/f) ** 2) + (F * 1/f ) + (G * (100/f) ** 0.5) + (H * (100/f) ** 0.25) + I + (J * (r/f)**2) + (J0 * (r/f)) + (J1 * (r/f)**0.5) 
+
 
 def costFunction(params, x, y):
     A0, A, B, C, D, E, F, G, H, I, J = params
@@ -67,6 +71,7 @@ def unrollAsterismData(all_combos, c1, c2, flux, freq):
                         np.take(flux, all_combos),
                         np.take(freq, all_combos)] )
     return np.swapaxes(asterism, 0,1)
+
 
 class asterismSimulation(baseSimulation):
 
@@ -179,7 +184,7 @@ class asterismSimulation(baseSimulation):
                         self.nfieldsSizes = np.load(datafiles[2]).tolist()
                         self.cumAstSizes = np.load(datafiles[3]).tolist()
                         self.cumStarSizes = np.load(datafiles[4]).tolist()
-                        self.allAsterismsIndices = np.load(datafiles[5])                        
+                        self.allAsterismsIndices = np.load(datafiles[5])
                 else:
                     field_simul_data = np.load(self.file_field_simul, allow_pickle=True)
                     self.asterismsRecArray = field_simul_data
@@ -189,7 +194,7 @@ class asterismSimulation(baseSimulation):
                     else:
                         self.generateFromRecArrayMulti(self.nfields)
             else:
-                self.asterismMode = 'INVALID'                
+                self.asterismMode = 'INVALID'
         else:
             self.hasAsterismSection = False
 
@@ -198,13 +203,14 @@ class asterismSimulation(baseSimulation):
             if self.isMono:
                 print(os.path.join(self.outputDir, self.heuristicModel +'.npy'))
                 self.monoModel = np.load(os.path.join(self.outputDir, self.heuristicModel +'.npy'), allow_pickle=True)
-            # else: 
+            # else:
             #     load the NN here
         else:
             self.heuristicModel = None
 
         if self.verbose:
             print('self.cumAstSizes', self.cumAstSizes)
+
 
     def resetFieldsData(self):
         self.setsList = []
@@ -214,6 +220,7 @@ class asterismSimulation(baseSimulation):
         self.cumStarSizes = [0]
         self.skippedFieldIndexes = []
         self.allAsterismsIndices = []
+
 
     def reset_currentFieldsSourcesData(self):
         self.currentFieldsSourcesData = {}
@@ -241,16 +248,18 @@ class asterismSimulation(baseSimulation):
         self.currentFieldsSourcesData['NumberPhotonsFocus'].append(phf)
         self.currentFieldsSourcesData['FrequenciesFocus'].append(frf)
 
+
     def updateAsterismIndices(self, all_combos, number_of_asterisms, number_of_stars):
         self.allAsterismsIndices.extend(all_combos)
         self.nfieldsSizes.append(number_of_asterisms)
         self.cumAstSizes.append(self.cumAstSizes[-1]+number_of_asterisms)
         self.cumStarSizes.append(self.cumStarSizes[-1]+number_of_stars)
 
+
     def addFieldDataCombos(self, all_combos, number_of_asterisms, number_of_stars):
-       
+
         self.updateAsterismIndices([*all_combos], number_of_asterisms, number_of_stars)
-        
+
         pcoord_r = self.currentFieldsSourcesData['Zenith']
         pcoord_a = self.currentFieldsSourcesData['Azimuth']
         pcoords = np.array([pcoord_r, pcoord_a])
@@ -260,12 +269,13 @@ class asterismSimulation(baseSimulation):
 
         flux = self.currentFieldsSourcesData['NumberPhotons']
         freq = self.currentFieldsSourcesData['Frequencies']
-        
+
         asterism = unrollAsterismData(all_combos, xxPointigs, yyPointigs, flux, freq)
         pasterism = unrollAsterismData(all_combos, pcoords[0,:], pcoords[1,:], flux, freq)
 
         self.setsList.extend([*asterism])
         self.polarSetsList.extend([*pasterism])
+
 
     def generateFromList(self, listZ, listA, listP, listF):
         self.resetFieldsData()
@@ -305,6 +315,7 @@ class asterismSimulation(baseSimulation):
         self.asterismsInputDataPolar = np.array(self.polarSetsList)
         self.allAsterismsIndices = np.array(self.allAsterismsIndices)
 
+
     def configLO(self, astIndex=None):
         if self.firstConfigCall:
             self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
@@ -314,12 +325,12 @@ class asterismSimulation(baseSimulation):
                 self.LO_wvl = LO_wvl_temp[0]  # lambda
             else:
                 self.LO_wvl = LO_wvl_temp     # lambda
-                
+
             self.my_data_map['sources_LO']['Zenith']       = self.currentFieldsSourcesData['Zenith']
             self.my_data_map['sources_LO']['Azimuth']      = self.currentFieldsSourcesData['Azimuth']
             self.my_data_map['sensor_LO']['NumberPhotons'] = self.currentFieldsSourcesData['NumberPhotons']
             self.my_data_map['RTC']['SensorFrameRate_LO']  = self.currentFieldsSourcesData['Frequencies']
-            
+
             self.LO_psInMas                = self.my_data_map['sensor_LO']['PixelScale']
             self.LO_zen_field              = self.my_data_map['sources_LO']['Zenith']
             self.LO_az_field               = self.my_data_map['sources_LO']['Azimuth']
@@ -366,7 +377,7 @@ class asterismSimulation(baseSimulation):
         super().setAsterismData()
         self.firstConfigCall = False
 
-            
+
     def translateTriangle(self, triangle, radius, angle):
         tt =  triangle.copy()
         tt[0,:] += radius*np.cos(angle/180*np.pi)
@@ -396,13 +407,13 @@ class asterismSimulation(baseSimulation):
         for rt in np.linspace(0, maxRadius*0.9, samples):
             triangle = self.translateTriangle(standardTriangle, rt, standardPosAngle)
             self.trianglesList.append(triangle)
-            pTriangle = np.vstack( (cartesianToPolar(triangle[0:2,:]), np.ones(3)*photons) )                
-            self.polarTrianglesList.append(pTriangle)        
+            pTriangle = np.vstack( (cartesianToPolar(triangle[0:2,:]), np.ones(3)*photons) )
+            self.polarTrianglesList.append(pTriangle)
         # A.2 dependency on angle (azimuth)
         for at in np.linspace(0, 180, samples):
             triangle = self.translateTriangle(standardTriangle, standardPosRadius, at)
             self.trianglesList.append(triangle)
-            pTriangle = np.vstack( (cartesianToPolar(triangle[0:2,:]), np.ones(3)*photons) )                
+            pTriangle = np.vstack( (cartesianToPolar(triangle[0:2,:]), np.ones(3)*photons) )
             self.polarTrianglesList.append(pTriangle)
         # B. dependency on size
         for scale in np.linspace(0.5*standardRadius/samples, maxRadius*0.7, samples):
@@ -501,6 +512,7 @@ class asterismSimulation(baseSimulation):
             magnitudes.append(mm)
             fluxes.append(self.fluxFromMagnitude(mm, b) ) # * self.freqFromMagnitude(mm)
         return magnitudes, fluxes
+
 
     def generateRandom(self, max_field):
         self.resetFieldsData()
@@ -849,8 +861,8 @@ class asterismSimulation(baseSimulation):
                 grid_y = trainInput[1,idx]
                 jitterApproxTrainM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
             current_pointings_FWHM_mas = self.monoModel[len(idxV)]
-            current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
-            
+            current_HO_res = np.asarray(cpuArray(self.monoModel[len(idxV)+1]))
+
             jitterApproxTrain = np.exp(jitterApproxTrainM)-1
 
             print(jitterApproxTrain.shape, jitterTrain.shape)
@@ -984,7 +996,7 @@ class asterismSimulation(baseSimulation):
                 grid_y = inputDataTestCpu[1,idx]
                 jitterApproxM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
         current_pointings_FWHM_mas = np.asarray(self.monoModel[len(idxV)])
-        current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+        current_HO_res = np.asarray(cpuArray(self.monoModel[len(idxV)+1]))
         jitterApprox = np.exp(jitterApproxM)-1
         strehls = np.exp( -4*np.pi**2 * ( (jitterApprox)**2 )/(self.wvl*1e9)**2)
         vv = jitterApprox**2 - current_HO_res**2
@@ -1006,6 +1018,7 @@ class asterismSimulation(baseSimulation):
             print('Low Delta between best and n-th best asterism, n:', ss, 'of ', jitterApprox.shape[0])
         return self.assembleOtuput(astList, sortedJitterIndicesModel.tolist(), jitterApprox.tolist(), strehls.tolist(), fwhms.tolist(), ees)
 
+
     def assembleOtuput(self, astList, sortedJitterIndicesModel, jitterApprox, strehls, fwhms, ees, absolute=False):
         results = []
         for ii, index in enumerate(sortedJitterIndicesModel):
@@ -1023,6 +1036,7 @@ class asterismSimulation(baseSimulation):
                 resultElement = AsterismProperties(index, asterism, jitterApprox[index], strehls[index], fwhms[index], ees[index])
             results.append(resultElement)
         return results
+
 
     def testHeuristicModel(self, fieldIndex1, fieldIndex2, modelName, geom):
         self.selectData(fieldIndex1, fieldIndex2)
@@ -1050,7 +1064,7 @@ class asterismSimulation(baseSimulation):
                 grid_y = inputDataTestCpu[1,idx]
                 jitterApproxM[idx] = self.monoModel[i].__call__(grid_x, grid_y, grid=False)
             current_pointings_FWHM_mas = self.monoModel[len(idxV)]
-            current_HO_res = np.asarray(self.monoModel[len(idxV)+1].get())
+            current_HO_res = np.asarray(cpuArray(self.monoModel[len(idxV)+1]))
             inputDataTestCpu = inputDataTestCpu.transpose()
         else:
             inputIndicesPlots = [0,3,6,8]
@@ -1190,6 +1204,7 @@ class asterismSimulation(baseSimulation):
             plt.show()
             print(bestIndexPlot)
             print('Number of asterisms having a rating too close to the best one', totalS, 'of ', totalAsterisms, 100 * totalS/totalAsterisms)
+
 
     def plotFieldInterval(self, fieldIndex1, fieldIndex2):
         self.selectData(fieldIndex1, fieldIndex2)
@@ -1331,13 +1346,13 @@ class asterismSimulation(baseSimulation):
         ax = fig.add_subplot(1,1,1)
         ax.axvline(0, c='black', linewidth=0.5)
         ax.axhline(0, c='black', linewidth=0.5)
-        
+
         norm = matplotlib.colors.Normalize()
         norm.autoscale(al)
         cm1 = cm.get_cmap('rainbow')
         sm = matplotlib.cm.ScalarMappable(cmap=cm1, norm=norm)
         sm.set_array(al)
-        
+
         for i in range(self.lastJitterIndex-1, self.currentBase-1, -1):
             jj = self.sortedJitterIndices[i-self.currentBase]
             aa = 1.0 # al[i-self.currentBase] * 0.9 + 0.1
@@ -1390,6 +1405,7 @@ class asterismSimulation(baseSimulation):
         plt.plot(self.jitterMeasure[self.sortedJitterIndices])
         plt.show()
         self.plotAsterisms()
+
 
     def plot_directions(self, base, nAsterisms):
         '''
