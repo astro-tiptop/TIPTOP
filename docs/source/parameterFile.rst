@@ -681,6 +681,12 @@ Can be set but not used
 |LoopDelaySteps_Focus     |No/Yes if|integer |*default: None*, Global focus loop delays in [frames]. If                 |
 |                         |Focus    |        |``[sensor_Focus]`` section is present it must be set.                     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|MMSE_Rec_LO              |No       |bool    |*default: True*, Enables the *MMSE* reconstructor for the LO loop.        |
+|                         |         |        |If ``False``, a *Tikhonov* reconstruction is used with λ = 0.05 (value    |
+|                         |         |        |inherited from MASTSEL tests with pseudo-inverse, chosen to remove unseen |
+|                         |         |        |modes when fewer than 3 stars or poor asterism geometry are present).     |
+|                         |         |        |Ignored if only one guide star.                                           |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 [COMPUTATION]
 -------------
