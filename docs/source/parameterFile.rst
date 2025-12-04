@@ -344,6 +344,8 @@ We now go more in detail for each section:
 |                         |         |        |If provided, TipTop performs a 2D polar interpolation of the PSF to       |
 |                         |         |        |produce a radial profile resampled at the requested scale.                |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|coronagraphic_PSF        |No       |bool    |If set to True, TipTop computes perfect coronagraphic PSFs.               |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 .. note::
 
