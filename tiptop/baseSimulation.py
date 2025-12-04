@@ -183,8 +183,16 @@ class baseSimulation(object):
 
         self.addFocusError = self.my_data_map['telescope']['glFocusOnNGS']
         self.GFinPSD = False
-        if (not self.check_section_key('sensor_Focus')) and self.addFocusError and max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
-            raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS/Focus WFSs have more than one sub-aperture")
+        if (not self.check_section_key('sensor_Focus')) and \
+            self.addFocusError and \
+                max(self.my_data_map['sensor_LO']['NumberLenslets']) == 1:
+            raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS)"
+                             " is available only if NGS/Focus WFSs have more than one sub-aperture")
+
+        if  self.check_config_key('sensor_science', 'coronagraphic_PSF'):
+            self.coronagraphicPSF = self.my_data_map['sensor_science']['coronagraphic_PSF']
+        else:
+            self.coronagraphicPSF = False
 
 
     def loadConfigurationFile(self, path=None, parametersFile=None):
@@ -377,9 +385,9 @@ class baseSimulation(object):
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
         hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
 
-        now = datetime.now()        
+        now = datetime.now()
         # header
-        hdr0 = hdul1[0].header            
+        hdr0 = hdul1[0].header        
         hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr0['TIPTOP_V'] = __version__
         # parameters in the header
@@ -394,7 +402,7 @@ class baseSimulation(object):
                             for elem2 in elem:
                                 add_hdr_keyword(hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
                                 jjj += 1
-                        else:                        
+                        else:               
                             add_hdr_keyword(hdr0,key_primary,key_secondary,elem,iii=str(iii))
                         iii += 1
                 else:
@@ -577,7 +585,8 @@ class baseSimulation(object):
                                                     self.wvl, self.N, self.sx, self.grid_diameter,
                                                     self.freq_range, self.dk, self.nPixPSF,
                                                     self.wvlMax, self.overSamp,
-                                                    opdMap=self.opdMap, padPSD=padPSD)
+                                                    opdMap=self.opdMap, padPSD=padPSD,
+                                                    coronagraphic=self.coronagraphicPSF)
 
             # -----------------------------------------------------------------
             ## Merit functions
