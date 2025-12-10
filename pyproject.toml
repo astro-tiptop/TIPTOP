@@ -27,7 +27,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-docs = ["sphinx","sphinx_tabs"]
+docs = ["sphinx<9","sphinx_tabs"]
 gpu = ["mastsel[gpu]"]
 gui = ["ipywidgets"]
 
