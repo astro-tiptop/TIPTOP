@@ -522,6 +522,8 @@ Can be set but not used
 |                         |         |        |                                                                          |
 |                         |         |        |*Warning*: Do not use in systems with a single DM.                        |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|addAliasError            |No       |bool    |*Default : False*, Add aliasing error as a function of the spot size.     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 Can be set but not used
 ^^^^^^^^^^^^^^^^^^^^^^^
