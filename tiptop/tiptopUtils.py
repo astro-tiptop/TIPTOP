@@ -151,7 +151,7 @@ def hdr2map(hdr):
     return result
 
 def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
-                    science=True, max_pos=None, add_legend=True):
+                    science=True, low_order=True, max_pos=None, add_legend=True):
     '''
     Polar plot with science and GS (sources_HO and sources_LO) directions
 
@@ -165,6 +165,8 @@ def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
     :type LO_labels: list
     :param science: optional default=True, activate plot of science sources
     :type science: bool
+    :param low_order: optional default=True, activate plot of LO sources
+    :type low_order: bool
     :param max_pos: optional default=None, maximum distance from axis
     :type max_pos: float
     :param add_legend: optional default=True, activate legend
@@ -178,7 +180,7 @@ def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
     ax = fig.add_subplot(111, polar=True)
     ax.tick_params(labelsize=10)
     ax.set_rlabel_position(225) # theta position of the radius labels
-    
+
     # SCIENCE
     if science:
         if 'PSF_DIRECTIONS' in parser.sections(): # For retro-compatibility
@@ -198,16 +200,19 @@ def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
     th_HO = th_HO/180*np.pi
     ax.scatter(th_HO, rr_HO, marker='*', color='green', s=120, label='sources_HO')
 
-    # NGS
-    th_LO = np.array(eval(parser['sources_LO']['Azimuth']))
-    rr_LO = np.array(eval(parser['sources_LO']['Zenith']))
-    th_LO = th_LO/180*np.pi
-    ax.scatter(th_LO, rr_LO, marker='*', color='red', s=120, label='sources_LO')
+    if low_order:
+        # NGS
+        th_LO = np.array(eval(parser['sources_LO']['Azimuth']))
+        rr_LO = np.array(eval(parser['sources_LO']['Zenith']))
+        th_LO = th_LO/180*np.pi
+        ax.scatter(th_LO, rr_LO, marker='*', color='red', s=120, label='sources_LO')
 
     # Set ticks position
     if max_pos is None:
-        if science:
+        if science and low_order:
             max_pos = np.max([rr_sci.max(), rr_HO.max(), rr_LO.max()]) + 2*ticks_interval
+        elif low_order is False:
+            max_pos = np.max([rr_sci.max(), rr_HO.max()]) + 2*ticks_interval
         else:
             max_pos = np.max([rr_HO.max(), rr_LO.max()]) + 2*ticks_interval
     ax.set_ylim(0, max_pos)
