@@ -32,8 +32,10 @@ class TestMavis(TestTiptop):
         """
         Test MAVIS simulation against stored results
         """
-        computed_result = overallSimulation('tiptop/perfTest', 'MAVIStest', 'tiptop/perfTest', 'testMAVIS',
-                                            doPlot=False, doConvolve=True, returnRes=True)
+        computed_result = overallSimulation('tiptop/perfTest', 'MAVIStest',
+                                            'tiptop/perfTest', 'testMAVIS',
+                                            doPlot=False, doConvolve=True,
+                                            returnRes=True)
 
         # This can be used to save / update the results if needed
         save_results = False
@@ -47,8 +49,12 @@ class TestMavis(TestTiptop):
         stored_result0 = np.load('tests/mavisResult0.npy')
         stored_result1 = np.load('tests/mavisResult1.npy')
 
-        self.assertTrue( np.testing.assert_allclose(cpuArray(computed_result[0]), stored_result0, rtol=1e-03, atol=1e-5)==None)
-        self.assertTrue( np.testing.assert_allclose(cpuArray(computed_result[1]), stored_result1, rtol=1e-03, atol=1e-5)==None)
+        self.assertTrue(
+            np.testing.assert_allclose(cpuArray(computed_result[0]),
+                                       stored_result0, rtol=1e-03, atol=1e-5) is None)
+        self.assertTrue(
+            np.testing.assert_allclose(cpuArray(computed_result[1]),
+                                       stored_result1, rtol=1e-03, atol=1e-5) is None)
 
     def test_mavis_jitter(self):
         """
@@ -56,8 +62,10 @@ class TestMavis(TestTiptop):
         """
 
         # Run simulation with temporary file
-        sr_nj, fwhm_nj, ee_nj = overallSimulation('tiptop/perfTest', 'MAVIStest', 'tiptop/perfTest', 'testMAVIS',
-                                            doPlot=False, doConvolve=True, returnMetrics=True)
+        sr_nj, fwhm_nj, ee_nj = overallSimulation('tiptop/perfTest', 'MAVIStest',
+                                                  'tiptop/perfTest', 'testMAVIS',
+                                                  doPlot=False, doConvolve=True, 
+                                                  returnMetrics=True)
 
         # Load the base configuration
         original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
@@ -84,8 +92,10 @@ class TestMavis(TestTiptop):
             temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
 
             # Run simulation with temporary file
-            sr, fwhm, ee = overallSimulation(temp_dir, temp_basename, 'tiptop/perfTest', 'testMAVISJitter',
-                                              doPlot=False, doConvolve=True, returnMetrics=True)
+            sr, fwhm, ee = overallSimulation(temp_dir, temp_basename,
+                                             'tiptop/perfTest', 'testMAVISJitter',
+                                              doPlot=False, doConvolve=True,
+                                              returnMetrics=True)
 
             # Verify that the result is valid
             self.assertIsNotNone(sr)
@@ -103,7 +113,7 @@ class TestMavis(TestTiptop):
 
             sr_nj_cpu = np.array(cpuArray(sr_nj))
             fwhm_nj_cpu = np.array(cpuArray(fwhm_nj))
-
+            ee_nj_cpu = np.array(cpuArray(ee_nj))
             # Verify that values are numeric and positive
             self.assertTrue(np.all(sr_cpu > 0))
             self.assertTrue(np.all(fwhm_cpu > 0))
