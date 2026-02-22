@@ -945,6 +945,8 @@ class baseSimulation(object):
                 self.fao.ao.configLO()
                 self.fao.ao.configLO_SC()
 
+            mastselPsfPrecision(dtype=self.fao.dtype)
+
             self.fao.initComputations()
 
             # High-order PSD caculations at the science directions and NGSs directions
