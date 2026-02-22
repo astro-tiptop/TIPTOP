@@ -969,9 +969,9 @@ class baseSimulation(object):
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
             # error messages for wrong pixel size
-            if self.psInMas != cpuArray(self.fao.freq.psInMas[0]):
+            if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
                 raise ValueError("sensor_science.PixelScale, '{}', is different from self.fao.freq.psInMas,'{}'"
-                         .format(self.psInMas,cpuArray(self.fao.freq.psInMas)))
+                         .format(self.psInMas,cpuArray(self.fao.freq.psInMas[0])))
 
             if self.fao.ao.tel.opdMap_on is not None:
                 self.opdMap = arrayP3toMastsel(self.fao.ao.tel.opdMap_on)
