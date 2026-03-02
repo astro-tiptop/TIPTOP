@@ -281,7 +281,7 @@ class baseSimulation(object):
         for i in range(self.nNaturalGS_field):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
 
-        self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)            
+        self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)       
         self.currentAsterismIndices = list(range(len(self.LO_zen_field)))
         self.setAsterismData()
 
@@ -490,6 +490,7 @@ class baseSimulation(object):
         hdul1.writeto( os.path.join(self.outputDir, self.outputFile + '.fits'), overwrite=True)
         if self.verbose:
             print("Output cube shape:", self.cubeResultsArray.shape)
+            print("Output dtype:", self.cubeResultsArray.dtype)
 
     def computeOL_PSD(self):
         # OPEN-LOOP PSD
@@ -537,12 +538,14 @@ class baseSimulation(object):
         resSpecList = []
         resSpecListJ = []
         for ellp in self.cov_ellipses:
+            ellp = ellp.astype(self.fao.dtype)
             resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
             if self.jitter_FWHM is not None:
                 if isinstance(self.jitter_FWHM, list):
                     ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
                 else:
                     ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+                ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
                 resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
             else:
                 resSpecListJ.append(0)
@@ -578,7 +581,6 @@ class baseSimulation(object):
                                                     self.freq_range, self.dk, self.nPixPSF,
                                                     self.wvlMax, self.overSamp,
                                                     opdMap=self.opdMap, padPSD=padPSD)
-
             # -----------------------------------------------------------------
             ## Merit functions
             self.pointings_FWHM_mas   = []
@@ -865,7 +867,7 @@ class baseSimulation(object):
             else:
                 self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
             self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvlRef*1e9)**2) )
-            scale = (np.pi/(180*3600*1000) * self.TelescopeDiameter / (4*1e-9))
+            scale = (np.pi/(180*3600*1000) * 2 * self.tel_radius / (4*1e-9))
             fwhms_lo = 2.355 * self.LO_res/scale / np.sqrt(2)
             self.fwhm.append(np.sqrt(fwhms_lo**2 + np.asarray(self.pointings_FWHM_mas)**2))
             self.ee.append(0)
@@ -945,6 +947,8 @@ class baseSimulation(object):
                 self.fao.ao.configLO()
                 self.fao.ao.configLO_SC()
 
+            if self.verbose:
+                print('Setting MASTSEL PSF precision to:', self.fao.dtype)
             mastselPsfPrecision(dtype=self.fao.dtype)
 
             self.fao.initComputations()
@@ -982,6 +986,7 @@ class baseSimulation(object):
                 print('PSD step:', self.PSDstep)
                 print('PSD freq range:', self.freq_range)
                 print('PSD shape:', self.PSD.shape)
+                print('PSD dtype:', self.PSD.dtype)
                 print('oversampling:', self.overSamp)
                 print('sensor_science.PixelScale:', self.psInMas)
 
