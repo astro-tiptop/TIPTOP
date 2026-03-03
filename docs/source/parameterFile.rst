@@ -708,3 +708,7 @@ Can be set but not used
 |integralDiscretization2  |No       |float   |*default: 4000*, Discretization used in the integrals                     |
 |                         |         |        |(astro-tiptop/SEEING library).                                            |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|precision                |No       |string  |*default: 'double'*, precision used in computations, 'single' or 'double'.|
+|                         |         |        |Using single precision improves speed and reduces memory usage, albeit at |
+|                         |         |        |the cost of precision.                                                    |
++-------------------------+---------+--------+--------------------------------------------------------------------------+

@@ -21,11 +21,11 @@ def arrayP3toMastsel(v):
         return v
     elif not gpuP3 and gpuMastsel:
         return cp.asarray(v)
-    elif gpuP3 and not gpuMastsel: 
+    elif gpuP3 and not gpuMastsel:
         return v.get()
-    
+
 def cpuArray(v):
-    if isinstance(v,np.ndarray) or isinstance(v, np.float64):
+    if isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32):
         return v
     else:
         return v.get()

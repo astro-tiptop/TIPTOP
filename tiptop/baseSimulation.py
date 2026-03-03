@@ -218,7 +218,9 @@ class baseSimulation(object):
 
 
     def configLO(self, astIndex=None):
-        self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
+        self.cartSciencePointingCoords = np.dstack(
+            (self.xxSciencePointigs, self.yySciencePointigs)
+            ).reshape(-1, 2)
         # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
         LO_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
 
@@ -281,7 +283,7 @@ class baseSimulation(object):
         for i in range(self.nNaturalGS_field):
             cartNGSCoordsList.append(polarToCartesian(polarNGSCoords[i,:]))
 
-        self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)            
+        self.cartNGSCoords_field = np.asarray(cartNGSCoordsList)       
         self.currentAsterismIndices = list(range(len(self.LO_zen_field)))
         self.setAsterismData()
 
@@ -309,6 +311,7 @@ class baseSimulation(object):
         for iid in self.currentAsterismIndices:
             self.cartNGSCoords_asterism.append(self.cartNGSCoords_field[iid])
 
+
     def computePSF1D(self):
         psf1d = []
         psf1d_radius = None
@@ -334,10 +337,22 @@ class baseSimulation(object):
             for psf in cubeResults:
                 psfRadius = psf.shape[0]/2
                 center = np.unravel_index(np.argmax(psf), psf.shape)
-                rr, radialprofile, ee = radial_profile(psf, ext=0, pixelscale=self.psInMas, ee=True,
-                                                       center=center, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
-                                                       normalize='total', pa_range=None, slice=0, nargout=2, supersamp=self.SupSamp, 
-                                                       polar_grid=polar_grid, r_vals=r_vals_interp, verbose=self.verbose)
+                rr, radialprofile, ee = radial_profile(psf,
+                                                       ext=0,
+                                                       pixelscale=self.psInMas,
+                                                       ee=True,
+                                                       center=center,
+                                                       stddev=False,
+                                                       binsize=None,
+                                                       maxradius=self.psInMas*psfRadius,
+                                                       normalize='total',
+                                                       pa_range=None,
+                                                       slice=0,
+                                                       nargout=2,
+                                                       supersamp=self.SupSamp, 
+                                                       polar_grid=polar_grid,
+                                                       r_vals=r_vals_interp,
+                                                       verbose=self.verbose)
                 psf1dList.append(radialprofile)
                 psf1d_radius = rr
                 psf1d_radius_list.append(rr)
@@ -377,9 +392,9 @@ class baseSimulation(object):
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
         hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
 
-        now = datetime.now()        
+        now = datetime.now()
         # header
-        hdr0 = hdul1[0].header            
+        hdr0 = hdul1[0].header       
         hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr0['TIPTOP_V'] = __version__
         # parameters in the header
@@ -490,6 +505,7 @@ class baseSimulation(object):
         hdul1.writeto( os.path.join(self.outputDir, self.outputFile + '.fits'), overwrite=True)
         if self.verbose:
             print("Output cube shape:", self.cubeResultsArray.shape)
+            print("Output dtype:", self.cubeResultsArray.dtype)
 
     def computeOL_PSD(self):
         # OPEN-LOOP PSD
@@ -537,13 +553,21 @@ class baseSimulation(object):
         resSpecList = []
         resSpecListJ = []
         for ellp in self.cov_ellipses:
-            resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
+            ellp = ellp.astype(self.fao.dtype)
+            resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF,
+                                                  1/(self.nPixPSF * self.psInMas)))
             if self.jitter_FWHM is not None:
                 if isinstance(self.jitter_FWHM, list):
-                    ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                    ellpJ = [self.jitter_FWHM[2],
+                             sigma_from_FWHM(self.jitter_FWHM[0]),
+                             sigma_from_FWHM(self.jitter_FWHM[1])]
                 else:
-                    ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
+                    ellpJ = [0,
+                             sigma_from_FWHM(self.jitter_FWHM),
+                             sigma_from_FWHM(self.jitter_FWHM)]
+                ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
+                resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF,
+                                                       1/(self.nPixPSF * self.psInMas)))
             else:
                 resSpecListJ.append(0)
         # FINAl CONVOLUTION
@@ -563,6 +587,7 @@ class baseSimulation(object):
             else:
                 self.results = resultList
 
+
     def finalPSF(self,astIndex):
         if astIndex is None or self.firstSimCall:
             # ----------------------------------------------------------------------------
@@ -578,7 +603,6 @@ class baseSimulation(object):
                                                     self.freq_range, self.dk, self.nPixPSF,
                                                     self.wvlMax, self.overSamp,
                                                     opdMap=self.opdMap, padPSD=padPSD)
-
             # -----------------------------------------------------------------
             ## Merit functions
             self.pointings_FWHM_mas   = []
@@ -657,6 +681,7 @@ class baseSimulation(object):
                     self.results.append(resultList)
                 else:
                     self.results = resultList
+
 
     def ngsPSF(self):
         # pixel size for LO
@@ -865,7 +890,7 @@ class baseSimulation(object):
             else:
                 self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
             self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvlRef*1e9)**2) )
-            scale = (np.pi/(180*3600*1000) * self.TelescopeDiameter / (4*1e-9))
+            scale = (np.pi/(180*3600*1000) * 2 * self.tel_radius / (4*1e-9))
             fwhms_lo = 2.355 * self.LO_res/scale / np.sqrt(2)
             self.fwhm.append(np.sqrt(fwhms_lo**2 + np.asarray(self.pointings_FWHM_mas)**2))
             self.ee.append(0)
@@ -945,6 +970,10 @@ class baseSimulation(object):
                 self.fao.ao.configLO()
                 self.fao.ao.configLO_SC()
 
+            if self.verbose:
+                print('Setting MASTSEL PSF precision to:', self.fao.dtype)
+            mastselPsfPrecision(dtype=self.fao.dtype)
+
             self.fao.initComputations()
 
             # High-order PSD caculations at the science directions and NGSs directions
@@ -967,9 +996,9 @@ class baseSimulation(object):
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
             self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
             # error messages for wrong pixel size
-            if self.psInMas != cpuArray(self.fao.freq.psInMas[0]):
+            if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
                 raise ValueError("sensor_science.PixelScale, '{}', is different from self.fao.freq.psInMas,'{}'"
-                         .format(self.psInMas,cpuArray(self.fao.freq.psInMas)))
+                         .format(self.psInMas,cpuArray(self.fao.freq.psInMas[0])))
 
             if self.fao.ao.tel.opdMap_on is not None:
                 self.opdMap = arrayP3toMastsel(self.fao.ao.tel.opdMap_on)
@@ -980,6 +1009,7 @@ class baseSimulation(object):
                 print('PSD step:', self.PSDstep)
                 print('PSD freq range:', self.freq_range)
                 print('PSD shape:', self.PSD.shape)
+                print('PSD dtype:', self.PSD.dtype)
                 print('oversampling:', self.overSamp)
                 print('sensor_science.PixelScale:', self.psInMas)
 
