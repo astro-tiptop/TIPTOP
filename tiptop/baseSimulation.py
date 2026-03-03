@@ -218,7 +218,9 @@ class baseSimulation(object):
 
 
     def configLO(self, astIndex=None):
-        self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
+        self.cartSciencePointingCoords = np.dstack(
+            (self.xxSciencePointigs, self.yySciencePointigs)
+            ).reshape(-1, 2)
         # Here we assume the same wavelenght for all the phon counts of the stars in the asterism
         LO_wvl_temp = self.my_data_map['sources_LO']['Wavelength']
 
@@ -309,6 +311,7 @@ class baseSimulation(object):
         for iid in self.currentAsterismIndices:
             self.cartNGSCoords_asterism.append(self.cartNGSCoords_field[iid])
 
+
     def computePSF1D(self):
         psf1d = []
         psf1d_radius = None
@@ -334,10 +337,22 @@ class baseSimulation(object):
             for psf in cubeResults:
                 psfRadius = psf.shape[0]/2
                 center = np.unravel_index(np.argmax(psf), psf.shape)
-                rr, radialprofile, ee = radial_profile(psf, ext=0, pixelscale=self.psInMas, ee=True,
-                                                       center=center, stddev=False, binsize=None, maxradius=self.psInMas*psfRadius,
-                                                       normalize='total', pa_range=None, slice=0, nargout=2, supersamp=self.SupSamp, 
-                                                       polar_grid=polar_grid, r_vals=r_vals_interp, verbose=self.verbose)
+                rr, radialprofile, ee = radial_profile(psf,
+                                                       ext=0,
+                                                       pixelscale=self.psInMas,
+                                                       ee=True,
+                                                       center=center,
+                                                       stddev=False,
+                                                       binsize=None,
+                                                       maxradius=self.psInMas*psfRadius,
+                                                       normalize='total',
+                                                       pa_range=None,
+                                                       slice=0,
+                                                       nargout=2,
+                                                       supersamp=self.SupSamp, 
+                                                       polar_grid=polar_grid,
+                                                       r_vals=r_vals_interp,
+                                                       verbose=self.verbose)
                 psf1dList.append(radialprofile)
                 psf1d_radius = rr
                 psf1d_radius_list.append(rr)
@@ -377,9 +392,9 @@ class baseSimulation(object):
             hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
         hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
 
-        now = datetime.now()        
+        now = datetime.now()
         # header
-        hdr0 = hdul1[0].header            
+        hdr0 = hdul1[0].header       
         hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
         hdr0['TIPTOP_V'] = __version__
         # parameters in the header
@@ -538,15 +553,21 @@ class baseSimulation(object):
         resSpecList = []
         resSpecListJ = []
         for ellp in self.cov_ellipses:
-            ellp = ellp.astype(self.fao.dtype)
-            resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
+            ellp = ellp.astype(self.fao.dtype.name)
+            resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF,
+                                                  1/(self.nPixPSF * self.psInMas)))
             if self.jitter_FWHM is not None:
                 if isinstance(self.jitter_FWHM, list):
-                    ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])]
+                    ellpJ = [self.jitter_FWHM[2],
+                             sigma_from_FWHM(self.jitter_FWHM[0]),
+                             sigma_from_FWHM(self.jitter_FWHM[1])]
                 else:
-                    ellpJ = [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
-                resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
+                    ellpJ = [0,
+                             sigma_from_FWHM(self.jitter_FWHM),
+                             sigma_from_FWHM(self.jitter_FWHM)]
+                ellpJ = np.array(ellpJ, dtype=self.fao.dtype.name)
+                resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF,
+                                                       1/(self.nPixPSF * self.psInMas)))
             else:
                 resSpecListJ.append(0)
         # FINAl CONVOLUTION
@@ -565,6 +586,7 @@ class baseSimulation(object):
                 self.results.append(resultList)
             else:
                 self.results = resultList
+
 
     def finalPSF(self,astIndex):
         if astIndex is None or self.firstSimCall:
@@ -659,6 +681,7 @@ class baseSimulation(object):
                     self.results.append(resultList)
                 else:
                     self.results = resultList
+
 
     def ngsPSF(self):
         # pixel size for LO
