@@ -553,7 +553,7 @@ class baseSimulation(object):
         resSpecList = []
         resSpecListJ = []
         for ellp in self.cov_ellipses:
-            ellp = ellp.astype(self.fao.dtype.name)
+            ellp = ellp.astype(self.fao.dtype)
             resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF,
                                                   1/(self.nPixPSF * self.psInMas)))
             if self.jitter_FWHM is not None:
@@ -565,7 +565,7 @@ class baseSimulation(object):
                     ellpJ = [0,
                              sigma_from_FWHM(self.jitter_FWHM),
                              sigma_from_FWHM(self.jitter_FWHM)]
-                ellpJ = np.array(ellpJ, dtype=self.fao.dtype.name)
+                ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
                 resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF,
                                                        1/(self.nPixPSF * self.psInMas)))
             else:
