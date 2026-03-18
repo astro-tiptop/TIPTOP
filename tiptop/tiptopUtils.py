@@ -7,6 +7,7 @@ from configparser import ConfigParser
 import yaml
 
 import numpy as np
+import cupy as cp
 from scipy.interpolate import interp1d
 
 import matplotlib.pyplot as plt
@@ -16,14 +17,24 @@ from matplotlib import rc
 from mastsel import gpuEnabled as gpuMastsel
 from p3.aoSystem import gpuEnabled as gpuP3
 
-def arrayP3toMastsel(v):
+def arrayP3toMastsel(v):    
     if (gpuP3 and gpuMastsel) or (not gpuP3 and not gpuMastsel):
+        if (isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32)) and gpuMastsel:
+            return cp.asarray(v)
         return v
     elif not gpuP3 and gpuMastsel:
         return cp.asarray(v)
     elif gpuP3 and not gpuMastsel:
         return v.get()
 
+def arrayToP3(v):        
+    if (isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32)) and gpuP3:
+        return cp.asarray(v)
+    elif (isinstance(v,cp.ndarray) or isinstance(v, cp.float64) or isinstance(v, cp.float32)) and not gpuP3:
+        return v.get()
+    else:
+        return v
+    
 def cpuArray(v):
     if isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32):
         return v
