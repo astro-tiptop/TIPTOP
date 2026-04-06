@@ -25,10 +25,13 @@ def arrayP3toMastsel(v):
         return v.get()
 
 def cpuArray(v):
-    if isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32):
+    if isinstance(v, list):
+        return [cpuArray(item) for item in v]
+    if isinstance(v, tuple):
+        return tuple(cpuArray(item) for item in v)
+    if isinstance(v, np.ndarray) or isinstance(v, np.generic) or np.isscalar(v):
         return v
-    else:
-        return v.get()
+    return v.get()
 
 MAX_VALUE_CHARS = 80
 APPEND_TOKEN = '&&&'

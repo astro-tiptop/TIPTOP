@@ -8,10 +8,13 @@ from configparser import ConfigParser
 
 
 def cpuArray(v):
-    if isinstance(v,np.ndarray) or isinstance(v, list):
+    if isinstance(v, list):
+        return [cpuArray(item) for item in v]
+    if isinstance(v, tuple):
+        return tuple(cpuArray(item) for item in v)
+    if isinstance(v, np.ndarray) or isinstance(v, np.generic) or np.isscalar(v):
         return v
-    else:
-        return v.get()
+    return v.get()
 
 
 class TestTiptop(unittest.TestCase):
