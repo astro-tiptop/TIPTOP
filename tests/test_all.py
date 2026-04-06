@@ -25,6 +25,17 @@ class TestTiptop(unittest.TestCase):
 #        TestMavisLO.mLO = MavisLO(path, parametersFile, verbose=True)
 #        overallSimulation("perfTest", "SOUL", 'perfTest', 'testSOUL', doPlot=True, doConvolve=True)
 
+    def test_centered_padding_supports_even_and_odd_grids(self):
+        for outer_size, inner_size in ((32, 28), (33, 28), (33, 29)):
+            pupil = np.ones((inner_size, inner_size), dtype=np.float64)
+            padded = cpuArray(padOrCropCentered(pupil, outer_size))
+
+            self.assertEqual(padded.shape, (outer_size, outer_size))
+            self.assertAlmostEqual(np.sum(padded), inner_size**2)
+            cy, cx = centeredPixelCoords(outer_size)
+            self.assertEqual((cy, cx), (outer_size // 2, outer_size // 2))
+            self.assertEqual(padded[cy, cx], 1.0)
+
 
 class TestMavis(TestTiptop):
 
