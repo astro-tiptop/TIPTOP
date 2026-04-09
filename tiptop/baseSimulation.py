@@ -469,7 +469,7 @@ class baseSimulation(object):
                         rr = np.arange(1, ee.shape[0]*2, 2) * self.psInMas * 0.5
                     else:
                         ee,rr = getEncircledEnergy(cubeResultsArray[j,:,:], pixelscale=self.psInMas,
-                                                   center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
+                                                   center=centeredPixelCoords(self.nPixPSF), nargout=2)
                     ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
                     hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = np.round(ee_at_radius_fn(self.eeRadiusInMas).take(0),5)
 
@@ -747,7 +747,7 @@ class baseSimulation(object):
                 ee_NGS = 1
             else:
                 ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
-                                             center=(nPixPSFLO/2,nPixPSFLO/2), nargout=2)
+                                             center=centeredPixelCoords(nPixPSFLO), nargout=2)
                 ee_ *= 1/np.max(ee_)
                 ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                 # max is used to compute EE on at least a radius of one pixel
@@ -779,7 +779,7 @@ class baseSimulation(object):
                 psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
                 maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
                 maskField.sampling = congrid(maskI, [self.sx, self.sx])
-                maskField.sampling = zeroPad(maskField.sampling, (self.N-self.sx)//2)
+                maskField.sampling = padOrCropCentered(maskField.sampling, self.N, xp=maskField.xp)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
                 fwhmX,fwhmY  = getFWHM( psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
                 if self.NGS_DL_FWHM_mas is None:
@@ -856,7 +856,7 @@ class baseSimulation(object):
                         ee_Focus = 1
                     else:
                         ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
-                                                     center=(nPixPSFFocus/2,nPixPSFFocus/2), nargout=2)
+                                                     center=centeredPixelCoords(nPixPSFFocus), nargout=2)
                         ee_ *= 1/np.max(ee_)
                         ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                         # max is used to compute EE on at least a radius of one pixel
@@ -923,7 +923,7 @@ class baseSimulation(object):
                         rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas * 0.5
                     else:
                         ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas,
-                                                     center=(self.nPixPSF/2,self.nPixPSF/2), nargout=2)
+                                                     center=centeredPixelCoords(self.nPixPSF), nargout=2)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     ee.append( cpuArray(ee_at_radius_fn(self.eeRadiusInMas)).item() )
                 if self.nWvl>1:
@@ -994,7 +994,7 @@ class baseSimulation(object):
             # Define the pupil shape
             self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
             self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
-            self.mask.sampling = zeroPad(self.mask.sampling, (self.N-self.sx)//2)
+            self.mask.sampling = padOrCropCentered(self.mask.sampling, self.N, xp=self.mask.xp)
             # error messages for wrong pixel size
             if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
                 raise ValueError("sensor_science.PixelScale, '{}', is different from self.fao.freq.psInMas,'{}'"
