@@ -63,6 +63,7 @@ class asterismSimulationHo(baseSimulation):
             # Read HO stars configuration
             listZ = self.my_data_map['HO_ASTERISM_SELECTION']['Zenith']
             listA = self.my_data_map['HO_ASTERISM_SELECTION']['Azimuth'] 
+            
             listW = self.my_data_map['HO_ASTERISM_SELECTION']['Wavelength']
             listP = self.my_data_map['HO_ASTERISM_SELECTION']['NumberPhotons']
 

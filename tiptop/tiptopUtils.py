@@ -7,7 +7,10 @@ from configparser import ConfigParser
 import yaml
 
 import numpy as np
-import cupy as cp
+try:
+    import cupy as cp
+except ImportError:
+    cp = np
 from scipy.interpolate import interp1d
 
 import matplotlib.pyplot as plt
@@ -17,29 +20,37 @@ from matplotlib import rc
 from mastsel import gpuEnabled as gpuMastsel
 from p3.aoSystem import gpuEnabled as gpuP3
 
-def arrayP3toMastsel(v):    
+def _is_numpy_like(v):
+    return isinstance(v, np.ndarray) or isinstance(v, np.generic) or np.isscalar(v)
+
+
+def arrayP3toMastsel(v):
     if (gpuP3 and gpuMastsel) or (not gpuP3 and not gpuMastsel):
-        if (isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32)) and gpuMastsel:
+        if _is_numpy_like(v) and gpuMastsel:
             return cp.asarray(v)
         return v
     elif not gpuP3 and gpuMastsel:
         return cp.asarray(v)
     elif gpuP3 and not gpuMastsel:
-        return v.get()
+        return v.get() if hasattr(v, 'get') else v
 
-def arrayToP3(v):        
-    if (isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32)) and gpuP3:
+
+def arrayToP3(v):
+    if _is_numpy_like(v) and gpuP3:
         return cp.asarray(v)
-    elif (isinstance(v,cp.ndarray) or isinstance(v, cp.float64) or isinstance(v, cp.float32)) and not gpuP3:
+    elif not gpuP3 and hasattr(v, 'get'):
         return v.get()
     else:
         return v
-    
+
 def cpuArray(v):
-    if isinstance(v,np.ndarray) or isinstance(v, np.float64) or isinstance(v, np.float32):
+    if isinstance(v, list):
+        return [cpuArray(item) for item in v]
+    if isinstance(v, tuple):
+        return tuple(cpuArray(item) for item in v)
+    if isinstance(v, np.ndarray) or isinstance(v, np.generic) or np.isscalar(v):
         return v
-    else:
-        return v.get()
+    return v.get()
 
 MAX_VALUE_CHARS = 80
 APPEND_TOKEN = '&&&'
