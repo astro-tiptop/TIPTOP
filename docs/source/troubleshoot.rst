@@ -9,7 +9,7 @@ ValueError: Error : the PSF field of view is too small to simulate the AO correc
 This error appears if ``sensor_science.Fieldofview`` is inferior to ``min(source_science.Wavelength-sensor_science.SpectralBandWidth)/DM.DmPitchs/sensor_science.PixelScale*180*3600*10**3/np.pi`` .
 If not set ``sensor_science.SpectralBandWidth = 0``.
 
-Either make ``sensor_science.Fieldofview`` bigger or play with ``min(source_science.Wavelength-sensor_science.SpectralBandWidth)`` or ``DM.DmPitchs`` or ``sensor_science.PixelScale`` to make this term smaller.
+Either make ``sensor_science.Fieldofview`` bigger or play with ``min(source_science.Wavelength-sensor_science.SpectralBandWidth)`` or ``DM.DmPitchs`` or ``sensor_science.PixelScale`` to make this term smaller. If ``sensor_science.FieldOfView = -1``, the automatic choice uses twice the AO-corrected size.
 
 
 Warning: No information about the tip-tilt star can be retrieved
