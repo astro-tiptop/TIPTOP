@@ -41,6 +41,16 @@ class baseSimulation(object):
         else:
             return False
 
+    def _parse_config_value(self, value):
+        if not isinstance(value, str):
+            return value
+
+        value = value.strip()
+        try:
+            return eval(value)
+        except Exception:
+            return value
+
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=True,
                           doPlot=False, addSrAndFwhm=True,
                           verbose=False, getHoErrorBreakDown=False,
@@ -212,7 +222,7 @@ class baseSimulation(object):
             for section in config.sections():
                 self.my_data_map[section] = {}
                 for name,value in config.items(section):
-                    self.my_data_map[section].update({name:eval(value)})
+                    self.my_data_map[section].update({name:self._parse_config_value(value)})
         else:
             raise FileNotFoundError('No .yml or .ini (' + parametersFile + ') can be found in '+ path)
 
@@ -981,7 +991,7 @@ class baseSimulation(object):
             self.PSD           = self.PSD.transpose()
             self.N             = self.PSD[0].shape[0]
             self.nPointings    = self.pointings.shape[1]
-            self.nPixPSF       = self.my_data_map['sensor_science']['FieldOfView']
+            self.nPixPSF       = int(self.fao.ao.cam.fovInPix)
             self.overSamp      = int(self.fao.freq.kRef_)
             self.PSDstep       = self.fao.freq.PSDstep
             self.freq_range    = self.N*self.PSDstep
