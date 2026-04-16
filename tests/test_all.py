@@ -141,6 +141,38 @@ class TestMavis(TestTiptop):
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
+    def test_mavis_auto_science_field_of_view(self):
+        """Test MAVIS simulation when `sensor_science.FieldOfView = -1`."""
+        original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
+
+        config = ConfigParser()
+        config.optionxform = str
+        config.read(original_config_path)
+        config.set('sensor_science', 'FieldOfView', '-1')
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
+            config.write(temp_file)
+            temp_filename = temp_file.name
+
+        try:
+            temp_dir = os.path.dirname(temp_filename)
+            temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
+
+            sr, fwhm, ee = overallSimulation(temp_dir, temp_basename,
+                                             'tiptop/perfTest', 'testMAVISAutoFOV',
+                                             doPlot=False, doConvolve=True,
+                                             returnMetrics=True)
+
+            self.assertIsNotNone(sr)
+            self.assertIsNotNone(fwhm)
+            self.assertIsNotNone(ee)
+            self.assertGreater(len(sr), 0)
+            self.assertGreater(len(fwhm), 0)
+            self.assertGreater(len(ee), 0)
+        finally:
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+
 
 class TestAsterismSimulation(TestTiptop):
 

@@ -336,6 +336,8 @@ We now go more in detail for each section:
 |                         |         |        |*Warning*: confusing error message if missing                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |FieldOfView              |Yes      |integer |Field of view of the camera in pixel/spaxel.                              |
+|                         |         |        |If -1 the automatic choice uses the maximum between twice the             |
+|                         |         |        |AO-corrected size and twice the seeing.                                   |
 |                         |         |        |                                                                          |
 |                         |         |        |*Warning*: confusing error massage if missing                             |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
