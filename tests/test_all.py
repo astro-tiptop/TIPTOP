@@ -173,6 +173,52 @@ class TestMavis(TestTiptop):
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
+    def test_mavis_odd_psd_grid_even_legacy_path(self):
+        """Integration test: odd P3 PSD grid is handled by MASTSEL even_legacy path.
+
+        This test intentionally sets odd telescope resolution and odd science FOV,
+        then checks robust invariants instead of brittle reference values.
+        """
+        original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
+
+        config = ConfigParser()
+        config.optionxform = str
+        config.read(original_config_path)
+        config.set('telescope', 'Resolution', '321')
+        config.set('sensor_science', 'FieldOfView', '513')
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
+            config.write(temp_file)
+            temp_filename = temp_file.name
+
+        try:
+            temp_dir = os.path.dirname(temp_filename)
+            temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
+
+            simulation = baseSimulation(
+                temp_dir,
+                temp_basename,
+                'tiptop/perfTest',
+                'testMAVISOddGrid',
+                doConvolve=False,
+                doPlot=False,
+                verbose=False,
+            )
+            simulation.doOverallSimulation()
+
+            # P3 should provide an odd PSD grid in this setup.
+            self.assertEqual(simulation.N % 2, 1)
+            self.assertEqual(simulation.nPixPSF % 2, 1)
+
+            self.assertGreater(len(simulation.results), 0)
+            for psf in simulation.results:
+                arr = np.asarray(cpuArray(psf.sampling), dtype=np.float64)
+                self.assertTrue(np.isfinite(arr).all())
+                self.assertGreater(arr.sum(), 0.0)
+        finally:
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+
 
 class TestAsterismSimulation(TestTiptop):
 
@@ -308,6 +354,7 @@ class TestHoAsterismSimulation(TestTiptop):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(TestMavis('test_mavis'))
+    suite.addTest(TestMavis('test_mavis_odd_psd_grid_even_legacy_path'))
     suite.addTest(TestAsterismSimulation('test_asterism_simulation_creation'))
     suite.addTest(TestAsterismSimulation('test_asterism_simulation_single_computation'))
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_simulation_creation'))
