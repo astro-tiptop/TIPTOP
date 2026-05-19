@@ -9,8 +9,6 @@ from mastsel import *
 from .tiptopUtils import *
 from ._version import __version__
 
-import warnings as _warnings
-
 from matplotlib import cm
 import matplotlib as mpl
 norm = mpl.colors.Normalize(vmin=0, vmax=1)
@@ -80,34 +78,6 @@ class baseSimulation(object):
         self.savePSDs = savePSDs
         self.ensquaredEnergy = ensquaredEnergy
         self.eeRadiusInMas = eeRadiusInMas
-
-        # ------------------------------------------------------------------
-        # Backend selection
-        # ------------------------------------------------------------------
-        _valid_backends = ('p3', 'tiptorch')
-        if backendHO not in _valid_backends:
-            raise ValueError(
-                f"Unknown backend '{backendHO}'.  "
-                f"Valid options: {_valid_backends}"
-            )
-        self.backendHO = backendHO
-
-        # TipTorch-specific settings (used only when backend='tiptorch')
-        if tiptorch_device is None:
-            import torch
-            self.tiptorch_device = torch.device('cpu')
-        else:
-            self.tiptorch_device = tiptorch_device
-
-        if tiptorch_dtype is None:
-            import torch
-            self.tiptorch_dtype = torch.float32
-        else:
-            self.tiptorch_dtype = tiptorch_dtype
-
-        self.tiptorch_kwargs = tiptorch_kwargs if tiptorch_kwargs is not None else {}
-        # Holds the TipTorch model after first call (for inspection / reuse)
-        self.tiptorch_model = None
 #        if self.returnRes and self.doPlot:
 #            print('WARNING: returnRes and doPlot cannot both be True, setting doPlot to False.')
 #            self.doPlot = False
@@ -501,18 +471,18 @@ class baseSimulation(object):
                     Nfill = 4
                 samp = self.wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
                 for j in range(cubeResultsArray.shape[0]):
-                    sr_temp = getStrehl(arrayToP3(cubeResultsArray[j,:,:]), arrayToP3(self.fao.ao.tel.pupil),
+                    sr_temp = getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil,
                                         samp, method='max', psfInOnePix=True)
                     hdr1['SR'+str(j).zfill(Nfill)+wTxt] = float(np.round(sr_temp,5))
                 for j in range(cubeResultsArray.shape[0]):
-                    fwhm_temp = getFWHM(arrayToP3(cubeResultsArray[j,:,:]), self.psInMas, method='contour', nargout=1)
+                    fwhm_temp = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
                     hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = np.round(fwhm_temp,3)
                 for j in range(cubeResultsArray.shape[0]):
                     if self.ensquaredEnergy:
-                        ee = cpuArray(getEnsquaredEnergy(arrayToP3(cubeResultsArray[j,:,:])))
+                        ee = cpuArray(getEnsquaredEnergy(cubeResultsArray[j,:,:]))
                         rr = np.arange(1, ee.shape[0]*2, 2) * self.psInMas * 0.5
                     else:
-                        ee,rr = getEncircledEnergy(arrayToP3(cubeResultsArray[j,:,:]), pixelscale=self.psInMas,
+                        ee,rr = getEncircledEnergy(cubeResultsArray[j,:,:], pixelscale=self.psInMas,
                                                    center=centeredPixelCoords(self.nPixPSF), nargout=2)
                     ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
                     hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = np.round(ee_at_radius_fn(self.eeRadiusInMas).take(0),5)
@@ -552,12 +522,8 @@ class baseSimulation(object):
             print("Output dtype:", self.cubeResultsArray.dtype)
 
     def computeOL_PSD(self):
-        # OPEN-LOOP PSD                
-        if self.backendHO == 'tiptorch':
-            k = arrayToP3(np.sqrt(self.fao.freq.k2_))[:-1, :-1]
-        else:
-            k = arrayToP3(np.sqrt(self.fao.freq.k2_))
-        
+        # OPEN-LOOP PSD
+        k = np.sqrt(self.fao.freq.k2_)
         pf = FourierUtils.pistonFilter(2*self.tel_radius,k)
         spectrum = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf)
         psdOL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
@@ -984,222 +950,6 @@ class baseSimulation(object):
                     self.ee = ee
 
 
-
-    # =========================================================================
-    # Private helpers: HO PSD computation backends
-    # =========================================================================
-
-    def _configure_fao_lo(self):
-        """
-        Propagate LO sensor / source parameters from my_data_map into the
-        P3 fourierModel object (fao) so that P3's aoSystem is consistent with
-        what TIPTOP expects.  Called by both HO-PSD backends.
-        """
-        if 'sensor_LO' in self.my_data_map.keys():
-            self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
-            self.fao.ao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
-        if 'sources_LO' in self.my_data_map.keys():
-            self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-            self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-            self.fao.ao.configLOsensor()
-            self.fao.ao.configLO()
-            self.fao.ao.configLO_SC()
-
-    def _extract_psd_metadata(self):
-        """
-        Extract frequency-domain metadata from fao.freq into self.* attributes
-        that are used by the rest of the TIPTOP pipeline (MASTSEL PSF, OL/DL
-        PSDs, etc.).  Must be called **after** fao.PSD has been assigned and
-        fao.freq has been initialised.
-        """
-        self.PSD        = self.fao.PSD          # (N, N, N_src)   nm^2
-        self.PSD        = self.PSD.transpose()  # (N_src, N, N)
-        self.N          = self.PSD[0].shape[0]
-        self.nPointings = self.pointings.shape[1]
-        self.nPixPSF    = int(self.fao.ao.cam.fovInPix)
-        self.overSamp   = int(self.fao.freq.kRef_)
-        if self.overSamp is None or self.overSamp < 1:
-            self.overSamp = 1
-        self.PSDstep    = self.fao.freq.PSDstep
-        self.freq_range = self.N * self.PSDstep
-        self.grid_diameter = 1.0 / self.PSDstep
-        self.sx         = int(2*np.round(self.tel_radius * self.freq_range))
-        # dk in the same convention used by p3.aoSystem.powerSpectrumDensity
-        # (kcMax_ in m^{-1}, multiplied by 1e9 to obtain the MASTSEL-compatible unit)
-        self.dk         = 1e9 * self.fao.freq.kcMax_ / self.fao.freq.resAO
-        # wvlRef is needed to correctly scale the open-loop PSD from rad to m
-        self.wvlRef     = self.fao.freq.wvlRef
-        # Pupil mask field for MASTSEL
-        self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
-        self.mask.sampling = congrid(
-            arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx]
-        )
-        self.mask.sampling = padOrCropCentered(
-            self.mask.sampling, self.N, xp=self.mask.xp
-        )
-        # Sanity-check pixel scale
-        if abs(float(self.psInMas) -
-               float(self.fao.freq.psInMas[0])) > 1e-6:
-            raise ValueError(
-                "sensor_science.PixelScale, \'{}\', is different from "
-                "self.fao.freq.psInMas, \'{}\'".format(
-                    self.psInMas, cpuArray(self.fao.freq.psInMas[0]))
-            )
-
-    # -------------------------------------------------------------------------
-    # Backend: P3 (original code path, unchanged behaviour)
-    # -------------------------------------------------------------------------
-
-    def _doHoPsd_p3(self):
-        """
-        Compute the HO PSD using P3's fourierModel -- the original, default
-        code path.  Populates self.fao and all derived self.* attributes.
-        """
-        if self.verbose:
-            print('******** HO PSD science and NGSs directions  [backend: p3]')
-
-        self.fao = fourierModel(
-            self.fullPathFilename,
-            calcPSF=False,
-            verbose=self.verbose,
-            display=False,
-            getPSDatNGSpositions=self.LOisOn,
-            computeFocalAnisoCov=False,
-            TiltFilter=self.LOisOn,
-            getErrorBreakDown=self.getHoErrorBreakDown,
-            doComputations=False,
-            psdExpansion=True,
-            reduce_memory=True,
-        )
-
-        self._configure_fao_lo()
-
-        if self.verbose:
-            print('Setting MASTSEL PSF precision to:', self.fao.dtype)
-        mastselPsfPrecision(dtype=self.fao.dtype)
-
-        self.fao.initComputations()
-
-        self._extract_psd_metadata()
-
-    # -------------------------------------------------------------------------
-    # Backend: TipTorch
-    # -------------------------------------------------------------------------
-
-    def _doHoPsd_tiptorch(self):
-        """
-        Compute the HO PSD using TipTorch.
-
-        P3 is still used to parse the config and set up fao.ao (telescope
-        pupil, atmosphere, DM geometry) because those objects are needed by
-        later TIPTOP stages (computeOL_PSD, computeDL_PSD, ngsPSF, ...).
-        However, P3's expensive PSD computation (initComputations) is
-        intentionally skipped.  TipTorch's InitGrids replaces P3's
-        frequencyDomain, and TipTorch's ComputePSD replaces P3's
-        powerSpectrumDensity.
-
-        Steps
-        -----
-        1. fourierModel(doComputations=False) -> fao.ao  (no PSD, no freq)
-        2. _configure_fao_lo()               -> LO sources wired into fao.ao
-        3. run_tiptorch_backend()            -> psd_p3, model, freq_proxy
-             * build_tiptorch_config()  converts my_data_map to tensors
-             * TipTorch.__init__()      runs InitGrids (builds frequency grid)
-             * ComputePSD()             returns HO PSD in nm^2
-             * build_freq_proxy_from_tiptorch() builds TipTorchFreqProxy
-        4. fao.freq = freq_proxy             -> replaces P3 frequencyDomain
-        5. fao.ao.atm.wvl = proxy.wvlRef     -> needed by computeOL_PSD
-        6. fao.PSD = psd_p3                  -> (N, N, N_src)  nm^2
-        7. _extract_psd_metadata()           -> reads from freq_proxy
-
-        The TipTorch model is stored in self.tiptorch_model for inspection,
-        parameter fitting, or GPU-accelerated re-runs.
-        """
-        if self.verbose:
-            print('******** HO PSD science and NGSs directions  [backend: tiptorch]')
-
-        # ------------------------------------------------------------------
-        # Step 1: P3 aoSystem only — parse config, build telescope/atm objects
-        #   doComputations=False means aoSystem() runs but initComputations()
-        #   (which creates frequencyDomain and computes the P3 PSD) does NOT.
-        # ------------------------------------------------------------------
-        self.fao = fourierModel(
-            self.fullPathFilename,
-            calcPSF=False,
-            verbose=self.verbose,
-            display=False,
-            getPSDatNGSpositions=self.LOisOn,
-            computeFocalAnisoCov=False,
-            TiltFilter=self.LOisOn,
-            getErrorBreakDown=False,
-            doComputations=False,      # <<< skip initComputations entirely
-            psdExpansion=True,
-            reduce_memory=True,
-        )
-
-        # ------------------------------------------------------------------
-        # Step 2: Propagate LO sensor/source parameters into fao.ao
-        # ------------------------------------------------------------------
-        self._configure_fao_lo()
-
-        if self.verbose:
-            print('Setting MASTSEL PSF precision to:', self.fao.dtype)
-        mastselPsfPrecision(dtype=self.fao.dtype)
-
-        # ------------------------------------------------------------------
-        # Step 3: Run TipTorch
-        # ------------------------------------------------------------------
-        zen_sci = list(self.zenithSrc)
-        az_sci  = list(self.azimuthSrc)
-
-        zen_ngs, az_ngs = None, None
-        if self.LOisOn and hasattr(self, 'LO_zen_field'):
-            zen_ngs = list(self.LO_zen_field)
-            az_ngs  = list(self.LO_az_field)
-
-        try:
-            from .tiptorchBackend import run_tiptorch_backend
-        except ImportError:
-            from tiptorchBackend import run_tiptorch_backend
-
-        psd_p3, self.tiptorch_model, freq_proxy, pupil_np = run_tiptorch_backend(
-            my_data_map=self.my_data_map,
-            LOisOn=self.LOisOn,
-            zenith_science=zen_sci,
-            azimuth_science=az_sci,
-            nNaturalGS_field=getattr(self, 'nNaturalGS_field', 0),
-            zenith_ngs=zen_ngs,
-            azimuth_ngs=az_ngs,
-            device=self.tiptorch_device,
-            dtype=self.tiptorch_dtype,
-            tiptorch_kwargs=self.tiptorch_kwargs,
-        )
-
-        if self.verbose:
-            print('TipTorch PSD shape:', psd_p3.shape)
-            print(freq_proxy)
-
-        # ------------------------------------------------------------------
-        # Steps 4-6: Wire TipTorch outputs into the fao shell
-        # ------------------------------------------------------------------
-        # Replace the (non-existent) fao.freq with the TipTorch-derived proxy
-        self.fao.freq = freq_proxy
-
-        # P3's initComputations() normally runs  self.ao.atm.wvl = freq.wvlRef
-        # so that computeOL_PSD() evaluates the atmosphere spectrum at the
-        # reference wavelength.  Replicate that here.
-        self.fao.ao.atm.wvl = freq_proxy.wvlRef
-
-        # Store PSD in P3 array convention: (N, N, N_src)
-        self.fao.PSD = psd_p3
-
-
-        self.fao.ao.tel.pupil = pupil_np
-        # ------------------------------------------------------------------
-        # Step 7: Extract grid metadata into self.* pipeline attributes
-        # ------------------------------------------------------------------
-        self._extract_psd_metadata()
-
     def doOverallSimulation(self, astIndex=None):
 
         if self.LOisOn:
@@ -1213,11 +963,56 @@ class baseSimulation(object):
 
         if astIndex is None or self.firstSimCall:
             # ------------------------------------------------------------------------
-            ## HO Part — dispatch to the selected backend
-            if self.backendHO == 'tiptorch':
-                self._doHoPsd_tiptorch()
-            else:
-                self._doHoPsd_p3()
+            ## HO Part with P3 PSDs
+
+            if self.verbose:
+                print('******** HO PSD science and NGSs directions')
+
+            self.fao = fourierModel( self.fullPathFilename, calcPSF=False, verbose=self.verbose
+                               , display=False, getPSDatNGSpositions=self.LOisOn
+                               , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
+                               , getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False
+                               , psdExpansion=True, reduce_memory=True)
+
+            if 'sensor_LO' in self.my_data_map.keys():
+                self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
+                self.fao.ao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
+            if 'sources_LO' in self.my_data_map.keys():
+                self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
+                self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
+                self.fao.ao.configLOsensor()
+                self.fao.ao.configLO()
+                self.fao.ao.configLO_SC()
+
+            if self.verbose:
+                print('Setting MASTSEL PSF precision to:', self.fao.dtype)
+            mastselPsfPrecision(dtype=self.fao.dtype)
+
+            self.fao.initComputations()
+
+            # High-order PSD caculations at the science directions and NGSs directions
+            self.PSD           = self.fao.PSD # in nm^2
+            self.PSD           = self.PSD.transpose()
+            self.N             = self.PSD[0].shape[0]
+            self.nPointings    = self.pointings.shape[1]
+            self.nPixPSF       = int(self.fao.ao.cam.fovInPix)
+            self.overSamp      = int(self.fao.freq.kRef_)
+            self.PSDstep       = self.fao.freq.PSDstep
+            self.freq_range    = self.N*self.PSDstep
+            self.grid_diameter = 1/self.PSDstep
+            self.sx            = int(2*np.round(self.tel_radius*self.freq_range))
+            # dk is the same as in p3.aoSystem.powerSpectrumDensity except that it is multiplied by 1e9 instead of 2.
+            self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
+            # wvlRef from P3 is required to scale correctly the OL PSD from rad to m
+            self.wvlRef        = self.fao.freq.wvlRef
+            # Define the pupil shape
+            self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
+            self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
+            self.mask.sampling = padOrCropCentered(self.mask.sampling, self.N, xp=self.mask.xp)
+            # error messages for wrong pixel size
+            if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
+                raise ValueError("sensor_science.PixelScale, '{}', is different from self.fao.freq.psInMas,'{}'"
+                         .format(self.psInMas,cpuArray(self.fao.freq.psInMas[0])))
 
             if self.fao.ao.tel.opdMap_on is not None:
                 self.opdMap = arrayP3toMastsel(self.fao.ao.tel.opdMap_on)

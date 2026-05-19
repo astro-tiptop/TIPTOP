@@ -1,22 +1,24 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, TensorDataset, random_split, DataLoader 
-
-#from torch_geometric.nn import GCNConv, global_mean_pool, global_add_pool
-#from torch_geometric.data import Data
-#from torch_geometric.loader import DataLoader
-
-import torch
-import torch.nn as nn
-from torchmetrics.regression import SymmetricMeanAbsolutePercentageError
-from torchmetrics.regression import MeanAbsolutePercentageError
-from torchmetrics.regression import MeanAbsoluteError
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#device = torch.device("cpu")
-# torch.set_default_dtype(torch.float64)
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import Dataset, TensorDataset, random_split, DataLoader 
+    from torchmetrics.regression import SymmetricMeanAbsolutePercentageError
+    from torchmetrics.regression import MeanAbsolutePercentageError
+    from torchmetrics.regression import MeanAbsoluteError
+    
+    TORCH_AVAILABLE = True
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # torch.set_default_dtype(torch.float64)
+except (ImportError, OSError) as e:
+    TORCH_AVAILABLE = False
+    TORCH_ERROR = str(e)
+    # Create dummy base classes for when torch is not available
+    class nn:
+        class Module:
+            pass
+    class Dataset:
+        pass
 
 class TriangleDataset(Dataset):
     def __init__(self, inputs, targets):
@@ -30,7 +32,9 @@ class TriangleDataset(Dataset):
         sample = {'input': self.inputs[idx], 'target': self.targets[idx]}
         return sample
 
-def getLoader(inputs, targets, batch_size):    
+def getLoader(inputs, targets, batch_size):
+    if not TORCH_AVAILABLE:
+        raise ImportError(f"PyTorch is required for this functionality but failed to load: {TORCH_ERROR}")
     dataset = TriangleDataset(inputs, targets)
     # DataLoader
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
@@ -38,6 +42,14 @@ def getLoader(inputs, targets, batch_size):
 
 class NeuralNetwork(nn.Module):
     def __init__(self, ninputs, l_sizes):
+        if not TORCH_AVAILABLE:
+            raise ImportError(
+                f"PyTorch is required for neural network functionality but failed to load.\n"
+                f"Error: {TORCH_ERROR}\n\n"
+                f"To fix this on Windows:\n"
+                f"1. Reinstall PyTorch: pip uninstall torch && pip install torch --index-url https://download.pytorch.org/whl/cpu\n"
+                f"2. Or install Visual C++ Redistributable: https://aka.ms/vs/17/release/vc_redist.x64.exe"
+            )
         super(NeuralNetwork, self).__init__()
         self.nl = len(l_sizes)
 
