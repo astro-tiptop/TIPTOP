@@ -443,14 +443,14 @@ class baseSimulation(object):
         if hasattr(self,'HO_res'):
             hdr1['RESH'] = "High Order residual in nm RMS"
             for i in range(self.HO_res.shape[0]):
-                hdr1['RESH'+str(i).zfill(4)] =  np.round(cpuArray(self.HO_res[i]),3)
+                hdr1['RESH'+str(i).zfill(4)] = float(np.round(cpuArray(self.HO_res[i]), 3))
         if hasattr(self,'LO_res'):
             hdr1['RESL'] = "Low Order residual in nm RMS"
             for i in range(self.LO_res.shape[0]):
-                hdr1['RESL'+str(i).zfill(4)] = np.round(cpuArray(self.LO_res[i]),3)
+                hdr1['RESL'+str(i).zfill(4)] = float(np.round(cpuArray(self.LO_res[i]), 3))
         if hasattr(self,'GF_res'):
             hdr1['RESF'] = "Global Focus residual in nm RMS (included in PSD)"
-            hdr1['RESF0000'] = np.round(cpuArray(self.GF_res),3)
+            hdr1['RESF0000'] = float(np.round(cpuArray(self.GF_res), 3))
         if self.addSrAndFwhm:
             for i in range(self.nWvl):
                 if self.nWvl>1:
@@ -1062,7 +1062,7 @@ class baseSimulation(object):
                                                                          self.Focus_freqs_field, self.Focus_SR_field,
                                                                          self.Focus_EE_field, self.Focus_FWHM_mas_field)
 
-                    self.GF_res = np.sqrt(max(self.CtotFocus[0], 0))
+                    self.GF_res = float(np.sqrt(np.maximum(self.CtotFocus[0], 0)))
                     # add focus error to PSD using P3 FocusFilter
                     FocusFilter = self.fao.FocusFilter()
                     FocusFilter *= 1/FocusFilter.sum()
