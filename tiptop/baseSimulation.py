@@ -74,9 +74,6 @@ class baseSimulation(object):
         self.savePSDs = savePSDs
         self.ensquaredEnergy = ensquaredEnergy
         self.eeRadiusInMas = eeRadiusInMas
-#        if self.returnRes and self.doPlot:
-#            print('WARNING: returnRes and doPlot cannot both be True, setting doPlot to False.')
-#            self.doPlot = False
 
         # Load configuration file
         self.loadConfigurationFile()
@@ -99,11 +96,9 @@ class baseSimulation(object):
             self.raiseMissingRequiredOpt('sources_science', 'Wavelength')
 
         if not self.check_config_key('sources_science','Zenith'):
-            #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
             self.my_data_map['sources_science']['Zenith'] = [0.0]
 
         if not self.check_config_key('sources_science','Azimuth'):
-            #In P3.aoSystem this is optionnal, to remain consistent it is optionnal here too
             self.my_data_map['sources_science']['Azimuth'] = [0.0]
 
         if (len(self.my_data_map['sources_science']['Zenith']) !=
@@ -114,30 +109,21 @@ class baseSimulation(object):
         if not self.check_config_key('sensor_science', 'Super_Sampling'):
                 self.my_data_map['sensor_science']['Super_Sampling'] = None
         else:
-            # default Super_Sampling to option 2 (2D interpolation),
-            # keep option 1 (1D interpolation) available
             SupSamp_val = self.my_data_map['sensor_science']['Super_Sampling']
-            # Case 1: user provides a single scalar
             if isinstance(SupSamp_val, (int,float)):
                 self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val), 2]
-            # Case 2: user provides a list/tuple with one element
             elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 1:
                 self.my_data_map['sensor_science']['Super_Sampling'] = [float(SupSamp_val[0]), 2]
-            # Case 3: user explicitly provides [pixel_scale, option]
-            # Keep backward compatibility, option=1 (1D interpolation) still allowed
             elif isinstance(SupSamp_val, (list, tuple)) and len(SupSamp_val) == 2:
                 if int(SupSamp_val[1]) not in (1, 2):
                     raise ValueError("Second value of Super_Sampling must be 1 (1D interpolation) or 2 (2D polar grid).")
-            # Case 4: anything else is invalid
             else:
                 raise KeyError("Super_Sampling must be a scalar or list of one/two values.")
 
-        #TODO should an error be raised if sensor_LO is defined but not source_LO or vice versa?
         if self.check_section_key('sources_LO') and not self.check_section_key('sensor_LO'):
             raise KeyError("'sensor_LO' must be defined if 'sources_LO' is defined.")
         elif not self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
             raise KeyError("'sources_LO' must be defined if 'sensor_LO' is defined.")
-        #If both are defined we can proceed.
         elif self.check_section_key('sources_LO') and self.check_section_key('sensor_LO'):
             if not self.check_config_key('sources_LO', 'Wavelength'):
                 self.raiseMissingRequiredOpt('sources_LO', 'Wavelength')
@@ -177,6 +163,7 @@ class baseSimulation(object):
         self.yySciencePointigs         = self.pointings[1,:]
         self.psInMas = self.my_data_map['sensor_science']['PixelScale']
         self.SupSamp = self.my_data_map['sensor_science']['Super_Sampling']
+        
         # it checks if LO parameters are set and then it acts accordingly
         if 'sensor_LO' in self.my_data_map.keys():
             self.LOisOn = True
@@ -257,7 +244,6 @@ class baseSimulation(object):
         if self.check_section_key('sensor_Focus'):
             self.Focus_fluxes4s_field   = self.my_data_map['sensor_Focus']['NumberPhotons']
             self.Focus_psInMas          = self.my_data_map['sensor_Focus']['PixelScale']
-            # if self.Focus_psInMas is a scalar makes a list on n elements
             if not isinstance(self.Focus_psInMas, list):
                 self.Focus_psInMas = [self.Focus_psInMas] * len(self.LO_zen_field)
             if self.check_section_key('sources_Focus'):
@@ -438,19 +424,22 @@ class baseSimulation(object):
         hdr1['PIX_MAS'] = str(self.psInMas)
         hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(self.pointings.shape[1])+" SOURCES"
         for i in range(self.pointings.shape[1]):
-            hdr1['CCX' + str(i).zfill(4)] = np.round(self.pointings[0, i], 3).item()
-            hdr1['CCY' + str(i).zfill(4)] = np.round(self.pointings[1, i], 3).item()
+            hdr1['CCX' + str(i).zfill(4)] = float(np.round(self.pointings[0, i], 3).item())
+            hdr1['CCY' + str(i).zfill(4)] = float(np.round(self.pointings[1, i], 3).item())
+            
+        # SANITIZATION: Strict float casting to avoid FITS Header TypeErrors
         if hasattr(self,'HO_res'):
             hdr1['RESH'] = "High Order residual in nm RMS"
             for i in range(self.HO_res.shape[0]):
-                hdr1['RESH'+str(i).zfill(4)] = float(np.round(cpuArray(self.HO_res[i]), 3))
+                hdr1['RESH'+str(i).zfill(4)] = float(np.round(cpuArray(self.HO_res[i]).ravel()[0], 3))
         if hasattr(self,'LO_res'):
             hdr1['RESL'] = "Low Order residual in nm RMS"
             for i in range(self.LO_res.shape[0]):
-                hdr1['RESL'+str(i).zfill(4)] = float(np.round(cpuArray(self.LO_res[i]), 3))
+                hdr1['RESL'+str(i).zfill(4)] = float(np.round(cpuArray(self.LO_res[i]).ravel()[0], 3))
         if hasattr(self,'GF_res'):
             hdr1['RESF'] = "Global Focus residual in nm RMS (included in PSD)"
-            hdr1['RESF0000'] = float(np.round(cpuArray(self.GF_res), 3))
+            hdr1['RESF0000'] = float(np.round(cpuArray(self.GF_res).ravel()[0], 3))
+            
         if self.addSrAndFwhm:
             for i in range(self.nWvl):
                 if self.nWvl>1:
@@ -469,10 +458,10 @@ class baseSimulation(object):
                 for j in range(cubeResultsArray.shape[0]):
                     sr_temp = getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil,
                                         samp, method='max', psfInOnePix=True)
-                    hdr1['SR'+str(j).zfill(Nfill)+wTxt] = float(np.round(sr_temp,5))
+                    hdr1['SR'+str(j).zfill(Nfill)+wTxt] = float(np.round(sr_temp, 5))
                 for j in range(cubeResultsArray.shape[0]):
                     fwhm_temp = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
-                    hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = np.round(fwhm_temp,3)
+                    hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = float(np.round(fwhm_temp, 3))
                 for j in range(cubeResultsArray.shape[0]):
                     if self.ensquaredEnergy:
                         ee = cpuArray(getEnsquaredEnergy(cubeResultsArray[j,:,:]))
@@ -481,7 +470,11 @@ class baseSimulation(object):
                         ee,rr = getEncircledEnergy(cubeResultsArray[j,:,:], pixelscale=self.psInMas,
                                                    center=centeredPixelCoords(self.nPixPSF), nargout=2)
                     ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
-                    hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = np.round(ee_at_radius_fn(self.eeRadiusInMas).take(0),5)
+                    val_ee = ee_at_radius_fn(self.eeRadiusInMas)
+                    # Safe extraction for 0-d arrays
+                    if hasattr(val_ee, 'item'):
+                        val_ee = val_ee.item()
+                    hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = float(np.round(val_ee, 5))
 
         # header of the OPEN-LOOP PSF
         hdr2 = hdul1[2].header
@@ -516,6 +509,7 @@ class baseSimulation(object):
         if self.verbose:
             print("Output cube shape:", self.cubeResultsArray.shape)
             print("Output dtype:", self.cubeResultsArray.dtype)
+
 
     def computeOL_PSD(self):
         # OPEN-LOOP PSD
@@ -836,7 +830,6 @@ class baseSimulation(object):
                         pf = FourierUtils.pistonFilter(2*self.tel_radius/nSAfocusI,k)
                         psdFocus[i] = psdFocus[i] * pf
 
-
                 # -----------------------------------------------------------------
                 ## PSF for NGS directions
 
@@ -935,7 +928,10 @@ class baseSimulation(object):
                         ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas,
                                                      center=centeredPixelCoords(self.nPixPSF), nargout=2)
                     ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-                    ee.append( cpuArray(ee_at_radius_fn(self.eeRadiusInMas)).item() )
+                    val_ee = ee_at_radius_fn(self.eeRadiusInMas)
+                    if hasattr(val_ee, 'item'):
+                        val_ee = val_ee.item()
+                    ee.append( float(val_ee) )
                 if self.nWvl>1:
                     self.sr.append(sr)
                     self.fwhm.append(fwhm)
@@ -945,217 +941,207 @@ class baseSimulation(object):
                     self.fwhm = fwhm
                     self.ee = ee
 
+    # ----------------------------------------------------------------------------
+    # --- helper methods for the different steps of the simulation
+    # ----------------------------------------------------------------------------
+
+    def _prepare_static_PSF_state(self, astIndex):
+        """
+        Initializes the Fourier HO model and prepares the LO state.
+        """
+        if not (astIndex is None or self.firstSimCall):
+            return
+
+        if self.verbose:
+            print('******** HO PSD science and NGSs directions')
+
+        self.fao = fourierModel(self.fullPathFilename, calcPSF=False, verbose=self.verbose,
+                                display=False, getPSDatNGSpositions=self.LOisOn,
+                                computeFocalAnisoCov=False, TiltFilter=self.LOisOn,
+                                getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False,
+                                psdExpansion=True, reduce_memory=True)
+
+        if 'sensor_LO' in self.my_data_map.keys():
+            self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
+            self.fao.ao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
+        if 'sources_LO' in self.my_data_map.keys():
+            self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
+            self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
+            self.fao.ao.configLOsensor()
+            self.fao.ao.configLO()
+            self.fao.ao.configLO_SC()
+
+        if self.verbose:
+            print('Setting MASTSEL PSF precision to:', self.fao.dtype)
+        mastselPsfPrecision(dtype=self.fao.dtype)
+
+        self.fao.initComputations()
+
+        # Cache geometry needed downstream
+        self.PSD           = self.fao.PSD.transpose()
+        self.N             = self.PSD[0].shape[0]
+        self.nPointings    = self.pointings.shape[1]
+        self.nPixPSF       = int(self.fao.ao.cam.fovInPix)
+        self.overSamp      = int(self.fao.freq.kRef_)
+        self.PSDstep       = self.fao.freq.PSDstep
+        self.freq_range    = self.N * self.PSDstep
+        self.grid_diameter = 1 / self.PSDstep
+        self.sx            = int(2 * np.round(self.tel_radius * self.freq_range))
+        self.dk            = 1e9 * self.fao.freq.kcMax_ / self.fao.freq.resAO
+        self.wvlRef        = self.fao.freq.wvlRef
+
+        self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
+        self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
+        self.mask.sampling = padOrCropCentered(self.mask.sampling, self.N, xp=self.mask.xp)
+
+        if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
+            raise ValueError(f"sensor_science.PixelScale '{self.psInMas}' differs from P3 '{float(cpuArray(self.fao.freq.psInMas[0]))}'")
+
+        self.opdMap = arrayP3toMastsel(self.fao.ao.tel.opdMap_on) if self.fao.ao.tel.opdMap_on is not None else None
+
+        if self.verbose:
+            print('PSD step:', self.PSDstep)
+            print('PSD freq range:', self.freq_range)
+            print('PSD shape:', self.PSD.shape)
+            print('PSD dtype:', self.PSD.dtype)
+            print('oversampling:', self.overSamp)
+            print('sensor_science.PixelScale:', self.psInMas)
+
+        if self.LOisOn:
+            if self.verbose:
+                print('******** LO PART')
+            self.ngsPSF()
+            self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
+
+
+    def _compute_full_field_LO_terms(self):
+        self.Ctot = self.mLO.computeTotalResidualMatrix(
+            np.array(self.cartSciencePointingCoords), self.cartNGSCoords_field, 
+            self.NGS_fluxes_field, self.LO_freqs_field, self.NGS_SR_field, 
+            self.NGS_EE_field, self.NGS_FWHM_mas_field,
+            aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas, doAll=True)
+
+        if self.addFocusError:
+            self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(
+                self.cartNGSCoords_field, self.Focus_fluxes_field,
+                self.Focus_freqs_field, self.Focus_SR_field,
+                self.Focus_EE_field, self.Focus_FWHM_mas_field)
+
+            # Safe extraction avoiding ValueError and Negative Sqrt
+            self.GF_res = float(np.sqrt(np.maximum(cpuArray(self.CtotFocus).ravel()[0], 0.0)))
+
+            FocusFilter = self.fao.FocusFilter()
+            FocusFilter *= 1/FocusFilter.sum()
+            for PSDho in self.PSD:
+                PSDho += self.GF_res**2 * FocusFilter
+            self.GFinPSD = True
+
+        self.LO_res = np.sqrt(np.trace(self.Ctot, axis1=1, axis2=2))
+
+
+    def _compute_asterism_LO_terms(self):
+        if self.firstSimCall:
+            self.mLO.computeTotalResidualMatrix(
+                np.array(self.cartSciencePointingCoords), self.cartNGSCoords_field, 
+                self.NGS_fluxes_field, self.LO_freqs_field, self.NGS_SR_field,
+                self.NGS_EE_field, self.NGS_FWHM_mas_field,
+                aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas, doAll=False)
+            if self.addFocusError:
+                self.mLO.computeFocusTotalResidualMatrix(
+                    self.cartNGSCoords_field, self.Focus_fluxes_field,
+                    self.Focus_freqs_field, self.Focus_SR_field,
+                    self.Focus_EE_field, self.Focus_FWHM_mas_field)
+
+        # Discard faint guide stars
+        if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
+            valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
+            self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
+            self.Focus_fluxes_asterism = [elem for i, elem in enumerate(self.Focus_fluxes_asterism) if i in valid_indices]
+            self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
+            self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
+
+        self.Ctot = self.mLO.computeTotalResidualMatrixI(
+            self.currentAsterismIndices, np.array(self.cartSciencePointingCoords),
+            np.array(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism)
+
+        if self.addFocusError:
+            self.CtotFocus = self.mLO.computeFocusTotalResidualMatrixI(
+                self.currentAsterismIndices, np.array(self.cartNGSCoords_asterism),
+                self.Focus_fluxes_asterism)
+
+            # Safe extraction avoiding ValueError and Negative Sqrt
+            self.GF_res = float(np.sqrt(np.maximum(cpuArray(self.CtotFocus).ravel()[0], 0.0)))
+            self.GFinPSD = False
+
+        self.LO_res = np.sqrt(np.trace(self.Ctot, axis1=1, axis2=2))
+
+
+    def _compute_LO_terms(self, astIndex):
+        if not self.LOisOn:
+            return
+        if astIndex is None:
+            self._compute_full_field_LO_terms()
+        else:
+            self._compute_asterism_LO_terms()
+
+
+    def _plot_final_PSFs(self):
+        if not self.doPlot:
+            return
+        results = self.results[0] if self.nWvl > 1 else self.results
+        if self.LOisOn and self.doConvolve:
+            tiledDisplay(results)
+            plotEllipses(self.cartSciencePointingCoords, self.cov_ellipses, 0.4)
+        else:
+            results[0].standardPlot(True)
+
+
+    def _finalize_full_field_results(self, astIndex):
+        if astIndex is not None:
+            return
+
+        self.computeOL_PSD()
+        self.computeDL_PSD()
+
+        self.cubeResults = []
+        cubeResultsArray = []
+        for i in range(self.nWvl):
+            results = self.results[i] if self.nWvl > 1 else self.results
+            cubeResults = [cpuArray(img.sampling) for img in results]
+
+            if self.nWvl > 1:
+                self.cubeResults.append(cubeResults)
+                cubeResultsArray.append(np.array(cubeResults))
+            else:
+                self.cubeResults = cubeResults
+                cubeResultsArray = cubeResults
+  
+        self.cubeResultsArray = np.array(cubeResultsArray)
+        self.computePSF1D()
+
+        if self.verbose:
+            print('HO_res [nm]:', self.HO_res)
+            if self.LOisOn:
+                print('LO_res [nm]:', self.LO_res)
+            if hasattr(self, 'GF_res'):
+                print('GF_res [nm]:', self.GF_res)
+
 
     def doOverallSimulation(self, astIndex=None):
-
+        """
+        Executes the main global simulation loop.
+        """
         if self.LOisOn:
             self.configLO(astIndex)
 
         self.results = []
 
-        # ------------------------------------------------------------
-        # **** Start of calculations only performed on first call ****
-        # ------------------------------------------------------------
+        self._prepare_static_PSF_state(astIndex)
+        self._compute_LO_terms(astIndex)
 
-        if astIndex is None or self.firstSimCall:
-            # ------------------------------------------------------------------------
-            ## HO Part with P3 PSDs
-
-            if self.verbose:
-                print('******** HO PSD science and NGSs directions')
-
-            self.fao = fourierModel( self.fullPathFilename, calcPSF=False, verbose=self.verbose
-                               , display=False, getPSDatNGSpositions=self.LOisOn
-                               , computeFocalAnisoCov=False, TiltFilter=self.LOisOn
-                               , getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False
-                               , psdExpansion=True, reduce_memory=True)
-
-            if 'sensor_LO' in self.my_data_map.keys():
-                self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
-                self.fao.ao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
-            if 'sources_LO' in self.my_data_map.keys():
-                self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-                self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-                self.fao.ao.configLOsensor()
-                self.fao.ao.configLO()
-                self.fao.ao.configLO_SC()
-
-            if self.verbose:
-                print('Setting MASTSEL PSF precision to:', self.fao.dtype)
-            mastselPsfPrecision(dtype=self.fao.dtype)
-
-            self.fao.initComputations()
-
-            # High-order PSD caculations at the science directions and NGSs directions
-            self.PSD           = self.fao.PSD # in nm^2
-            self.PSD           = self.PSD.transpose()
-            self.N             = self.PSD[0].shape[0]
-            self.nPointings    = self.pointings.shape[1]
-            self.nPixPSF       = int(self.fao.ao.cam.fovInPix)
-            self.overSamp      = int(self.fao.freq.kRef_)
-            self.PSDstep       = self.fao.freq.PSDstep
-            self.freq_range    = self.N*self.PSDstep
-            self.grid_diameter = 1/self.PSDstep
-            self.sx            = int(2*np.round(self.tel_radius*self.freq_range))
-            # dk is the same as in p3.aoSystem.powerSpectrumDensity except that it is multiplied by 1e9 instead of 2.
-            self.dk            = 1e9*self.fao.freq.kcMax_/self.fao.freq.resAO
-            # wvlRef from P3 is required to scale correctly the OL PSD from rad to m
-            self.wvlRef        = self.fao.freq.wvlRef
-            # Define the pupil shape
-            self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
-            self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
-            self.mask.sampling = padOrCropCentered(self.mask.sampling, self.N, xp=self.mask.xp)
-            # error messages for wrong pixel size
-            if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
-                raise ValueError("sensor_science.PixelScale, '{}', is different from self.fao.freq.psInMas,'{}'"
-                         .format(self.psInMas,cpuArray(self.fao.freq.psInMas[0])))
-
-            if self.fao.ao.tel.opdMap_on is not None:
-                self.opdMap = arrayP3toMastsel(self.fao.ao.tel.opdMap_on)
-            else:
-                self.opdMap = None
-
-            if self.verbose:
-                print('PSD step:', self.PSDstep)
-                print('PSD freq range:', self.freq_range)
-                print('PSD shape:', self.PSD.shape)
-                print('PSD dtype:', self.PSD.dtype)
-                print('oversampling:', self.overSamp)
-                print('sensor_science.PixelScale:', self.psInMas)
-
-            # ----------------------------------------------------------------------------
-            ## optional LO part
-            if self.LOisOn:
-                if self.verbose:
-                    print('******** LO PART')
-
-                # ------------------------------------------------------------------------
-                # --- NGS PSDs, PSFs and merit functions on PSFs
-                self.ngsPSF()
-
-                # ------------------------------------------------------------------------
-                # --- initialize MASTSEL MavisLO object
-                self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
-
-        # ------------------------------------------------------------
-        # ***** End of calculations only performed on first call *****
-        # ------------------------------------------------------------
-
-        # ----------------------------------------------------------------------------
-        # optional LO part - for every call, not just the first (self.firstSimCall)
-        if self.LOisOn:
-            # ------------------------------------------------------------------------
-            ## total covariance matrix Ctot
-            if astIndex is None:
-                self.Ctot          = self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                                         self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                                         self.LO_freqs_field,
-                                                                         self.NGS_SR_field, self.NGS_EE_field, self.NGS_FWHM_mas_field,
-                                                                         aNGS_FWHM_DL_mas = self.NGS_DL_FWHM_mas, doAll=True)
-
-                # --------------------------------------------------------------------
-                # --- optional total focus covariance matrix Ctot
-                if self.addFocusError:
-
-                    # compute focus error
-                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
-                                                                         self.Focus_freqs_field, self.Focus_SR_field,
-                                                                         self.Focus_EE_field, self.Focus_FWHM_mas_field)
-
-                    self.GF_res = float(np.sqrt(np.maximum(self.CtotFocus[0], 0)))
-                    # add focus error to PSD using P3 FocusFilter
-                    FocusFilter = self.fao.FocusFilter()
-                    FocusFilter *= 1/FocusFilter.sum()
-                    for PSDho in self.PSD:
-                        PSDho += self.GF_res**2 * FocusFilter
-                    self.GFinPSD = True
-                # ---------------------------------------------------------------------
-            else:
-                if self.firstSimCall:
-                    self.mLO.computeTotalResidualMatrix(np.array(self.cartSciencePointingCoords),
-                                                        self.cartNGSCoords_field, self.NGS_fluxes_field,
-                                                        self.LO_freqs_field, self.NGS_SR_field,
-                                                        self.NGS_EE_field, self.NGS_FWHM_mas_field,
-                                                        aNGS_FWHM_DL_mas = self.NGS_DL_FWHM_mas, doAll=False)
-                    if self.addFocusError:
-                        self.mLO.computeFocusTotalResidualMatrix(self.cartNGSCoords_field, self.Focus_fluxes_field,
-                                                                 self.Focus_freqs_field, self.Focus_SR_field,
-                                                                 self.Focus_EE_field, self.Focus_FWHM_mas_field)
-
-                # discard guide stars with flux less than 1 photon per frame per subaperture
-                if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
-                    valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
-                    self.NGS_fluxes_asterism = [elem for i, elem in enumerate(self.NGS_fluxes_asterism) if i in valid_indices]
-                    self.Focus_fluxes_asterism = [elem for i, elem in enumerate(self.Focus_fluxes_asterism) if i in valid_indices]
-                    self.cartNGSCoords_asterism = [elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices]
-                    self.currentAsterismIndices = [elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices]
-
-                self.Ctot  = self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices,
-                                                                  np.array(self.cartSciencePointingCoords),
-                                                                  np.array(self.cartNGSCoords_asterism),
-                                                                  self.NGS_fluxes_asterism)
-
-                # --------------------------------------------------------------------
-                # --- optional total focus covariance matrix Ctot
-                if self.addFocusError:
-                    self.CtotFocus = self.mLO.computeFocusTotalResidualMatrixI(self.currentAsterismIndices,
-                                                                         np.array(self.cartNGSCoords_asterism),
-                                                                         self.Focus_fluxes_asterism)
-                    self.GF_res = np.sqrt(max(self.CtotFocus[0], 0))
-                    self.GFinPSD = False
-                # ---------------------------------------------------------------------
-
-            # ------------------------------------------------------------------------
-            ## computation of the LO error (this changes for each asterism)
-            self.LO_res = np.sqrt(np.trace(self.Ctot,axis1=1,axis2=2))
-        # ------------------------------------------------------------------------
-
-        # ------------------------------------------------------------------------
-        # final PSF computation
         self.finalPSF(astIndex)
 
-        # ------------------------------------------------------------------------
-        # plots
-        if self.doPlot:
-            if self.nWvl>1:
-                results = self.results[0]
-            else:
-                results = self.results
-            if self.LOisOn and self.doConvolve:
-                tiledDisplay(results)
-                plotEllipses(self.cartSciencePointingCoords, self.cov_ellipses, 0.4)
-            else:
-                results[0].standardPlot(True)
+        self._plot_final_PSFs()
 
-        # set first call attribute to False
         self.firstSimCall = False
-
-        # ------------------------------------------------------------------------
-        # final results
-        if astIndex is None:
-            self.computeOL_PSD()
-            self.computeDL_PSD()
-            self.cubeResults = []
-            cubeResultsArray = []
-            for i in range(self.nWvl):
-                if self.nWvl>1:
-                    results = self.results[i]
-                else:
-                    results = self.results
-                cubeResults = []
-                for img in results:
-                    cubeResults.append(cpuArray(img.sampling))
-                if self.nWvl>1:
-                    self.cubeResults.append(cubeResults)
-                    cubeResultsArray.append(np.array(cubeResults))
-                else:
-                    self.cubeResults = cubeResults
-                    cubeResultsArray = cubeResults
-                self.cubeResultsArray = np.array(cubeResultsArray)
-            self.computePSF1D()
-            if self.verbose:
-                print('HO_res [nm]:',self.HO_res)
-                if self.LOisOn:
-                    print('LO_res [nm]:',self.LO_res)
-                if hasattr(self,'GF_res'):
-                    print('GF_res [nm]:',self.GF_res)
+        self._finalize_full_field_results(astIndex)
