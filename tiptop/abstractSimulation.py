@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 from astropy.io import fits
 from datetime import datetime
 
-# Assuming these utilities are available in your package structure
-from .tiptopUtils import add_hdr_keyword, polarToCartesian
+from .tiptopUtils import add_hdr_keyword, cpuArray
+from mastsel.mavisUtilities import polarToCartesian
 from p3.aoSystem.FourierUtils import precompute_polar_grid, radial_profile
 from ._version import __version__
 
@@ -433,11 +433,15 @@ class AbstractSimulation(ABC):
                 sr_slice = self.sr[i] if self.nWvl > 1 else self.sr
                 fwhm_slice = self.fwhm[i] if self.nWvl > 1 else self.fwhm
                 ee_slice = self.ee[i] if self.nWvl > 1 else self.ee
-                
+
                 for j in range(cube_slice.shape[0]):
-                    hdr1[f'SR{str(j).zfill(Nfill)}{wTxt}'] = float(np.round(np.asarray(sr_slice[j]).item(), 5))
-                    hdr1[f'{fTxt}{str(j).zfill(Nfill)}{wTxt}'] = float(np.round(np.asarray(fwhm_slice[j]).item(), 3))
-                    hdr1[f'{eTxt}{str(j).zfill(Nfill)}{wTxt}'] = float(np.round(np.asarray(ee_slice[j]).item(), 5))
+                    sr_val = float(np.round(np.asarray(cpuArray(sr_slice[j])).item(), 5))
+                    fwhm_val = float(np.round(np.asarray(cpuArray(fwhm_slice[j])).item(), 3))
+                    ee_val = float(np.round(np.asarray(cpuArray(ee_slice[j])).item(), 5))
+
+                    hdr1[f'SR{str(j).zfill(Nfill)}{wTxt}'] = sr_val
+                    hdr1[f'{fTxt}{str(j).zfill(Nfill)}{wTxt}'] = fwhm_val
+                    hdr1[f'{eTxt}{str(j).zfill(Nfill)}{wTxt}'] = ee_val
 
         # Secondary Headers
         hdul1[2].header.update({'TIME': now.strftime("%Y%m%d_%H%M%S"),
