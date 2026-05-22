@@ -1,0 +1,131 @@
+[
+    {
+        "timestamp": "2026-05-22T13:12:44.953383",
+        "tiptop_version": "1.3.28",
+        "system_info": {
+            "hostname": "luthien",
+            "os": "Linux 5.15.0-78-generic",
+            "cpu_cores": 80,
+            "gpu_enabled": true,
+            "gpu_name": "Quadro RTX 6000"
+        },
+        "benchmark_config": {
+            "warmups": 1,
+            "repeats": 5
+        },
+        "results": [
+            {
+                "case": "ERIS",
+                "status": "OK",
+                "avg_time_s": 0.1026,
+                "std_time_s": 0.0016,
+                "sr": 0.89207,
+                "fwhm_mas": 44.114
+            },
+            {
+                "case": "ERIS_LGS",
+                "status": "OK",
+                "avg_time_s": 0.413,
+                "std_time_s": 0.0832,
+                "sr": 0.57782,
+                "fwhm_mas": 44.91
+            },
+            {
+                "case": "HARMONI_SCAO",
+                "status": "OK",
+                "avg_time_s": 0.6011,
+                "std_time_s": 0.0094,
+                "sr": 0.81717,
+                "fwhm_mas": 11.953
+            },
+            {
+                "case": "HarmoniLTAO_1",
+                "status": "OK",
+                "avg_time_s": 2.0159,
+                "std_time_s": 0.0424,
+                "sr": 0.6428,
+                "fwhm_mas": 11.965
+            },
+            {
+                "case": "HarmoniLTAO_2",
+                "status": "OK",
+                "avg_time_s": 0.9129,
+                "std_time_s": 0.0151,
+                "sr": 0.73811,
+                "fwhm_mas": 12.0
+            },
+            {
+                "case": "HarmoniLTAO_3",
+                "status": "OK",
+                "avg_time_s": 1.4653,
+                "std_time_s": 0.0736,
+                "sr": 0.35793,
+                "fwhm_mas": 17.091
+            },
+            {
+                "case": "MAVIS",
+                "status": "OK",
+                "avg_time_s": 2.4616,
+                "std_time_s": 0.1302,
+                "sr": 0.05399,
+                "fwhm_mas": 16.049
+            },
+            {
+                "case": "METIS",
+                "status": "OK",
+                "avg_time_s": 3.199,
+                "std_time_s": 0.0711,
+                "sr": 0.86166,
+                "fwhm_mas": 20.511
+            },
+            {
+                "case": "MICADO_SCAO",
+                "status": "OK",
+                "avg_time_s": 2.4248,
+                "std_time_s": 0.0107,
+                "sr": 0.61056,
+                "fwhm_mas": 13.163
+            },
+            {
+                "case": "MORFEO",
+                "status": "OK",
+                "avg_time_s": 5.8828,
+                "std_time_s": 0.2091,
+                "sr": 0.60166,
+                "fwhm_mas": 12.224
+            },
+            {
+                "case": "MUSE_LTAO",
+                "status": "OK",
+                "avg_time_s": 0.6235,
+                "std_time_s": 0.0721,
+                "sr": 0.00684,
+                "fwhm_mas": 72.55
+            },
+            {
+                "case": "SOUL",
+                "status": "OK",
+                "avg_time_s": 0.1007,
+                "std_time_s": 0.0038,
+                "sr": 0.89896,
+                "fwhm_mas": 56.254
+            },
+            {
+                "case": "SPHERE",
+                "status": "OK",
+                "avg_time_s": 0.1014,
+                "std_time_s": 0.0062,
+                "sr": 0.92814,
+                "fwhm_mas": 43.679
+            },
+            {
+                "case": "dummy",
+                "status": "OK",
+                "avg_time_s": 2.6968,
+                "std_time_s": 0.0366,
+                "sr": 0.16066,
+                "fwhm_mas": 20.0
+            }
+        ]
+    }
+]
