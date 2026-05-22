@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib.ticker as ticker
@@ -1179,9 +1180,12 @@ class asterismSimulation(baseSimulation):
         ax.set_aspect('equal', adjustable='box')
         xylim = self.techFovRadius
         ax.set_xlim([-xylim,xylim])
-        ax.set_ylim([-xylim,xylim])
-        cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
-        fig.colorbar(sm, cax=cax)
+        ax.set_ylim([-xylim,xylim])       
+        # Setup the colorbar axis
+        cax = fig.add_axes([ax.get_position().x1 + 0.01, ax.get_position().y0, 0.02, ax.get_position().height])
+        # Instantiate the colorbar object and set its label
+        cbar = fig.colorbar(sm, cax=cax)
+        cbar.set_label('Asterism Rating', fontsize=12)
         plt.show()
 
 
