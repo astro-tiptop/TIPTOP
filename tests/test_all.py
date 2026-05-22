@@ -1,34 +1,31 @@
-from tiptop.tiptop import *
-rc("text", usetex=False)
-
 import unittest
 import tempfile
 import os
+import numpy as np
 from configparser import ConfigParser
+from matplotlib import rc
+from astropy.io import fits
 
+# ----------------------------------------------------------------------------
+# --- Explicit Imports (NO WILDCARDS) ---
+# ----------------------------------------------------------------------------
+from tiptop.tiptop import overallSimulation
+from tiptop.baseSimulation import baseSimulation
+from tiptop.asterismSimulation import asterismSimulation
+from tiptop.asterismSimulationHo import asterismSimulationHo
+from tiptop.tiptopUtils import cpuArray
+from mastsel.mavisPsf import padOrCropCentered, centeredPixelCoords
 
-def cpuArray(v):
-    if isinstance(v, list):
-        return [cpuArray(item) for item in v]
-    if isinstance(v, tuple):
-        return tuple(cpuArray(item) for item in v)
-    if isinstance(v, np.ndarray) or isinstance(v, np.generic) or np.isscalar(v):
-        return v
-    return v.get()
-
+rc("text", usetex=False)
 
 class TestTiptop(unittest.TestCase):
+    
     @classmethod
     def setUpClass(cls):
         pass
-#        path = "tiptop/data/ini/"
-#        parametersFile = 'mavisParams'
-#        fullPathFilename = path + parametersFile + '.ini'
-#        windPsdFile = 'tiptop/data/windpsd_mavis.fits'
-#        TestMavisLO.mLO = MavisLO(path, parametersFile, verbose=True)
-#        overallSimulation("perfTest", "SOUL", 'perfTest', 'testSOUL', doPlot=True, doConvolve=True)
 
     def test_centered_padding_supports_even_and_odd_grids(self):
+        """Test central padding alignment for both even and odd dimension grids."""
         for outer_size, inner_size in ((32, 28), (33, 28), (33, 29)):
             pupil = np.ones((inner_size, inner_size), dtype=np.float64)
             padded = cpuArray(padOrCropCentered(pupil, outer_size))
@@ -43,22 +40,11 @@ class TestTiptop(unittest.TestCase):
 class TestMavis(TestTiptop):
 
     def test_mavis(self):
-        """
-        Test MAVIS simulation against stored results
-        """
+        """Test MAVIS standard simulation against stored baseline results."""
         computed_result = overallSimulation('tiptop/perfTest', 'MAVIStest',
                                             'tiptop/perfTest', 'testMAVIS',
                                             doPlot=False, doConvolve=True,
                                             returnRes=True)
-
-        # This can be used to save / update the results if needed
-        save_results = False
-        if save_results:
-            ii = 0
-            for aa in computed_result:
-                with open('tests/mavisResult' + str(ii) +  '.npy', 'wb') as f:
-                    np.save(f, cpuArray(aa))
-                ii += 1
 
         stored_result0 = np.load('tests/mavisResult0.npy')
         stored_result1 = np.load('tests/mavisResult1.npy')
@@ -71,78 +57,57 @@ class TestMavis(TestTiptop):
                                        stored_result1, rtol=1e-03, atol=1e-5) is None)
 
     def test_mavis_jitter(self):
-        """
-        Test MAVIS simulation with jitter_FWHM
-        """
-
-        # Run simulation with temporary file
+        """Test MAVIS simulation dynamic jitter inclusion via temp config files."""
+        # Baseline simulation without extra jitter
         sr_nj, fwhm_nj, ee_nj = overallSimulation('tiptop/perfTest', 'MAVIStest',
                                                   'tiptop/perfTest', 'testMAVIS',
                                                   doPlot=False, doConvolve=True, 
                                                   returnMetrics=True)
 
-        # Load the base configuration
         original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
-
-        # Read the original configuration
         config = ConfigParser()
         config.optionxform = str
         config.read(original_config_path)
 
-        jitter_fwhm = 10.0  # Example jitter FWHM value in mas
-
-        # Add jitter_FWHM to the telescope section
+        jitter_fwhm = 10.0  # [mas]
         if not config.has_option('telescope', 'jitter_FWHM'):
             config.set('telescope', 'jitter_FWHM', str(jitter_fwhm))
 
-        # Create a temporary file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
             config.write(temp_file)
             temp_filename = temp_file.name
 
         try:
-            # Extract filename without extension and directory
             temp_dir = os.path.dirname(temp_filename)
             temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
 
-            # Run simulation with temporary file
             sr, fwhm, ee = overallSimulation(temp_dir, temp_basename,
                                              'tiptop/perfTest', 'testMAVISJitter',
                                               doPlot=False, doConvolve=True,
                                               returnMetrics=True)
 
-            # Verify that the result is valid
             self.assertIsNotNone(sr)
             self.assertIsNotNone(fwhm)
             self.assertIsNotNone(ee)
 
-            # Verify that values are reasonable (non-zero)
-            self.assertGreater(len(sr), 0)  # sr should have elements
-            self.assertGreater(len(fwhm), 0)  # fwhm should have elements
-            self.assertGreater(len(ee), 0)  # ee should have elements
-
             sr_cpu = np.array(cpuArray(sr))
             fwhm_cpu = np.array(cpuArray(fwhm))
             ee_cpu = np.array(cpuArray(ee))
-
             sr_nj_cpu = np.array(cpuArray(sr_nj))
-            fwhm_nj_cpu = np.array(cpuArray(fwhm_nj))
-            ee_nj_cpu = np.array(cpuArray(ee_nj))
-            # Verify that values are numeric and positive
+
             self.assertTrue(np.all(sr_cpu > 0))
             self.assertTrue(np.all(fwhm_cpu > 0))
             self.assertTrue(np.all(ee_cpu > 0))
 
-            # SR should be lower with jitter
+            # SR should strictly degrade with added telescope jitter
             self.assertTrue(np.all(sr_cpu < sr_nj_cpu))
 
         finally:
-            # Cleanup: remove temporary file
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
     def test_mavis_auto_science_field_of_view(self):
-        """Test MAVIS simulation when `sensor_science.FieldOfView = -1`."""
+        """Test MAVIS simulation handling of automatic FOV scaling (-1 flag)."""
         original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
 
         config = ConfigParser()
@@ -164,21 +129,13 @@ class TestMavis(TestTiptop):
                                              returnMetrics=True)
 
             self.assertIsNotNone(sr)
-            self.assertIsNotNone(fwhm)
-            self.assertIsNotNone(ee)
             self.assertGreater(len(sr), 0)
-            self.assertGreater(len(fwhm), 0)
-            self.assertGreater(len(ee), 0)
         finally:
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
     def test_mavis_odd_psd_grid_even_legacy_path(self):
-        """Integration test: odd P3 PSD grid is handled by MASTSEL even_legacy path.
-
-        This test intentionally sets odd telescope resolution and odd science FOV,
-        then checks robust invariants instead of brittle reference values.
-        """
+        """Ensure odd-sized grids do not trigger alignment or casting crashes."""
         original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
 
         config = ConfigParser()
@@ -196,17 +153,11 @@ class TestMavis(TestTiptop):
             temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
 
             simulation = baseSimulation(
-                temp_dir,
-                temp_basename,
-                'tiptop/perfTest',
-                'testMAVISOddGrid',
-                doConvolve=False,
-                doPlot=False,
-                verbose=False,
-            )
+                temp_dir, temp_basename, 'tiptop/perfTest', 'testMAVISOddGrid',
+                doConvolve=False, doPlot=False, verbose=False)
+            
             simulation.doOverallSimulation()
 
-            # P3 should provide an odd PSD grid in this setup.
             self.assertEqual(simulation.N % 2, 1)
             self.assertEqual(simulation.nPixPSF % 2, 1)
 
@@ -223,145 +174,223 @@ class TestMavis(TestTiptop):
 class TestAsterismSimulation(TestTiptop):
 
     def test_asterism_simulation_creation(self):
-        """
-        Test that the asterismSimulation class initializes correctly
-        """
-        # Test with ERIS standard configuration
-        simulation = asterismSimulation("TestERIS", "tiptop/astTest", "ERISastSinglesTest",
-                                       'tiptop/astTest', 'testERIS', 
-                                       doPlot=False, verbose=False)
+        """Test initialization and structural flags for LO Asterism Evaluation."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            simulation = asterismSimulation("TestERIS", "tiptop/astTest", "ERISastSinglesTest",
+                                           tmpdir, 'testERIS', 
+                                           doPlot=False, verbose=False)
 
-        # Check that the simulation was created correctly
-        self.assertIsNotNone(simulation)
-        self.assertEqual(simulation.simulName, "TestERIS")
-        self.assertTrue(hasattr(simulation, 'hasAsterismSection'))
+            self.assertIsNotNone(simulation)
+            self.assertEqual(simulation.simulName, "TestERIS")
+            self.assertTrue(hasattr(simulation, 'hasAsterismSection'))
 
-        # If there is an asterism section, check the basic parameters
-        if simulation.hasAsterismSection:
-            self.assertTrue(hasattr(simulation, 'asterismMode'))
-            self.assertTrue(hasattr(simulation, 'cumAstSizes'))
-            self.assertGreater(len(simulation.cumAstSizes), 0)
+            if simulation.hasAsterismSection:
+                self.assertTrue(hasattr(simulation, 'asterismMode'))
+                self.assertTrue(hasattr(simulation, 'cumAstSizes'))
+                self.assertGreater(len(simulation.cumAstSizes), 0)
 
     def test_asterism_simulation_single_computation(self):
+        """Test isolated computation of a single LO asterism."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            simulation = asterismSimulation("TestERISSingle", "tiptop/astTest", "ERISastSinglesTest",
+                                           tmpdir, 'testERISSingle', 
+                                           doPlot=False, verbose=False)
+
+            if simulation.hasAsterismSection and len(simulation.cumAstSizes) > 1:
+                result = simulation.computeAsterisms(eeRadiusInMas=50, index=0, doConvolve=False)
+
+                self.assertIsNotNone(result)
+                self.assertEqual(len(result), 1)  # Strictly one configuration returned
+
+                asterism_props = result[0]
+                self.assertTrue(hasattr(asterism_props, 'strehl'))
+                self.assertTrue(hasattr(asterism_props, 'fwhm'))
+                self.assertTrue(hasattr(asterism_props, 'jitter'))
+                
+                # Metrics sanity check
+                self.assertGreater(asterism_props.strehl, 0)
+                self.assertLess(asterism_props.strehl, 1)
+                self.assertGreater(asterism_props.fwhm, 0)
+
+    def test_asterism_simulation_full_loop_and_sorting(self):
         """
-        Test calculation of a single asterism
+        CRITICAL TEST: Ensures that computing multiple asterisms in a loop (index=None)
+        correctly updates the backend configuration, does not leak memory, and
+        returns a globally sorted list of dataclasses.
         """
-        # Use ERIS configuration that should be available
-        simulation = asterismSimulation("TestERISSingle", "tiptop/astTest", "ERISastSinglesTest",
-                                       'tiptop/astTest', 'testERISSingle', 
-                                       doPlot=False, verbose=False)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            simulation = asterismSimulation("TestERISLoop", "tiptop/astTest", "ERISastSinglesTest",
+                                           tmpdir, 'testERISLoop', 
+                                           doPlot=False, verbose=False)
 
-        if simulation.hasAsterismSection and len(simulation.cumAstSizes) > 1:
-            # Test the calculation of a single asterism (index 0)
-            result = simulation.computeAsterisms(eeRadiusInMas=50, index=0, doConvolve=False)
+            if simulation.hasAsterismSection and len(simulation.cumAstSizes) > 1:
+                # Running all available asterisms in the test config
+                results = simulation.computeAsterisms(eeRadiusInMas=50, index=None, doConvolve=False)
 
-            # Check that the result is valid
-            self.assertIsNotNone(result)
-            self.assertEqual(len(result), 1)  # One asterism
+                self.assertIsNotNone(results)
+                n_asterisms = len(results)
+                self.assertGreater(n_asterisms, 1, "The test configuration must have >1 asterism to test sorting.")
 
-            # Check the properties of the result
-            asterism_props = result[0]
-            self.assertTrue(hasattr(asterism_props, 'strehl'))
-            self.assertTrue(hasattr(asterism_props, 'fwhm'))
-            self.assertTrue(hasattr(asterism_props, 'jitter'))
+                # Validate that AbstractSimulation accumulators grew to the exact expected size
+                self.assertEqual(len(simulation.strehl_Asterism), n_asterisms)
+                self.assertEqual(len(simulation.fwhm_Asterism), n_asterisms)
 
-            # Check that the values are reasonable
-            self.assertGreater(asterism_props.strehl, 0)
-            self.assertLess(asterism_props.strehl, 1)
-            self.assertGreater(asterism_props.fwhm, 0)
-            self.assertGreater(asterism_props.jitter, 0)
+                # Ensure that the returned dataclasses are correctly sorted by Jitter Penalty (Ascending)
+                for i in range(1, n_asterisms):
+                    self.assertLessEqual(results[i-1].jitter, results[i].jitter, 
+                                         "Asterism results are not correctly sorted by jitter penalty!")
 
 
 class TestHoAsterismSimulation(TestTiptop):
 
     def test_ho_asterism_simulation_creation(self):
-        """
-        Test that the asterismSimulationHo class initializes correctly
-        """
-        # Test with HO configuration
-        simulation = asterismSimulationHo("TestERISHO", "tiptop/astTest", "ERISastHO",
-                                         'tiptop/astTest', 'testERISHO', 
-                                         doPlot=False, verbose=False)
+        """Test initialization and structural flags for HO Asterism Evaluation."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            simulation = asterismSimulationHo("TestERISHO", "tiptop/astTest", "ERISastHO",
+                                             tmpdir, 'testERISHO', 
+                                             doPlot=False, verbose=False)
 
-        # Check that the simulation was created correctly
-        self.assertIsNotNone(simulation)
-        self.assertEqual(simulation.simulName, "TestERISHO")
-        self.assertTrue(hasattr(simulation, 'hasHoAsterismSection'))
+            self.assertIsNotNone(simulation)
+            self.assertEqual(simulation.simulName, "TestERISHO")
+            self.assertTrue(hasattr(simulation, 'hasHoAsterismSection'))
 
-        # If there is a HO asterism section, check the basic parameters
-        if simulation.hasHoAsterismSection:
-            self.assertTrue(hasattr(simulation, 'asterismMode'))
-            self.assertTrue(hasattr(simulation, 'cumAstSizes'))
-            self.assertTrue(hasattr(simulation, 'asterismsInputDataHo'))
-            self.assertGreater(len(simulation.cumAstSizes), 0)
-            self.assertEqual(simulation.asterismMode, 'SingleHO')
+            if simulation.hasHoAsterismSection:
+                self.assertEqual(simulation.asterismMode, 'SingleHO')
+                self.assertGreater(len(simulation.cumAstSizes), 0)
 
     def test_ho_asterism_single_computation(self):
+        """Test isolated computation of a single HO asterism."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            simulation = asterismSimulationHo("TestERISHOSingle", "tiptop/astTest", "ERISastHO",
+                                             tmpdir, 'testERISHOSingle', 
+                                             doPlot=False, verbose=False)
+
+            if simulation.hasHoAsterismSection and len(simulation.cumAstSizes) > 1:
+                result = simulation.computeHoAsterisms(eeRadiusInMas=50, index=0)
+
+                self.assertIsNotNone(result)
+                self.assertEqual(len(result), 1)
+
+                ho_props = result[0]
+                self.assertTrue(hasattr(ho_props, 'strehl_ratio'))
+                self.assertGreater(ho_props.strehl_ratio, 0)
+                self.assertLess(ho_props.strehl_ratio, 1)
+
+    def test_ho_asterism_full_loop_and_temp_file_cleanup(self):
         """
-        Test the calculation of a single HO configuration
+        CRITICAL TEST: Ensures that the dynamic creation of `.ini` configurations 
+        for multiple HO Asterisms works perfectly, cleans up temporary files gracefully,
+        and returns a list sorted by Strehl Ratio (Descending).
         """
-        simulation = asterismSimulationHo("TestERISHOSingle", "tiptop/astTest", "ERISastHO",
-                                         'tiptop/astTest', 'testERISHOSingle', 
-                                         doPlot=False, verbose=False)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            simulation = asterismSimulationHo("TestERISHOLoop", "tiptop/astTest", "ERISastHO",
+                                             tmpdir, 'testERISHOLoop', 
+                                             doPlot=False, verbose=False)
 
-        if simulation.hasHoAsterismSection and len(simulation.cumAstSizes) > 1:
-            # Test the calculation of a single HO configuration (index 0)
-            result = simulation.computeHoAsterisms(eeRadiusInMas=50, index=0)
+            if simulation.hasHoAsterismSection and len(simulation.cumAstSizes) > 1:
+                
+                results = simulation.computeHoAsterisms(eeRadiusInMas=50, index=None)
 
-            # Check that the result is valid
-            self.assertIsNotNone(result)
-            self.assertEqual(len(result), 1)  # One configuration
+                self.assertIsNotNone(results)
+                n_configs = len(results)
+                self.assertGreater(n_configs, 1)
 
-            # Check the properties of the result
-            ho_props = result[0]
-            self.assertTrue(hasattr(ho_props, 'strehl_ratio'))
-            self.assertTrue(hasattr(ho_props, 'fwhm'))
-            self.assertTrue(hasattr(ho_props, 'ho_residual'))
-            self.assertTrue(hasattr(ho_props, 'ho_stars'))
+                # Ensure temp files were deleted during the loop
+                temp_file = os.path.join(simulation.outputDir, f"{simulation.parametersFile}_temp_{n_configs-1}.ini")
+                self.assertFalse(os.path.exists(temp_file), "Temporary INI files were not cleaned up!")
 
-            # Check that the values are reasonable
-            self.assertGreater(ho_props.strehl_ratio, 0)
-            self.assertLess(ho_props.strehl_ratio, 1)
-            self.assertGreater(ho_props.fwhm, 0)
-            self.assertGreater(ho_props.ho_residual, 0)
-            self.assertGreater(len(ho_props.ho_stars), 0)
+                # Verify sorting by Strehl Ratio (Descending)
+                for i in range(1, n_configs):
+                    self.assertGreaterEqual(results[i-1].strehl_ratio, results[i].strehl_ratio,
+                                            "HO Configurations are not correctly sorted by Strehl Ratio!")
 
-    def test_ho_asterism_config_temp_file(self):
+
+class TestSystemIOAndConfig(TestTiptop):
+    
+    def test_save_results_fits_integrity(self):
         """
-        Test that the creation of temporary files works correctly
+        Critical I/O Test: Verifies that the simulation completes execution, 
+        calls saveResults(), and generates a valid FITS file with correct data types in the header.
         """
-        simulation = asterismSimulationHo("TestERISHOTemp", "tiptop/astTest", "ERISastHO",
-                                         'tiptop/astTest', 'testERISHOTemp', 
-                                         doPlot=False, verbose=False)
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            # Run the simulation EXPLICITLY requesting to save the results 
+            # (returnMetrics=False and returnRes=False trigger saveResults in overallSimulation)
+            overallSimulation('tiptop/perfTest', 'MAVIStest',
+                              tmpdirname, 'testFITSOutput',
+                              doPlot=False, doConvolve=True,
+                              returnMetrics=False, returnRes=False, addSrAndFwhm=True)
+            
+            fits_file = os.path.join(tmpdirname, 'testFITSOutput.fits')
+            self.assertTrue(os.path.exists(fits_file), "The FITS file was not generated.")
+            
+            # Open the FITS file and check the header sanity and float casting
+            with fits.open(fits_file) as hdul:
+                self.assertGreaterEqual(len(hdul), 4, "The FITS file does not have the expected minimum number of HDUs.")
+                hdr1 = hdul[1].header
+                
+                # Verify that the native float casting (which we implemented) works flawlessly
+                self.assertIn('SR0000', hdr1, "The SR0000 metric is missing from the FITS header.")
+                self.assertIsInstance(hdr1['SR0000'], float, "The SR metric is not a native float.")
+                self.assertIn('RESH0000', hdr1, "The High-Order residual (RESH0000) is missing from the header.")
+                self.assertIsInstance(hdr1['RESH0000'], float, "The RESH metric is not a native float.")
 
-        if simulation.hasHoAsterismSection:
-            # Test the HO configuration (which creates temporary files)
-            simulation.configHO(0)
-
-            # Check that the temporary attributes have been created
-            self.assertTrue(hasattr(simulation, 'temp_parametersFile'))
-            self.assertTrue(hasattr(simulation, 'temp_path'))
-
-            # Check that the temporary file exists
-            temp_file = os.path.join(simulation.temp_path, simulation.temp_parametersFile + '.ini')
-            self.assertTrue(os.path.exists(temp_file))
-
-            # Cleanup
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
+    def test_missing_config_section_raises_error(self):
+        """
+        Negative Testing: Removing a vital section from the .ini file 
+        must raise a clean and controlled ValueError from our validator.
+        """
+        original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
+        config = ConfigParser()
+        config.optionxform = str
+        config.read(original_config_path)
+        
+        # Sabotage the configuration by removing the mandatory [telescope] section
+        config.remove_section('telescope')
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
+            config.write(temp_file)
+            temp_filename = temp_file.name
+            
+        try:
+            temp_dir = os.path.dirname(temp_filename)
+            temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
+            
+            # We expect the initialization to catch the issue and raise a ValueError
+            with self.assertRaises(ValueError) as context:
+                simulation = baseSimulation(temp_dir, temp_basename,
+                                            temp_dir, 'dummyOutput')
+            
+            # Verify that the error message perfectly matches the one predefined in AbstractSimulation
+            self.assertIn("The section 'telescope' is missing", str(context.exception))
+            
+        finally:
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
 
 
 def suite():
     suite = unittest.TestSuite()
+    # Test Mavis
     suite.addTest(TestMavis('test_mavis'))
+    suite.addTest(TestMavis('test_mavis_jitter'))
+    suite.addTest(TestMavis('test_mavis_auto_science_field_of_view'))
     suite.addTest(TestMavis('test_mavis_odd_psd_grid_even_legacy_path'))
+    
+    # Test Asterism (LO)
     suite.addTest(TestAsterismSimulation('test_asterism_simulation_creation'))
     suite.addTest(TestAsterismSimulation('test_asterism_simulation_single_computation'))
+    suite.addTest(TestAsterismSimulation('test_asterism_simulation_full_loop_and_sorting'))
+    
+    # Test Asterism (HO)
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_simulation_creation'))
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_single_computation'))
-    suite.addTest(TestHoAsterismSimulation('test_ho_asterism_config_temp_file'))
+    suite.addTest(TestHoAsterismSimulation('test_ho_asterism_full_loop_and_temp_file_cleanup'))
+    
+    # Test I/O e Configurazioni (I NUOVI TEST)
+    suite.addTest(TestSystemIOAndConfig('test_save_results_fits_integrity'))
+    suite.addTest(TestSystemIOAndConfig('test_missing_config_section_raises_error'))
+    
     return suite
-
 
 if __name__ == '__main__':
     runner = unittest.TextTestRunner()

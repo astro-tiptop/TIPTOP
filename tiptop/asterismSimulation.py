@@ -15,8 +15,9 @@ from scipy.optimize import curve_fit, minimize
 
 # TIPTOP and Mastsel explicit imports
 from .baseSimulation import baseSimulation
-from .tiptopUtils import cpuArray, arrayP3toMastsel, sigma_from_FWHM
+from .tiptopUtils import cpuArray, arrayP3toMastsel
 from mastsel import MavisLO, polarToCartesian, cartesianToPolar, tiledDisplay, plotEllipses
+from mastsel.mavisUtilities import sigma_from_FWHM
 from tiptop.nnModel import NeuralNetwork
 
 @dataclass
