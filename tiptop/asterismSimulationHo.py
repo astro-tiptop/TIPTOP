@@ -1,8 +1,14 @@
-from .baseSimulation import *
+import os
+import itertools
+import numpy as np
+import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import List
-import itertools
 from configparser import ConfigParser
+
+# TIPTOP explicit base imports
+from .baseSimulation import baseSimulation
+from .tiptopUtils import cpuArray
 
 @dataclass
 class HoStar:
@@ -21,7 +27,7 @@ class HoAsterismProperties:
     ho_residual: float
 
 def unrollHoAsterismData(all_combos, zenith, azimuth, wavelength, photons):
-    """Unroll HO asterism data similar to the LO version"""
+    """Unroll High-Order asterism parameters into indexed configurations."""
     asterism = np.array([np.take(zenith, all_combos),
                         np.take(azimuth, all_combos), 
                         np.take(wavelength, all_combos),
@@ -29,12 +35,16 @@ def unrollHoAsterismData(all_combos, zenith, azimuth, wavelength, photons):
     return np.swapaxes(asterism, 0, 1)
 
 class asterismSimulationHo(baseSimulation):
+    """
+    Evaluates individual or segmented High-Order configurations using P3 backend logic.
+    Inherits lifecycle tracking from baseSimulation.
+    """
 
     def __init__(self, simulName, path, parametersFile, outputDir,
                  outputFile, doPlot=False, addSrAndFwhm=False, verbose=False,
                  getHoErrorBreakDown=False, progressStatus=False):
 
-        # Initialize base simulation without LO part
+        # Base structure is initialized with zero low order additions
         super().__init__(path, parametersFile, outputDir, outputFile, doConvolve=False,
                           doPlot=False, addSrAndFwhm=addSrAndFwhm,
                           verbose=verbose, getHoErrorBreakDown=getHoErrorBreakDown,
@@ -94,7 +104,7 @@ class asterismSimulationHo(baseSimulation):
                 print(f'Number of HO configurations: {self.cumAstSizes[-1]}')
 
     def configHO(self, hoAsterismIndex):
-        """Configure HO sources for a specific asterism"""
+        """Generates dynamic local ini configurations for segmented high-order sources."""
         if hoAsterismIndex is None:
             return
 
@@ -143,24 +153,18 @@ class asterismSimulationHo(baseSimulation):
 
             if self.verbose:
                 print(f'Configured HO asterism {hoAsterismIndex} with {len(ho_star_indices)} stars')
-                print(f'Temporary config file: {temp_fullpath}')
                 for i, idx in enumerate(ho_star_indices):
-                    print(f'  HO Star {i}: Zenith={ho_asterism_data[0][i]:.2f}, Azimuth={ho_asterism_data[1][i]:.2f}, '
-                        f'Wavelength={ho_asterism_data[2][i]*1e9:.0f}nm, Photons={ho_asterism_data[3][i]:.1f}')
+                    print(f'  HO Star {i}: Zenith={ho_asterism_data[0][i]:.2f}, Azimuth={ho_asterism_data[1][i]:.2f}, Wavelength={ho_asterism_data[2][i]*1e9:.0f}nm')
 
         except Exception as e:
             print(f"Error creating temporary configuration file: {e}")
-            # Remove temp attributes if file creation failed
-            if hasattr(self, 'temp_parametersFile'):
-                delattr(self, 'temp_parametersFile')
-            if hasattr(self, 'temp_path'):
-                delattr(self, 'temp_path')
+            if hasattr(self, 'temp_parametersFile'): delattr(self, 'temp_parametersFile')
+            if hasattr(self, 'temp_path'): delattr(self, 'temp_path')
             raise
 
 
     def computeHoAsterisms(self, eeRadiusInMas=50, index=None):
-        """Compute HO asterisms performance"""
-
+        """Loops across the set configurations, resetting parameters safely between evaluations."""
         if index is None:
             singleAsterism = False
             nConfigs = self.nfieldsSizes[0]
@@ -219,8 +223,7 @@ class asterismSimulationHo(baseSimulation):
                 self.ho_res_HoAsterism.append(np.array([cpuArray(x) for x in self.HO_res]))
 
                 if self.verbose:
-                    print(f'Config {config_idx}: SR={self.sr[0]:.4f}, FWHM={self.fwhm[0]:.2f}mas, '
-                        f'EE={self.ee[0]:.4f}, HO_res={self.HO_res[0]:.1f}nm')
+                    print(f'Config {config_idx}: SR={self.sr[0]:.4f}, FWHM={self.fwhm[0]:.2f}mas')
    
             except Exception as e:
                 print(f"Error in simulation for config {config_idx}: {e}")
@@ -243,12 +246,7 @@ class asterismSimulationHo(baseSimulation):
                         try:
                             os.remove(temp_file)
                         except Exception as e:
-                            if self.verbose:
-                                print(f"Warning: Could not remove temporary file {temp_file}: {e}")
-
-            if self.verbose:
-                print(f'Config {config_idx}: SR={self.sr[0]:.4f}, FWHM={self.fwhm[0]:.2f}mas, '
-                      f'EE={self.ee[0]:.4f}, HO_res={self.HO_res[0]:.1f}nm')
+                            if self.verbose: print(f"Warning: Could not remove temporary file: {e}")
 
         if not singleAsterism:
             # Save results
@@ -262,29 +260,18 @@ class asterismSimulationHo(baseSimulation):
             ho_stars_data = self.asterismsInputDataHo[index]
             ho_stars = []
             for i in range(len(ho_stars_data[0])):
-                ho_stars.append(HoStar(ho_stars_data[0][i], ho_stars_data[1][i], 
-                                      ho_stars_data[2][i], ho_stars_data[3][i]))
-
-            return [HoAsterismProperties(index, ho_stars, self.sr[0], self.fwhm[0], 
-                                       self.ee[0], self.HO_res[0])]
+                ho_stars.append(HoStar(ho_stars_data[0][i], ho_stars_data[1][i], ho_stars_data[2][i], ho_stars_data[3][i]))
+            return [HoAsterismProperties(index, ho_stars, self.sr[0], self.fwhm[0], self.ee[0], self.HO_res[0])]
         else:
             # Return all results
             results = []
-            sorted_indices = np.argsort([sr[0] for sr in self.strehl_HoAsterism])[::-1]  # Sort by SR descending
-
+            sorted_indices = np.argsort([sr[0] for sr in self.strehl_HoAsterism])[::-1]
             for i, idx in enumerate(sorted_indices):
                 ho_stars_data = self.asterismsInputDataHo[idx]
                 ho_stars = []
                 for j in range(len(ho_stars_data[0])):
-                    ho_stars.append(HoStar(ho_stars_data[0][j], ho_stars_data[1][j],
-                                          ho_stars_data[2][j], ho_stars_data[3][j]))
-
-                results.append(HoAsterismProperties(idx, ho_stars, 
-                                                  self.strehl_HoAsterism[idx][0],
-                                                  self.fwhm_HoAsterism[idx][0],
-                                                  self.ee_HoAsterism[idx][0],
-                                                  self.ho_res_HoAsterism[idx][0]))
-
+                    ho_stars.append(HoStar(ho_stars_data[0][j], ho_stars_data[1][j], ho_stars_data[2][j], ho_stars_data[3][j]))
+                results.append(HoAsterismProperties(idx, ho_stars, self.strehl_HoAsterism[idx][0], self.fwhm_HoAsterism[idx][0], self.ee_HoAsterism[idx][0], self.ho_res_HoAsterism[idx][0]))
             return results
 
     def reloadHoResults(self):
