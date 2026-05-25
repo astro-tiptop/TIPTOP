@@ -175,7 +175,7 @@ class baseSimulation(AbstractSimulation):
             if self.verbose:
                 print('******** LO PART')
             self._compute_ngs_psf()
-            self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
+            self.mLO = MavisLO(verbose=self.verbose, config_dict=self.my_data_map)
 
     def _compute_LO_terms(self, astIndex) -> dict:
         """
