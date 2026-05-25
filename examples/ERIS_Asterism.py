@@ -2,7 +2,16 @@ import time
 import datetime
 #%matplotlib inline
 from tiptop.tiptop import *
+
+from matplotlib import rc
 rc("text", usetex=False)
+
+import os
+from pathlib import Path
+import tiptop
+
+base_path = Path(tiptop.__file__).resolve().parents[1]
+os.chdir(base_path)
 
 # 1
 # uncomment this to preform the computation of the 1000 example fields

@@ -1143,37 +1143,47 @@ class asterismSimulation(baseSimulation):
         sm.set_array(al)
 
         for i in range(self.lastJitterIndex-1, self.currentBase-1, -1):
-            jj = self.sortedJitterIndices[i-self.currentBase]
-            xx = np.sum(X[jj+self.currentBase, 0, :])/float(X.shape[2])
-            yy = np.sum(X[jj+self.currentBase, 1, :])/float(X.shape[2])
+            jj = int(self.sortedJitterIndices[i-self.currentBase])
+
+            xx = float(np.sum(X[jj+self.currentBase, 0, :])/float(X.shape[2]))
+            yy = float(np.sum(X[jj+self.currentBase, 1, :])/float(X.shape[2]))
             px = X[jj+self.currentBase, 0, :]
             py = X[jj+self.currentBase, 1, :]
+
+            color_val = float(al[jj])
+            
             if X.shape[2] == 1:
-                circle1 = plt.Circle((xx, yy), scales[jj], color=cm1(norm(al[jj])), fill=False)
+                radius = float(scales[jj, 0])
+                circle1 = plt.Circle((xx, yy), radius, color=cm1(norm(color_val)), fill=False)
                 ax.add_patch(circle1)
             else:
-                ax.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cm1(norm(al[jj])), width=0.003, scale_units='xy', scale=1, alpha=1.0)
+                ax.quiver([xx, xx, xx], [yy, yy, yy], px-xx, py-yy, color=cm1(norm(color_val)), width=0.003, scale_units='xy', scale=1, alpha=1.0)
 
         coords = np.transpose(X[self.minJitter_id, :2, :])
         if X.shape[2] == 1:
-            circle1 = plt.Circle((coords[0,0], coords[0,1]), scales[self.minJitter_id-self.currentBase], color='r', fill=True, alpha=0.5)
+            radius_best = float(scales[self.minJitter_id-self.currentBase, 0])
+            circle1 = plt.Circle((float(coords[0,0]), float(coords[0,1])), radius_best, color='r', fill=True, alpha=0.5)
             ax.add_patch(circle1)
         else:
             t1 = plt.Polygon(coords, alpha=0.3, color='r')
             ax.add_patch(t1)
 
-        ax.scatter(xcoords, ycoords, s=scales**2 * 50, c='yellow', edgecolors='y', marker='*', label='Natural Guide Stars')
+        ax.scatter(xcoords, ycoords, s=scales**2 * 50, c='yellow', edgecolors='y',
+                   marker='*', label='Natural Guide Stars')
 
         # draw science targets
-        ax.scatter(self.xxSciencePointigs, self.yySciencePointigs, c='blue', marker='x', label='Science Targets')
+        zenithSci = self.my_data_map['sources_science']['Zenith']
+        azimuthSci = self.my_data_map['sources_science']['Azimuth']
+        sciPointings = polarToCartesian(np.array([zenithSci, azimuthSci]))
+        ax.scatter(sciPointings[0, :], sciPointings[1, :], c='blue',
+                   marker='x', label='Science Targets')
 
         # draw LGSs
-        zenithSrc  = self.my_data_map['sources_HO']['Zenith']
-        azimuthSrc = self.my_data_map['sources_HO']['Azimuth']
-        pointings = polarToCartesian(np.array( [zenithSrc, azimuthSrc]))
-        self.xxLGSPointigs         = pointings[0,:]
-        self.yyLGSPointigs         = pointings[1,:]
-        ax.scatter(self.xxLGSPointigs, self.yyLGSPointigs, s=100.0, c='green', marker='*', edgecolors='green', label='Laser Guide Stars')
+        zenithLgs = self.my_data_map['sources_HO']['Zenith']
+        azimuthLgs = self.my_data_map['sources_HO']['Azimuth']
+        lgsPointings = polarToCartesian(np.array([zenithLgs, azimuthLgs]))
+        ax.scatter(lgsPointings[0, :], lgsPointings[1, :], s=100.0, c='green',
+                   marker='*', edgecolors='green', label='Laser Guide Stars')
 
         # Finalize plot
         ax.legend()
