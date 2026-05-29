@@ -2,29 +2,12 @@ import os
 import itertools
 import numpy as np
 import matplotlib.pyplot as plt
-from dataclasses import dataclass
-from typing import List
 from configparser import ConfigParser
 
 # TIPTOP explicit base imports
 from .baseSimulation import baseSimulation
 from .tiptopUtils import cpuArray
 
-@dataclass
-class HoStar:
-    zenith: float
-    azimuth: float
-    wavelength: float
-    photons: float
-
-@dataclass
-class HoAsterismProperties:
-    index: int
-    ho_stars: List[HoStar]
-    strehl_ratio: float
-    fwhm: float
-    encircled_energy: float
-    ho_residual: float
 
 def unrollHoAsterismData(all_combos, zenith, azimuth, wavelength, photons):
     """Unroll High-Order asterism parameters into indexed configurations."""
@@ -33,6 +16,7 @@ def unrollHoAsterismData(all_combos, zenith, azimuth, wavelength, photons):
                         np.take(wavelength, all_combos),
                         np.take(photons, all_combos)])
     return np.swapaxes(asterism, 0, 1)
+
 
 class asterismSimulationHo(baseSimulation):
     """
@@ -102,6 +86,7 @@ class asterismSimulationHo(baseSimulation):
             if self.verbose:
                 print(f'HO Asterism mode: {self.asterismMode}')
                 print(f'Number of HO configurations: {self.cumAstSizes[-1]}')
+
 
     def configHO(self, hoAsterismIndex):
         """Generates dynamic local ini configurations for segmented high-order sources."""
@@ -256,23 +241,40 @@ class asterismSimulationHo(baseSimulation):
             np.save(os.path.join(self.outputDir, self.simulName+'_ho_res.npy'), np.array(self.ho_res_HoAsterism))
 
         if singleAsterism:
-            # Return single result
+            # Return single asterism data packed in numpy arrays
             ho_stars_data = self.asterismsInputDataHo[index]
-            ho_stars = []
-            for i in range(len(ho_stars_data[0])):
-                ho_stars.append(HoStar(ho_stars_data[0][i], ho_stars_data[1][i], ho_stars_data[2][i], ho_stars_data[3][i]))
-            return [HoAsterismProperties(index, ho_stars, self.sr[0], self.fwhm[0], self.ee[0], self.HO_res[0])]
+            return {
+                'indices': np.array([index]),
+                'zenith': np.array([ho_stars_data[0]]),
+                'azimuth': np.array([ho_stars_data[1]]),
+                'wavelength': np.array([ho_stars_data[2]]),
+                'photons': np.array([ho_stars_data[3]]),
+                'strehl': np.array([cpuArray(self.sr[0])]),
+                'fwhm': np.array([cpuArray(self.fwhm[0])]),
+                'ee': np.array([cpuArray(self.ee[0])]),
+                'ho_res': np.array([cpuArray(self.HO_res[0])])
+            }
         else:
-            # Return all results
-            results = []
-            sorted_indices = np.argsort([sr[0] for sr in self.strehl_HoAsterism])[::-1]
-            for i, idx in enumerate(sorted_indices):
-                ho_stars_data = self.asterismsInputDataHo[idx]
-                ho_stars = []
-                for j in range(len(ho_stars_data[0])):
-                    ho_stars.append(HoStar(ho_stars_data[0][j], ho_stars_data[1][j], ho_stars_data[2][j], ho_stars_data[3][j]))
-                results.append(HoAsterismProperties(idx, ho_stars, self.strehl_HoAsterism[idx][0], self.fwhm_HoAsterism[idx][0], self.ee_HoAsterism[idx][0], self.ho_res_HoAsterism[idx][0]))
-            return results
+            # Extract Strehl Ratios and sort indices in descending Strehl order
+            strehls = np.array([sr[0] for sr in self.strehl_HoAsterism])
+            sorted_indices = np.argsort(strehls)[::-1]
+
+            # Apply the sorting to the original data matrix in one step
+            sorted_ho_data = self.asterismsInputDataHo[sorted_indices]
+
+            # Constructs the output dictionary fully vectorized
+            return {
+                'indices': sorted_indices,
+                'zenith': sorted_ho_data[:, 0, :],       # Shape: (Num_Ast, Stars_Per_Ast)
+                'azimuth': sorted_ho_data[:, 1, :],
+                'wavelength': sorted_ho_data[:, 2, :],
+                'photons': sorted_ho_data[:, 3, :],
+                'strehl': strehls[sorted_indices],
+                'fwhm': np.array([self.fwhm_HoAsterism[idx][0] for idx in sorted_indices]),
+                'ee': np.array([self.ee_HoAsterism[idx][0] for idx in sorted_indices]),
+                'ho_res': np.array([self.ho_res_HoAsterism[idx][0] for idx in sorted_indices])
+            }
+
 
     def reloadHoResults(self):
         """Reload previously computed results"""
@@ -280,6 +282,7 @@ class asterismSimulationHo(baseSimulation):
         self.fwhm_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_fw.npy'))
         self.ee_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_ee.npy'))
         self.ho_res_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_res.npy'))
+
 
     def plotHoResults(self):
         """Plot HO asterism results"""

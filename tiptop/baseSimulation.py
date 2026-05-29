@@ -457,8 +457,11 @@ class baseSimulation(AbstractSimulation):
             skip_reshape = False
             nPixPSFLO = self.nPixPSF
 
-        psdNGS = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:].copy())
         k = np.sqrt(self.fao.freq.k2_)
+
+        psdNGS_view = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
+        
+        psdNGS = []
 
         nSA = self.my_data_map['sensor_LO']['NumberLenslets']
         maskLO = maskSA(nSA, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.tel.pupil))
@@ -467,7 +470,12 @@ class baseSimulation(AbstractSimulation):
             nSAi = nSA[i] if len(nSA) == self.nNaturalGS_field else nSA[0]
             if nSAi != 1:
                 pf = pistonFilter(2*self.tel_radius/nSAi, k)
-                psdNGS[i] = psdNGS[i] * arrayP3toMastsel(pf)
+                # The result of the multiplication creates a new tensor on the fly,
+                # without modifying psdNGS_view (and thus self.PSD)
+                psdNGS.append(psdNGS_view[i] * arrayP3toMastsel(pf))
+            else:
+                # No change needed, we can append the view directly
+                psdNGS.append(psdNGS_view[i])
 
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')

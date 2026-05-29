@@ -269,12 +269,12 @@ class TestHoAsterismSimulation(TestTiptop):
                 result = simulation.computeHoAsterisms(eeRadiusInMas=50, index=0)
 
                 self.assertIsNotNone(result)
-                self.assertEqual(len(result), 1)
+                self.assertIn('indices', result)
+                self.assertEqual(len(result['indices']), 1)
 
-                ho_props = result[0]
-                self.assertTrue(hasattr(ho_props, 'strehl_ratio'))
-                self.assertGreater(ho_props.strehl_ratio, 0)
-                self.assertLess(ho_props.strehl_ratio, 1)
+                self.assertIn('strehl', result)
+                self.assertGreater(result['strehl'][0], 0)
+                self.assertLess(result['strehl'][0], 1)
 
     def test_ho_asterism_full_loop_and_temp_file_cleanup(self):
         """
@@ -292,7 +292,7 @@ class TestHoAsterismSimulation(TestTiptop):
                 results = simulation.computeHoAsterisms(eeRadiusInMas=50, index=None)
 
                 self.assertIsNotNone(results)
-                n_configs = len(results)
+                n_configs = len(results['indices'])
                 self.assertGreater(n_configs, 1)
 
                 # Ensure temp files were deleted during the loop
@@ -301,7 +301,7 @@ class TestHoAsterismSimulation(TestTiptop):
 
                 # Verify sorting by Strehl Ratio (Descending)
                 for i in range(1, n_configs):
-                    self.assertGreaterEqual(results[i-1].strehl_ratio, results[i].strehl_ratio,
+                    self.assertGreaterEqual(results['strehl'][i-1], results['strehl'][i],
                                             "HO Configurations are not correctly sorted by Strehl Ratio!")
 
 
