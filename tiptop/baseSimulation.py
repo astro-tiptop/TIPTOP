@@ -276,9 +276,14 @@ class baseSimulation(AbstractSimulation):
             for i in range(self.nWvl):
                 psfList = psfLongExpPointingsArr[i] if self.nWvl > 1 else psfLongExpPointingsArr
                 wvl_c = self.wvl[i] if self.nWvl > 1 else self.wvl[0]
+                # Sampling ratio: PSF pixels per lambda/D at this wavelength
+                samp_i = wvl_c * rad2mas / (self.psInMas * 2 * self.tel_radius)
+                # When samp < 2 the PSF is undersampled; rebin to Nyquist before measuring
+                rebin_i = max(1, int(np.ceil(2.0 / samp_i))) if samp_i < 2.0 else 1
                 fwhmList = []
                 for idx, img in enumerate(psfList):
-                    fwhmX, fwhmY = getFWHM(img.sampling, self.psInMas, method='contour', nargout=2)
+                    fwhmX, fwhmY = getFWHM(img.sampling, self.psInMas, method='contour',
+                                           rebin=rebin_i, nargout=2)
                     fwhm = np.sqrt(fwhmX * fwhmY)
                     fwhmList.append(fwhm)
                     if self.verbose:
@@ -405,11 +410,14 @@ class baseSimulation(AbstractSimulation):
             for i in range(self.nWvl):
                 results_slice = self.results[i] if self.nWvl > 1 else self.results
                 samp = self.wvl[i] * rad2mas / (self.psInMas * 2 * self.tel_radius)
-                
+                # When samp < 2 the PSF is undersampled; rebin to Nyquist before measuring FWHM
+                rebin_fwhm = max(1, int(np.ceil(2.0 / samp))) if samp < 2.0 else 1
+
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
                     sr_l.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, samp, method='max', psfInOnePix=True))
-                    fwhm_l.append(getFWHM(img.sampling, self.psInMas, method='contour', nargout=1))
+                    fwhm_l.append(getFWHM(img.sampling, self.psInMas, method='contour',
+                                          rebin=rebin_fwhm, nargout=1))
                     
                     if self.ensquaredEnergy:
                         ee_ = cpuArray(getEnsquaredEnergy(img.sampling))

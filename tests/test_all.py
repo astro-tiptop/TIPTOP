@@ -171,6 +171,99 @@ class TestMavis(TestTiptop):
                 os.remove(temp_filename)
 
 
+    def test_multiwavelength_eris_undersampled_sr_fwhm(self):
+        """
+        Lightweight regression test for multi-wavelength with undersampled PSFs.
+        Uses ERIS NGS (8m) with wavelengths [0.865, 2.21] µm and PixelScale=14 mas.
+        At 865 nm, samp ~ 1.1 (< 2) so PSF is undersampled.
+        
+        Before fixes:
+        - getFWHM failed with 'FWHM too small', returned 1 pixel
+        - getStrehl gave SR > 1 (impossible)
+        - PSF was cropped to 256 instead of requested size
+        
+        After fixes all metrics must be physically valid.
+        """
+        # Use lightweight ERIS config (8m telescope)
+        config = ConfigParser()
+        config.optionxform = str
+        config.read('tiptop/perfTest/ERIS.ini')
+
+        # Two wavelengths with different sampling
+        config.set('sources_science', 'Wavelength', '[0.865e-6, 2.21e-6]')
+        config.set('sensor_science', 'PixelScale', '14')
+        config.set('sensor_science', 'FieldOfView', '180')  # Increased to meet resAO requirement
+        # Keep it very light for CI
+        config.set('telescope', 'Resolution', '64')
+        config.set('sensor_HO', 'NumberLenslets', '[16]')
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as tmp:
+            config.write(tmp)
+            temp_filename = tmp.name
+
+        try:
+            temp_dir = os.path.dirname(temp_filename)
+            temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
+
+            simulation = baseSimulation(
+                temp_dir, temp_basename, temp_dir, 'testERISmultiWvl',
+                doConvolve=False, doPlot=False, verbose=False)
+            simulation.doOverallSimulation()
+            simulation.computeMetrics()
+
+            self.assertEqual(simulation.cubeResultsArray.ndim, 4)
+            self.assertEqual(simulation.cubeResultsArray.shape[0], 2)
+
+            wvls_nm = [865, 2210]
+            psInMas = simulation.psInMas
+            D = 2 * simulation.tel_radius
+            rad2mas = 206265000.0
+            
+            for i, wvl_nm in enumerate(wvls_nm):
+                wvl_m = wvl_nm * 1e-9
+                samp = wvl_m * rad2mas / (psInMas * D)
+                
+                # Handle both CuPy and NumPy arrays (sr/fwhm can be lists of arrays)
+                sr_val = simulation.sr[i]
+                fwhm_val = simulation.fwhm[i]
+                
+                # Convert CuPy to NumPy if needed
+                if hasattr(sr_val, '__iter__') and not isinstance(sr_val, np.ndarray):
+                    # It's a list or similar
+                    sr_val = [x.get() if hasattr(x, 'get') else x for x in sr_val]
+                elif hasattr(sr_val, 'get'):
+                    sr_val = sr_val.get()
+                    
+                if hasattr(fwhm_val, '__iter__') and not isinstance(fwhm_val, np.ndarray):
+                    fwhm_val = [x.get() if hasattr(x, 'get') else x for x in fwhm_val]
+                elif hasattr(fwhm_val, 'get'):
+                    fwhm_val = fwhm_val.get()
+                    
+                sr_i = np.array(sr_val).ravel()
+                fwhm_i = np.array(fwhm_val).ravel()
+
+                # SR must be in (0, 1]
+                self.assertTrue(np.all(sr_i > 0),
+                    f"SR <= 0 at {wvl_nm} nm (samp={samp:.2f})")
+                self.assertTrue(np.all(sr_i <= 1.0),
+                    f"SR > 1 at {wvl_nm} nm (samp={samp:.2f}): {sr_i}")
+
+                # FWHM must be > 1 pixel (no upper limit check due to extreme undersampling)
+                self.assertTrue(np.all(fwhm_i > psInMas),
+                    f"FWHM <= 1 pixel at {wvl_nm} nm (samp={samp:.2f})")
+                    
+                # PSF size must match requested FieldOfView
+                psf_shape = simulation.cubeResultsArray.shape[-1]
+                self.assertEqual(psf_shape, 180,
+                    f"PSF size {psf_shape} != requested FieldOfView 180")
+        finally:
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+
+
+
+
+
 class TestAsterismSimulation(TestTiptop):
 
     def test_asterism_simulation_creation(self):
@@ -375,6 +468,7 @@ def suite():
     suite.addTest(TestMavis('test_mavis_jitter'))
     suite.addTest(TestMavis('test_mavis_auto_science_field_of_view'))
     suite.addTest(TestMavis('test_mavis_odd_psd_grid_even_legacy_path'))
+    suite.addTest(TestMavis('test_multiwavelength_eris_undersampled_sr_fwhm'))
     
     # Test Asterism (LO)
     suite.addTest(TestAsterismSimulation('test_asterism_simulation_creation'))
@@ -386,7 +480,7 @@ def suite():
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_single_computation'))
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_full_loop_and_temp_file_cleanup'))
     
-    # Test I/O e Configurazioni (I NUOVI TEST)
+    # Test I/O e Configurazioni
     suite.addTest(TestSystemIOAndConfig('test_save_results_fits_integrity'))
     suite.addTest(TestSystemIOAndConfig('test_missing_config_section_raises_error'))
     
