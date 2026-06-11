@@ -1074,13 +1074,20 @@ class asterismSimulation(baseSimulation):
                 # Run template method simulation
                 self.doOverallSimulation(ast)
                 self.computeMetrics()
-                
-                self.strehl_Asterism.append(np.array( [cpuArray(x) for x in self.sr]))
-                self.penalty_Asterism.append(np.array( [cpuArray(x) for x in self.penalty]))
-                self.fwhm_Asterism.append(self.fwhm)
-                self.ee_Asterism.append(self.ee)
+
+                # --- SANITIZE AND HOMOGENIZE METRICS (NGS) ---
+                # Extract arrays, flatten them, and cast each element to a native float
+                clean_sr = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.sr)))]
+                clean_fwhm = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.fwhm)))]
+                clean_ee = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.ee)))]
+                clean_penalty = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.penalty)))]
+
+                self.strehl_Asterism.append(clean_sr)
+                self.penalty_Asterism.append(clean_penalty)
+                self.fwhm_Asterism.append(clean_fwhm)
+                self.ee_Asterism.append(clean_ee)
                 self.cov_ellipses_Asterism.append(self.cov_ellipses)
-                
+
             if (field+1) % 10 == 0 and not singleAsterism:
                 np.save(os.path.join(self.outputDir, self.simulName+'fw.npy'), np.array(self.fwhm_Asterism))
                 np.save(os.path.join(self.outputDir, self.simulName+'ee.npy'), np.array(self.ee_Asterism))

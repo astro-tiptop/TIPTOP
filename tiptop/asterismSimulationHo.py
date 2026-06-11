@@ -196,16 +196,28 @@ class asterismSimulationHo(baseSimulation):
 
             try:
                 # Run the simulation for this HO configuration
-                self.doOverallSimulation()
-
-                # Compute and store metrics
+                self.doOverallSimulation(astIndex=None)
                 self.computeMetrics()
 
-                # Store results
-                self.strehl_HoAsterism.append(np.array([cpuArray(x) for x in self.sr]))
-                self.fwhm_HoAsterism.append(self.fwhm)
-                self.ee_HoAsterism.append(self.ee)
-                self.ho_res_HoAsterism.append(np.array([cpuArray(x) for x in self.HO_res]))
+                # --- SANITIZE AND HOMOGENIZE METRICS (LGS) ---
+                # Extract arrays, flatten them, and cast each element to a native float
+                clean_sr = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.sr)))]
+                clean_fwhm = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.fwhm)))]
+                clean_ee = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.ee)))]
+                clean_ho_res = [float(x) for x in np.atleast_1d(np.squeeze(cpuArray(self.HO_res)))]
+
+                # In HO mode, global metrics (SR, EE) might be returned as single scalars. 
+                # We duplicate them to match the number of pointings (FWHM) to ensure 
+                # the exact same dimensionality as the NGS case.
+                if len(clean_sr) == 1 and len(clean_fwhm) > 1:
+                    clean_sr = clean_sr * len(clean_fwhm)
+                if len(clean_ee) == 1 and len(clean_fwhm) > 1:
+                    clean_ee = clean_ee * len(clean_fwhm)
+
+                self.strehl_HoAsterism.append(clean_sr)
+                self.fwhm_HoAsterism.append(clean_fwhm)
+                self.ee_HoAsterism.append(clean_ee)
+                self.ho_res_HoAsterism.append(clean_ho_res)
 
                 if self.verbose:
                     print(f'Config {config_idx}: SR={self.sr[0]:.4f}, FWHM={self.fwhm[0]:.2f}mas')
