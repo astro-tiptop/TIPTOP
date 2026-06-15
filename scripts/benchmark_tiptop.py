@@ -134,8 +134,8 @@ def main():
             samples = []
             last_sim = None
             for _ in range(args.repeats):
-                t0 = time.perf_counter()
                 _synchronize_gpu()
+                t0 = time.perf_counter()
                 last_sim = run_simulation_case(config_dir, case_name, output_dir)
                 _synchronize_gpu()
                 dt = time.perf_counter() - t0
