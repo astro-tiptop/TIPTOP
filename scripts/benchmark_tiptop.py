@@ -76,7 +76,7 @@ def run_simulation_case(config_dir: Path, case_name: str, output_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(description="TIPTOP Performance and Regression Benchmark")
-    parser.add_argument("--config-dir", type=str, default="tiptop/data", help="Directory containing .ini files")
+    parser.add_argument("--config-dir", type=str, default="tiptop/perfTest", help="Directory containing .ini files")
     parser.add_argument("--output-dir", type=str, default="/tmp", help="Directory for temporary outputs")
     parser.add_argument("--repeats", type=int, default=3, help="Number of timed runs per INI")
     parser.add_argument("--warmups", type=int, default=1, help="Number of warm-up runs (not timed)")
