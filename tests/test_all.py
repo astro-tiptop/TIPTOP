@@ -397,6 +397,36 @@ class TestHoAsterismSimulation(TestTiptop):
                     self.assertGreaterEqual(results['strehl'][i-1], results['strehl'][i],
                                             "HO Configurations are not correctly sorted by Strehl Ratio!")
 
+    def test_reload_ho_results_type_consistency(self):
+        """
+        Round-trip test: reloadHoResults must restore attributes as list-of-lists,
+        matching the type produced by computeHoAsterisms (not raw numpy arrays).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            simulation = asterismSimulationHo("TestERISHOReload", "tiptop/astTest", "ERISastHO",
+                                             tmpdir, 'testERISHOReload',
+                                             doPlot=False, verbose=False)
+
+            if not simulation.hasHoAsterismSection:
+                self.skipTest("No HO asterism section in test config.")
+
+            simulation.computeHoAsterisms(eeRadiusInMas=50, index=None)
+
+            type_before = type(simulation.strehl_HoAsterism[0])
+            self.assertIsInstance(simulation.strehl_HoAsterism, list)
+            self.assertIsInstance(simulation.strehl_HoAsterism[0], list,
+                                  "computeHoAsterisms must store list-of-lists")
+
+            simulation.reloadHoResults()
+
+            self.assertIsInstance(simulation.strehl_HoAsterism, list,
+                                  "reloadHoResults must return a list, not a numpy array")
+            self.assertIsInstance(simulation.strehl_HoAsterism[0], list,
+                                  "reloadHoResults must return list-of-lists, not list-of-arrays")
+            self.assertIsInstance(simulation.fwhm_HoAsterism[0], list)
+            self.assertIsInstance(simulation.ee_HoAsterism[0], list)
+            self.assertIsInstance(simulation.ho_res_HoAsterism[0], list)
+
 
 class TestSystemIOAndConfig(TestTiptop):
     
@@ -429,33 +459,90 @@ class TestSystemIOAndConfig(TestTiptop):
 
     def test_missing_config_section_raises_error(self):
         """
-        Negative Testing: Removing a vital section from the .ini file 
+        Negative Testing: Removing a vital section from the .ini file
         must raise a clean and controlled ValueError from our validator.
         """
         original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
         config = ConfigParser()
         config.optionxform = str
         config.read(original_config_path)
-        
+
         # Sabotage the configuration by removing the mandatory [telescope] section
         config.remove_section('telescope')
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
             config.write(temp_file)
             temp_filename = temp_file.name
-            
+
         try:
             temp_dir = os.path.dirname(temp_filename)
             temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
-            
+
             # We expect the initialization to catch the issue and raise a ValueError
             with self.assertRaises(ValueError) as context:
                 simulation = baseSimulation(temp_dir, temp_basename,
                                             temp_dir, 'dummyOutput')
-            
+
             # Verify that the error message perfectly matches the one predefined in AbstractSimulation
             self.assertIn("The section 'telescope' is missing", str(context.exception))
-            
+
+        finally:
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+
+    def test_missing_sensor_science_section_raises_error(self):
+        """
+        Negative Testing: Removing [sensor_science] must raise a ValueError
+        with a message identifying the missing section.
+        """
+        original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
+        config = ConfigParser()
+        config.optionxform = str
+        config.read(original_config_path)
+        config.remove_section('sensor_science')
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
+            config.write(temp_file)
+            temp_filename = temp_file.name
+
+        try:
+            temp_dir = os.path.dirname(temp_filename)
+            temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
+
+            with self.assertRaises(ValueError) as context:
+                baseSimulation(temp_dir, temp_basename, temp_dir, 'dummyOutput')
+
+            self.assertIn("sensor_science", str(context.exception))
+
+        finally:
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+
+    def test_invalid_super_sampling_raises_value_error(self):
+        """
+        Negative Testing: An invalid Super_Sampling value (e.g. a 3-element list, or
+        an invalid mode flag) must raise ValueError — not KeyError.
+        """
+        original_config_path = os.path.join('tiptop/perfTest', 'MAVIStest.ini')
+        config = ConfigParser()
+        config.optionxform = str
+        config.read(original_config_path)
+        # [factor, mode] where mode must be 1 or 2 — 3 is invalid
+        config.set('sensor_science', 'Super_Sampling', '[2.0, 3]')
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as temp_file:
+            config.write(temp_file)
+            temp_filename = temp_file.name
+
+        try:
+            temp_dir = os.path.dirname(temp_filename)
+            temp_basename = os.path.splitext(os.path.basename(temp_filename))[0]
+
+            with self.assertRaises(ValueError) as context:
+                baseSimulation(temp_dir, temp_basename, temp_dir, 'dummyOutput')
+
+            self.assertIn("Super_Sampling", str(context.exception))
+
         finally:
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
@@ -479,10 +566,13 @@ def suite():
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_simulation_creation'))
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_single_computation'))
     suite.addTest(TestHoAsterismSimulation('test_ho_asterism_full_loop_and_temp_file_cleanup'))
-    
+    suite.addTest(TestHoAsterismSimulation('test_reload_ho_results_type_consistency'))
+
     # Test I/O e Configurazioni
     suite.addTest(TestSystemIOAndConfig('test_save_results_fits_integrity'))
     suite.addTest(TestSystemIOAndConfig('test_missing_config_section_raises_error'))
+    suite.addTest(TestSystemIOAndConfig('test_missing_sensor_science_section_raises_error'))
+    suite.addTest(TestSystemIOAndConfig('test_invalid_super_sampling_raises_value_error'))
     
     return suite
 

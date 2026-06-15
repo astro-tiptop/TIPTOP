@@ -124,14 +124,9 @@ class baseSimulation(AbstractSimulation):
                                 getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False,
                                 psdExpansion=True, reduce_memory=True)
 
-        if 'sensor_LO' in self.my_data_map:
-            self.fao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
-            self.fao.ao.my_data_map['sensor_LO']['NumberPhotons'] = self.my_data_map['sensor_LO']['NumberPhotons']
         if 'sources_LO' in self.my_data_map:
             self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
             self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-            self.fao.ao.configLOsensor()
-            self.fao.ao.configLO()
             self.fao.ao.configLO_SC()
 
         if self.verbose:
@@ -180,7 +175,9 @@ class baseSimulation(AbstractSimulation):
 
     def _compute_LO_terms(self, astIndex) -> dict:
         """
-        PURE FUNCTION: Returns a dictionary of computed terms instead of mutating state.
+        Computes Low Order terms and returns them as a dictionary.
+        Note: when addFocusError is active, self.PSD is modified in-place to include
+        the focus contribution before PSF generation.
         """
         if not self.LOisOn:
             return {}

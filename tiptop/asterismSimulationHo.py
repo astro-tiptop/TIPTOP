@@ -180,7 +180,8 @@ class asterismSimulationHo(baseSimulation):
             original_fullPathFilename = self.fullPathFilename
 
             if hasattr(self, 'temp_path'):
-                print(f'Using temporary path: {self.temp_path}, file: {self.temp_parametersFile}')
+                if self.verbose:
+                    print(f'Using temporary path: {self.temp_path}, file: {self.temp_parametersFile}')
                 try:
                     # Load configuration file
                     self.loadConfigurationFile(path=self.temp_path, parametersFile=self.temp_parametersFile)
@@ -290,10 +291,10 @@ class asterismSimulationHo(baseSimulation):
 
     def reloadHoResults(self):
         """Reload previously computed results"""
-        self.strehl_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_sr.npy'))
-        self.fwhm_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_fw.npy'))
-        self.ee_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_ee.npy'))
-        self.ho_res_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_res.npy'))
+        self.strehl_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_sr.npy')).tolist()
+        self.fwhm_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_fw.npy')).tolist()
+        self.ee_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_ee.npy')).tolist()
+        self.ho_res_HoAsterism = np.load(os.path.join(self.outputDir, self.simulName+'_ho_res.npy')).tolist()
 
 
     def plotHoResults(self):

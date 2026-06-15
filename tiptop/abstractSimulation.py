@@ -1,4 +1,5 @@
 import os
+import ast
 import json
 import yaml
 import numpy as np
@@ -77,8 +78,8 @@ class AbstractSimulation(ABC):
             return value
         value = value.strip()
         try:
-            return eval(value)
-        except Exception:
+            return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
             return value
 
     def loadConfigurationFile(self, path=None, parametersFile=None):
@@ -128,8 +129,11 @@ class AbstractSimulation(ABC):
         if len(self.my_data_map['sources_science']['Zenith']) != len(self.my_data_map['sources_science']['Azimuth']):
             raise ValueError("'Zenith' and 'Azimuth' in 'sources_science' must have the same length")
 
+        check_sec('sensor_science')
+        check_opt('sensor_science', 'PixelScale')
+
         # Handle sensor_science.Super_Sampling
-        if 'Super_Sampling' not in self.my_data_map.get('sensor_science', {}):
+        if 'Super_Sampling' not in self.my_data_map['sensor_science']:
             self.my_data_map['sensor_science']['Super_Sampling'] = None
         else:
             SupSamp_val = self.my_data_map['sensor_science']['Super_Sampling']
@@ -141,7 +145,7 @@ class AbstractSimulation(ABC):
                 if int(SupSamp_val[1]) not in (1, 2):
                     raise ValueError("Second value of Super_Sampling must be 1 (1D) or 2 (2D).")
             else:
-                raise KeyError("Super_Sampling must be a scalar or list of one/two values.")
+                raise ValueError("Super_Sampling must be a scalar or list of one/two values.")
 
         self.LOisOn = 'sensor_LO' in self.my_data_map
         if self.LOisOn:
@@ -324,7 +328,13 @@ class AbstractSimulation(ABC):
             psf1d_radius_list_list.append(psf1d_radius_list)
             
         self.psf1d = np.asarray(psf1d)
-        self.psf1d_radius = np.asarray(psf1d_radius_list_list[0][0]) # Assuming identical radii
+        self.psf1d_radius = np.asarray(psf1d_radius_list_list[0][0])
+        # All PSFs share the same shape and psInMas, so radii must be identical.
+        assert all(
+            np.allclose(psf1d_radius_list_list[i][j], self.psf1d_radius)
+            for i in range(self.nWvl)
+            for j in range(len(psf1d_radius_list_list[i]))
+        ), "Radial profile radii differ across PSFs — check PSF shapes and pixel scale consistency."
         self.psf1d_data = np.vstack((np.asarray(psf1d_radius_list_list), self.psf1d))
 
     def savePSFprofileJSON(self):
