@@ -146,7 +146,7 @@ class baseSimulation(AbstractSimulation):
         self.N = self.PSD[0].shape[0]
         self.nPointings = self.pointings.shape[1]
         self.nPixPSF = int(self.fao.ao.cam.fovInPix)
-        self.overSamp = int(self.fao.freq.kRef_)
+        self.overSamp = getattr(self.fao.freq, 'kRef_float', int(self.fao.freq.kRef_))
         self.PSDstep = self.fao.freq.PSDstep
         self.freq_range = self.N * self.PSDstep
         self.grid_diameter = 1 / self.PSDstep
