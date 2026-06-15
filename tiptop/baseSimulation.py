@@ -148,6 +148,11 @@ class baseSimulation(AbstractSimulation):
         self.nPixPSF = int(self.fao.ao.cam.fovInPix)
         self.overSamp = getattr(self.fao.freq, 'kRef_float', int(self.fao.freq.kRef_))
         self.PSDstep = self.fao.freq.PSDstep
+        # Native pixel scale for single-λ LO/Focus PSFs (skip_reshape=True) is
+        # wvlMax*PSDstep*rad2mas, not wvl_min*PSDstep*kRef_float*rad2mas (science scale).
+        wvlMax = float(np.max(self.fao.freq.wvl))
+        self.overSamp_lo = round(float(self.fao.freq.psInMas[0]) /
+                                 (wvlMax * float(cpuArray(self.PSDstep)) * rad2mas))
         self.freq_range = self.N * self.PSDstep
         self.grid_diameter = 1 / self.PSDstep
         self.sx = int(2 * np.round(self.tel_radius * self.freq_range))
@@ -457,10 +462,10 @@ class baseSimulation(AbstractSimulation):
         """Generates analytical PSFs for the NGS directions."""
         LO_PSFsInMas = self.psInMas * self.LO_wvl / self.wvlMax
         
-        if LO_PSFsInMas / np.min(self.LO_psInMas) > 1 and self.overSamp > 1:
+        if LO_PSFsInMas / np.min(self.LO_psInMas) > 1 and self.overSamp_lo > 1:
             skip_reshape = True
-            LO_PSFsInMas /= self.overSamp
-            nPixPSFLO = int(self.overSamp * self.nPixPSF)
+            LO_PSFsInMas /= self.overSamp_lo
+            nPixPSFLO = int(self.overSamp_lo * self.nPixPSF)
         else:
             skip_reshape = False
             nPixPSFLO = self.nPixPSF
@@ -536,10 +541,10 @@ class baseSimulation(AbstractSimulation):
         if self.addFocusError:
             # Handle Focus PSFs analogously
             Focus_PSFsInMas = self.psInMas * self.Focus_wvl / self.wvlMax
-            if Focus_PSFsInMas / np.min(self.Focus_psInMas) > 1 and self.overSamp > 1:
+            if Focus_PSFsInMas / np.min(self.Focus_psInMas) > 1 and self.overSamp_lo > 1:
                 skip_reshape = True
-                Focus_PSFsInMas /= self.overSamp
-                nPixPSFFocus = int(self.overSamp * self.nPixPSF)
+                Focus_PSFsInMas /= self.overSamp_lo
+                nPixPSFFocus = int(self.overSamp_lo * self.nPixPSF)
             else:
                 skip_reshape = False
                 nPixPSFFocus = self.nPixPSF
