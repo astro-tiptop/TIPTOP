@@ -148,15 +148,11 @@ class baseSimulation(AbstractSimulation):
         self.nPixPSF = int(self.fao.ao.cam.fovInPix)
         self.overSamp = getattr(self.fao.freq, 'kRef_float', int(self.fao.freq.kRef_))
         self.PSDstep = self.fao.freq.PSDstep
-        # Native pixel scale for single-λ LO/Focus PSFs (skip_reshape=True) is
-        # wvlMax*PSDstep*rad2mas, not wvl_min*PSDstep*kRef_float*rad2mas (science scale).
-        wvlMax = float(np.max(self.fao.freq.wvl))
-        self.overSamp_lo = round(float(self.fao.freq.psInMas[0]) /
-                                 (wvlMax * float(cpuArray(self.PSDstep)) * rad2mas))
+        self.overSamp_lo = self.fao.freq.kGrid_
         self.freq_range = self.N * self.PSDstep
         self.grid_diameter = 1 / self.PSDstep
-        self.sx = int(2 * np.round(self.tel_radius * self.freq_range))
-        self.dk = 1e9 * self.fao.freq.kcMax_ / self.fao.freq.resAO
+        self.sx = self.fao.freq.kGrid_
+        self.dk = self.fao.freq.dk_
         self.wvlRef = self.fao.freq.wvlRef
 
         # Setup Mask
@@ -271,9 +267,7 @@ class baseSimulation(AbstractSimulation):
                 inputPSDs=PSD_HO,
                 mask=mask,
                 wavelength=self.wvl,
-                N=self.N,
                 nPixPup=self.sx,
-                grid_diameter=self.grid_diameter,
                 freq_range=self.freq_range,
                 dk=self.dk,
                 nPixPsf=self.nPixPSF,
@@ -357,9 +351,7 @@ class baseSimulation(AbstractSimulation):
                 inputPSDs=[psdOL.sampling],
                 mask=mask,
                 wavelength=self.wvlRef,
-                N=self.N,
                 nPixPup=self.sx,
-                grid_diameter=self.grid_diameter,
                 freq_range=self.freq_range,
                 dk=self.dk,
                 nPixPsf=self.nPixPSF,
@@ -373,9 +365,7 @@ class baseSimulation(AbstractSimulation):
                 inputPSDs=[psdDL.sampling],
                 mask=mask,
                 wavelength=self.wvlRef,
-                N=self.N,
                 nPixPup=self.sx,
-                grid_diameter=self.grid_diameter,
                 freq_range=self.freq_range,
                 dk=self.dk,
                 nPixPsf=self.nPixPSF,
@@ -484,12 +474,12 @@ class baseSimulation(AbstractSimulation):
         LO_PSFsInMas = self.psInMas * self.LO_wvl / self.wvlMax
         
         if LO_PSFsInMas / np.min(self.LO_psInMas) > 1 and self.overSamp_lo > 1:
-            skip_reshape = True
             LO_PSFsInMas /= self.overSamp_lo
             nPixPSFLO = int(self.overSamp_lo * self.nPixPSF)
+            lo_oversampling = 1.0
         else:
-            skip_reshape = False
             nPixPSFLO = self.nPixPSF
+            lo_oversampling = self.overSamp
 
         k = np.sqrt(self.fao.freq.k2_)
 
@@ -518,15 +508,12 @@ class baseSimulation(AbstractSimulation):
                 inputPSDs=psdNGS,
                 mask=maskLO,
                 wavelength=self.LO_wvl,
-                N=self.N,
                 nPixPup=self.sx,
-                grid_diameter=self.grid_diameter,
                 freq_range=self.freq_range,
                 dk=self.dk,
                 nPixPsf=nPixPSFLO,
-                oversampling=self.overSamp,
-                opdMap=self.opdMap,
-                skip_reshape=skip_reshape)
+                oversampling=lo_oversampling,
+                opdMap=self.opdMap)
 
         self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field = [], [], []
         for idx, img in enumerate(psfLE_NGS):
@@ -573,12 +560,12 @@ class baseSimulation(AbstractSimulation):
             # Handle Focus PSFs analogously
             Focus_PSFsInMas = self.psInMas * self.Focus_wvl / self.wvlMax
             if Focus_PSFsInMas / np.min(self.Focus_psInMas) > 1 and self.overSamp_lo > 1:
-                skip_reshape = True
                 Focus_PSFsInMas /= self.overSamp_lo
                 nPixPSFFocus = int(self.overSamp_lo * self.nPixPSF)
+                focus_oversampling = 1.0
             else:
-                skip_reshape = False
                 nPixPSFFocus = self.nPixPSF
+                focus_oversampling = self.overSamp
 
             if 'sensor_Focus' in self.my_data_map:
                 nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
@@ -595,15 +582,12 @@ class baseSimulation(AbstractSimulation):
                                 inputPSDs=psdFocus,
                                 mask=maskFocus,
                                 wavelength=self.Focus_wvl,
-                                N=self.N,
                                 nPixPup=self.sx,
-                                grid_diameter=self.grid_diameter,
                                 freq_range=self.freq_range,
                                 dk=self.dk,
                                 nPixPsf=nPixPSFFocus,
-                                oversampling=self.overSamp,
-                                opdMap=self.opdMap,
-                                skip_reshape=skip_reshape)
+                                oversampling=focus_oversampling,
+                                opdMap=self.opdMap)
 
                 self.Focus_SR_field, self.Focus_FWHM_mas_field, self.Focus_EE_field = [], [], []
                 for idx, img in enumerate(psfLE_Focus):
