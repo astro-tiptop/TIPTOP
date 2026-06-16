@@ -1,7 +1,15 @@
-from .baseSimulation import *
-from .asterismSimulation import *
-from .asterismSimulationHo import *
+# ----------------------------------------------------------------------------
+# --- Explicit Imports to prevent Namespace Pollution ---
+# ----------------------------------------------------------------------------
 
+# Core simulation classes
+from .baseSimulation import baseSimulation
+from .asterismSimulation import asterismSimulation
+from .asterismSimulationHo import asterismSimulationHo
+
+# Explicitly import GPU flags from the underlying libraries
+from mastsel import gpuEnabled as gpuMastsel
+from p3.aoSystem import gpuEnabled as gpuP3
 
 def gpuSelect(gpuIndex):
     if gpuMastsel or gpuP3:

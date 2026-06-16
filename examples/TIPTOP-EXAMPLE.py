@@ -7,22 +7,28 @@
 # get_ipython().run_line_magic('matplotlib', 'inline')
 
 from tiptop.tiptop import *
+
+from matplotlib import rc
 rc("text", usetex=False)
 
+from pathlib import Path
 
-# In[ ]:
-
-
-overallSimulation("tiptop/perfTest", "SOUL", 'tiptop/perfTest', 'testSOUL', doPlot=True, doConvolve=True)
+base_path = Path(__file__).resolve().parent.parent
 
 
 # In[ ]:
 
 
-overallSimulation("tiptop/perfTest", "MAVIS", 'tiptop/perfTest', 'testMAVIS', doPlot=True, doConvolve=True)
+overallSimulation(str(base_path / "tiptop/perfTest"), "SOUL", str(base_path / "tiptop/perfTest"), 'testSOUL', doPlot=True, doConvolve=True)
 
 
 # In[ ]:
 
 
-overallSimulation("tiptop/perfTest", "SPHERE", 'tiptop/perfTest', 'testSPHERE', doPlot=True, doConvolve=True)
+overallSimulation(str(base_path / "tiptop/perfTest"), "MAVIS", str(base_path / "tiptop/perfTest"), 'testMAVIS', doPlot=True, doConvolve=True)
+
+
+# In[ ]:
+
+
+overallSimulation(str(base_path / "tiptop/perfTest"), "SPHERE", str(base_path / "tiptop/perfTest"), 'testSPHERE', doPlot=True, doConvolve=True)
