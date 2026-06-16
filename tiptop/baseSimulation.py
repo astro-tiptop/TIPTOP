@@ -117,17 +117,14 @@ class baseSimulation(AbstractSimulation):
         if self.verbose:
             print('******** HO PSD science and NGSs directions')
 
-        # Instantiate P3 model
+        # Instantiate P3 model — pass config_dict so P3 uses TIPTOP's already-modified
+        # my_data_map directly, without re-reading the file a second time.
         self.fao = fourierModel(self.fullPathFilename, calcPSF=False, verbose=self.verbose,
                                 display=False, getPSDatNGSpositions=self.LOisOn,
                                 computeFocalAnisoCov=False, TiltFilter=self.LOisOn,
                                 getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False,
-                                psdExpansion=True, reduce_memory=True)
-
-        if 'sources_LO' in self.my_data_map:
-            self.fao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-            self.fao.ao.my_data_map['sources_LO'] = self.my_data_map['sources_LO']
-            self.fao.ao.configLO_SC()
+                                psdExpansion=True, reduce_memory=True,
+                                config_dict=self.my_data_map)
 
         if self.verbose:
             print('Setting MASTSEL PSF precision to:', self.fao.dtype)
