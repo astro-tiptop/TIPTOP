@@ -264,9 +264,10 @@ class baseSimulation(AbstractSimulation):
             if self.verbose:
                 print('******** HO PSF')
 
-            psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask,
-                                                    self.wvl, self.sx, self.freq_range,
-                                                    self.dk, self.nPixPSF, self.overSamp,
+            psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask, self.wvl,
+                                                    nPixPup=self.sx, freq_range=self.freq_range,
+                                                    dk=self.dk, nPixPsf=self.nPixPSF,
+                                                    oversampling=self.overSamp,
                                                     opdMap=self.opdMap)
 
             # Safely compute HO residuals
@@ -339,16 +340,16 @@ class baseSimulation(AbstractSimulation):
 
         mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
 
-        psfOL = psdSetToPsfSet([psdOL.sampling], mask,
-                               self.wvlRef, self.sx, self.freq_range,
-                               self.dk, self.nPixPSF, self.overSamp)
+        psfOL = psdSetToPsfSet([psdOL.sampling], mask, self.wvlRef,
+                               nPixPup=self.sx, freq_range=self.freq_range,
+                               dk=self.dk, nPixPsf=self.nPixPSF, oversampling=self.overSamp)
         self.psf_ol_array = cpuArray(psfOL[0].sampling)
 
         # DIFFRACTION LIMITED PSD
         psdDL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
-        psfDL = psdSetToPsfSet([psdDL.sampling], mask,
-                               self.wvlRef, self.sx, self.freq_range,
-                               self.dk, self.nPixPSF, self.overSamp)
+        psfDL = psdSetToPsfSet([psdDL.sampling], mask, self.wvlRef,
+                               nPixPup=self.sx, freq_range=self.freq_range,
+                               dk=self.dk, nPixPsf=self.nPixPSF, oversampling=self.overSamp)
         self.psf_dl_array = cpuArray(psfDL[0].sampling)
 
         if self.savePSDs:
@@ -478,8 +479,9 @@ class baseSimulation(AbstractSimulation):
         if self.verbose:
             print('******** LO PSF - NGS directions (1 sub-aperture)')
 
-        psfLE_NGS = psdSetToPsfSet(psdNGS, maskLO, self.LO_wvl, self.sx,
-                                   self.freq_range, self.dk, nPixPSFLO, lo_oversampling,
+        psfLE_NGS = psdSetToPsfSet(psdNGS, maskLO, self.LO_wvl,
+                                   nPixPup=self.sx, freq_range=self.freq_range,
+                                   dk=self.dk, nPixPsf=nPixPSFLO, oversampling=lo_oversampling,
                                    opdMap=self.opdMap)
 
         self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field = [], [], []
@@ -545,8 +547,10 @@ class baseSimulation(AbstractSimulation):
                         pf = pistonFilter(2*self.tel_radius/nSAfocusI, k)
                         psdFocus[i] = psdFocus[i] * pf
 
-                psfLE_Focus = psdSetToPsfSet(psdFocus, maskFocus, self.Focus_wvl, self.sx,
-                                             self.freq_range, self.dk, nPixPSFFocus, focus_oversampling,
+                psfLE_Focus = psdSetToPsfSet(psdFocus, maskFocus, self.Focus_wvl,
+                                             nPixPup=self.sx, freq_range=self.freq_range,
+                                             dk=self.dk, nPixPsf=nPixPSFFocus,
+                                             oversampling=focus_oversampling,
                                              opdMap=self.opdMap)
 
                 self.Focus_SR_field, self.Focus_FWHM_mas_field, self.Focus_EE_field = [], [], []
