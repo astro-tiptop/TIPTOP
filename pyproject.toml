@@ -17,8 +17,8 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pyyaml",
-    "astro-p3>=1.6.1",
-    "mastsel>=1.5.1",
+    "astro-p3>=1.6.2",
+    "mastsel>=1.5.2",
     "torch>=2.1.2",
     "torchmetrics>=1.4.0",
     "mpl_scatter_density>=0.7"
