@@ -150,7 +150,7 @@ class baseSimulation(AbstractSimulation):
         self.overSamp_lo = self.fao.freq.kGrid_
         self.freq_range = self.N * self.PSDstep
         self.grid_diameter = 1 / self.PSDstep
-        self.sx = self.fao.freq.nPupilPix_
+        self.sx = int(2 * np.round(self.tel_radius * self.freq_range))
         self.dk = self.fao.freq.dk_
         self.wvlRef = self.fao.freq.wvlRef
 
