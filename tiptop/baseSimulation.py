@@ -32,7 +32,8 @@ class baseSimulation(AbstractSimulation):
 
     def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=True,
                  doPlot=False, addSrAndFwhm=True, verbose=False, getHoErrorBreakDown=False,
-                 savePSDs=False, ensquaredEnergy=False, eeRadiusInMas=50):
+                 savePSDs=False, ensquaredEnergy=False, eeRadiusInMas=50,
+                 exactMultiWavelengthPSD=False):
 
         # Superclass handles all configuration loading, validation, and standard properties
         super().__init__(path, parametersFile, outputDir, outputFile, doConvolve,
@@ -42,6 +43,16 @@ class baseSimulation(AbstractSimulation):
         # P3-specific state variables
         self.fao = None
         self.mLO = None
+
+        # When True and more than one [sources_science] Wavelength is
+        # requested, P3 computes one exact PSD grid per wavelength
+        # (psdPerWavelength=True) instead of one shared, approximate grid --
+        # see fourierModel/frequencyDomain in P3 for why this matters
+        # (equivalence with a standalone single-wavelength run) and its cost
+        # (roughly proportional to nWvl, since the reconstructor/controller
+        # are recomputed per wavelength too). Defaults to False: zero change
+        # in behaviour or cost for existing configurations.
+        self.exactMultiWavelengthPSD = exactMultiWavelengthPSD
 
     # ----------------------------------------------------------------------------
     # --- IMPLEMENTATION OF ABSTRACT METHODS ---
@@ -129,7 +140,8 @@ class baseSimulation(AbstractSimulation):
                                 display=False, getPSDatNGSpositions=self.LOisOn,
                                 computeFocalAnisoCov=False, TiltFilter=self.LOisOn,
                                 getErrorBreakDown=self.getHoErrorBreakDown, doComputations=False,
-                                psdExpansion=True, reduce_memory=True,
+                                psdExpansion=True, psdPerWavelength=self.exactMultiWavelengthPSD,
+                                reduce_memory=True,
                                 path_root=_TIPTOP_ROOT,
                                 config_dict=self.my_data_map)
 
@@ -140,9 +152,25 @@ class baseSimulation(AbstractSimulation):
 
         self.fao.initComputations()
 
-        # Cache geometry needed downstream
-        self.PSD = self.fao.PSD.transpose()
-        self.N = self.PSD[0].shape[0]
+        # self.fao.PSD is a list (one exact-grid array per science wavelength)
+        # only when exactMultiWavelengthPSD=True *and* more than one wavelength
+        # was requested -- see frequencyDomain.wvl_grids in P3. Otherwise (the
+        # default, and the only case before this feature existed) it stays a
+        # single (nOtf,nOtf,nSrc) array, exactly as today.
+        self.multiGridPSD = isinstance(self.fao.PSD, list)
+        if self.multiGridPSD:
+            self.PSD = [p.transpose() for p in self.fao.PSD]
+        else:
+            self.PSD = self.fao.PSD.transpose()
+
+        # N/PSDstep/freq_range/grid_diameter/dk/mask always describe P3's
+        # *shared* grid (self.fao.freq, unaffected by wvl_grids -- see
+        # frequencyDomain.py) and are what LO/Focus/open-loop/diffraction-
+        # limited PSFs keep using regardless of multiGridPSD, since those are
+        # single-wavelength constructs unrelated to the science wavelength
+        # list. Only the HO/science PSF path (_generate_final_PSF) additionally
+        # needs the per-wavelength freq_range/dk built below.
+        self.N = self.fao.freq.nOtf
         self.nPointings = self.pointings.shape[1]
         self.nPixPSF = int(self.fao.ao.cam.fovInPix)
         self.overSamp = getattr(self.fao.freq, 'kRef_float', int(self.fao.freq.kRef_))
@@ -153,6 +181,25 @@ class baseSimulation(AbstractSimulation):
         self.sx = int(2 * np.round(self.tel_radius * self.freq_range))
         self.dk = self.fao.freq.dk_
         self.wvlRef = self.fao.freq.wvlRef
+
+        if self.multiGridPSD:
+            # One freq_range/dk per science wavelength, matching self.PSD[i].
+            self.freq_range_per_wvl = [float(g.nOtf * g.PSDstep) for g in self.fao.freq.wvl_grids]
+            self.dk_per_wvl = [float(g.dk_) for g in self.fao.freq.wvl_grids]
+            # The pupil occupies a different fraction of each wavelength's own
+            # grid (nOtf_i varies with k_i while the physical pupil diameter
+            # does not), so nPixPup (self.sx) must vary per wavelength too --
+            # same formula as self.sx above, evaluated at each grid's own
+            # freq_range_i instead of the shared one.
+            self.sx_per_wvl = [int(2 * np.round(self.tel_radius * fr))
+                              for fr in self.freq_range_per_wvl]
+            # Index into self.wvl/self.PSD whose grid matches self.wvlRef
+            # (the minimum requested wavelength): used as "the" representative
+            # grid wherever a single-wavelength PSD slice is still needed
+            # (HO_res, NGS/Focus LO PSD) -- these quantities are physically
+            # wavelength-independent (WFE in nm), so any grid gives the same
+            # value up to the numerical-resolution differences between grids.
+            self.wvlRef_grid_idx = int(np.argmin(self.wvl))
 
         # Setup Mask
         self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
@@ -204,11 +251,26 @@ class baseSimulation(AbstractSimulation):
 
                 lo_data['GF_res'] = float(np.sqrt(np.maximum(cpuArray(CtotFocus).ravel()[0], 0.0)))
 
-                # Apply Global Focus filtering to PSD
-                FocusFilter = self.fao.FocusFilter()
-                FocusFilter *= 1 / FocusFilter.sum()
-                for PSDho in self.PSD:
-                    PSDho += (lo_data['GF_res']**2) * FocusFilter
+                # Apply Global Focus filtering to PSD. FocusFilter() reads
+                # self.fao.freq.k2_, whose shape follows whichever grid
+                # self.fao.freq currently points to -- with a per-wavelength
+                # PSD list, self.PSD[i] has grid_i's own shape, so the filter
+                # must be rebuilt once per wavelength grid too (same swap
+                # pattern P3 itself uses internally for the PSD terms).
+                if self.multiGridPSD:
+                    saved_freq = self.fao.freq
+                    for i_wvl, grid_ctx in enumerate(self.fao.freq.wvl_grids):
+                        self.fao.freq = grid_ctx
+                        FocusFilter = self.fao.FocusFilter()
+                        FocusFilter *= 1 / FocusFilter.sum()
+                        for PSDho in self.PSD[i_wvl]:
+                            PSDho += (lo_data['GF_res']**2) * FocusFilter
+                    self.fao.freq = saved_freq
+                else:
+                    FocusFilter = self.fao.FocusFilter()
+                    FocusFilter *= 1 / FocusFilter.sum()
+                    for PSDho in self.PSD:
+                        PSDho += (lo_data['GF_res']**2) * FocusFilter
                 lo_data['GFinPSD'] = True
         else:
             # Asterism Specific Processing
@@ -258,24 +320,44 @@ class baseSimulation(AbstractSimulation):
         Convolves PSDs and standardizes the output in self.cubeResultsArray.
         """
         if astIndex is None or self.firstSimCall:
-            PSD_HO = arrayP3toMastsel(self.PSD[0:self.nPointings])
             mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
 
             if self.verbose:
                 print('******** HO PSF')
 
-            psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask, self.wvl,
-                                                    nPixPup=self.sx, freq_range=self.freq_range,
-                                                    dk=self.dk, nPixPsf=self.nPixPSF,
-                                                    oversampling=self.overSamp,
-                                                    opdMap=self.opdMap)
+            if self.multiGridPSD:
+                # One list of per-direction PSDs per science wavelength --
+                # see mastsel.mavisPsf.psdSetToPsfSet's per-wavelength
+                # calling convention.
+                PSD_HO = [arrayP3toMastsel(self.PSD[i][0:self.nPointings])
+                          for i in range(self.nWvl)]
+                psfLongExpPointingsArr = psdSetToPsfSet(
+                    PSD_HO, mask, self.wvl, nPixPup=self.sx_per_wvl,
+                    freq_range=self.freq_range_per_wvl, dk=self.dk_per_wvl,
+                    nPixPsf=self.nPixPSF, opdMap=self.opdMap,
+                )
+                # HO_res (WFE in nm) is physically wavelength-independent;
+                # any grid gives the same value up to the numerical-resolution
+                # differences between grids, so the wvlRef-matching one is
+                # used as "the" representative value (consistent with wvlRef
+                # already being used this way elsewhere, e.g. computeMetrics).
+                self.HO_res = np.sqrt(np.sum(
+                    self.PSD[self.wvlRef_grid_idx][0:self.nPointings], axis=(1, 2)))
+            else:
+                PSD_HO = arrayP3toMastsel(self.PSD[0:self.nPointings])
+                psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask, self.wvl,
+                                                        nPixPup=self.sx, freq_range=self.freq_range,
+                                                        dk=self.dk, nPixPsf=self.nPixPSF,
+                                                        oversampling=self.overSamp,
+                                                        opdMap=self.opdMap)
 
-            # Safely compute HO residuals
-            self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings], axis=(1, 2)))
+                # Safely compute HO residuals
+                self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings], axis=(1, 2)))
 
             self.pointings_FWHM_mas = []
             for i in range(self.nWvl):
                 psfList = psfLongExpPointingsArr[i] if self.nWvl > 1 else psfLongExpPointingsArr
+                psd_i = PSD_HO[i] if self.multiGridPSD else PSD_HO
                 wvl_c = self.wvl[i] if self.nWvl > 1 else self.wvl[0]
                 samp_i = wvl_c * rad2mas / (self.psInMas * 2 * self.tel_radius)
                 rebin_i = max(1, int(np.ceil(2.0 / samp_i))) if samp_i < 2.0 else 1
@@ -286,7 +368,7 @@ class baseSimulation(AbstractSimulation):
                     fwhm = np.sqrt(fwhmX * fwhmY)
                     fwhmList.append(fwhm)
                     if self.verbose:
-                        s1 = cpuArray(PSD_HO[idx]).sum()
+                        s1 = cpuArray(psd_i[idx]).sum()
                         sr = np.exp(-s1 * (2*np.pi*1e-9/wvl_c)**2)
                         print(f'SR(@{int(wvl_c*1e9)}nm)        : {sr:.5f}')
                         print(f'FWHM(@{int(wvl_c*1e9)}nm) [mas]: {fwhm:.3f}')
@@ -459,9 +541,27 @@ class baseSimulation(AbstractSimulation):
             nPixPSFLO = self.nPixPSF
             lo_oversampling = self.overSamp
 
-        k = np.sqrt(self.fao.freq.k2_)
+        # HO_res/NGS/Focus PSDs are physically wavelength-independent (WFE in
+        # nm), but when multiGridPSD is on there is no shared-grid PSD array
+        # left (self.PSD is a per-science-wavelength list) -- so the NGS/Focus
+        # PSD slices, and the grid geometry (k2_/freq_range/dk/nPixPup) used
+        # to turn them into PSFs, must all come from the *same* single grid,
+        # here the one matching self.wvlRef (see _prepare_static_PSF_state).
+        if self.multiGridPSD:
+            ref_grid = self.fao.freq.wvl_grids[self.wvlRef_grid_idx]
+            k = np.sqrt(ref_grid.k2_)
+            psd_source = self.PSD[self.wvlRef_grid_idx]
+            ngs_freq_range = self.freq_range_per_wvl[self.wvlRef_grid_idx]
+            ngs_dk = self.dk_per_wvl[self.wvlRef_grid_idx]
+            ngs_nPixPup = self.sx_per_wvl[self.wvlRef_grid_idx]
+        else:
+            k = np.sqrt(self.fao.freq.k2_)
+            psd_source = self.PSD
+            ngs_freq_range = self.freq_range
+            ngs_dk = self.dk
+            ngs_nPixPup = self.sx
 
-        psdNGS_view = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
+        psdNGS_view = arrayP3toMastsel(psd_source[-self.nNaturalGS_field:])
 
         psdNGS = []
 
@@ -480,8 +580,8 @@ class baseSimulation(AbstractSimulation):
             print('******** LO PSF - NGS directions (1 sub-aperture)')
 
         psfLE_NGS = psdSetToPsfSet(psdNGS, maskLO, self.LO_wvl,
-                                   nPixPup=self.sx, freq_range=self.freq_range,
-                                   dk=self.dk, nPixPsf=nPixPSFLO, oversampling=lo_oversampling,
+                                   nPixPup=ngs_nPixPup, freq_range=ngs_freq_range,
+                                   dk=ngs_dk, nPixPsf=nPixPSFLO, oversampling=lo_oversampling,
                                    opdMap=self.opdMap)
 
         self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field = [], [], []
@@ -538,7 +638,7 @@ class baseSimulation(AbstractSimulation):
 
             if 'sensor_Focus' in self.my_data_map:
                 nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
-                psdFocus = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
+                psdFocus = arrayP3toMastsel(psd_source[-self.nNaturalGS_field:])
                 maskFocus = maskSA(nSAfocus, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.tel.pupil))
 
                 for i in range(self.nNaturalGS_field):
@@ -548,8 +648,8 @@ class baseSimulation(AbstractSimulation):
                         psdFocus[i] = psdFocus[i] * pf
 
                 psfLE_Focus = psdSetToPsfSet(psdFocus, maskFocus, self.Focus_wvl,
-                                             nPixPup=self.sx, freq_range=self.freq_range,
-                                             dk=self.dk, nPixPsf=nPixPSFFocus,
+                                             nPixPup=ngs_nPixPup, freq_range=ngs_freq_range,
+                                             dk=ngs_dk, nPixPsf=nPixPSFFocus,
                                              oversampling=focus_oversampling,
                                              opdMap=self.opdMap)
 
