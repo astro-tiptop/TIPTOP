@@ -1,6 +1,8 @@
 import unittest
 import tempfile
 import os
+import io
+import contextlib
 import numpy as np
 from configparser import ConfigParser
 from matplotlib import rc
@@ -10,6 +12,7 @@ from astropy.io import fits
 # --- Explicit Imports (NO WILDCARDS) ---
 # ----------------------------------------------------------------------------
 from tiptop.tiptop import overallSimulation
+from tiptop.abstractSimulation import AbstractSimulation
 from tiptop.baseSimulation import baseSimulation
 from tiptop.asterismSimulation import asterismSimulation
 from tiptop.asterismSimulationHo import asterismSimulationHo
@@ -35,6 +38,57 @@ class TestTiptop(unittest.TestCase):
             cy, cx = centeredPixelCoords(outer_size)
             self.assertEqual((cy, cx), (outer_size // 2, outer_size // 2))
             self.assertEqual(padded[cy, cx], 1.0)
+
+
+class TestConfigParsing(TestTiptop):
+    """Regression tests for AbstractSimulation._parse_config_value (issue: .ini values using
+    numpy expressions, e.g. 'jitter_FWHM = [68,56,-np.pi/4]', silently degraded to a raw string
+    after the ast.literal_eval-only refactor, causing a cryptic TypeError deep inside MASTSEL)."""
+
+    @staticmethod
+    def _parse(value, section=None, name=None):
+        # _parse_config_value doesn't touch self, so it can be exercised without
+        # instantiating a concrete subclass (which would require a full .ini/.yml on disk).
+        return AbstractSimulation._parse_config_value(None, value, section, name)
+
+    def test_plain_literals_are_parsed_as_before(self):
+        """Scalars, lists, bools and plain strings go through ast.literal_eval unchanged."""
+        self.assertEqual(self._parse('0.65'), 0.65)
+        self.assertEqual(self._parse('[68,56,70]'), [68, 56, 70])
+        self.assertEqual(self._parse('True'), True)
+        self.assertEqual(self._parse('SOUL'), 'SOUL')
+
+    def test_bare_word_string_is_silent(self):
+        """An unquoted identifier-like value (e.g. inputName='SOUL') is extremely common in
+        .ini files: it's not a Python literal (fails literal_eval) and not evaluable either
+        (fails eval with NameError, not SyntaxError), so it must resolve to a plain string
+        WITHOUT printing the typo warning -- only genuine syntax errors should warn."""
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            parsed = self._parse('SOUL', 'sources_science', 'inputName')
+
+        self.assertEqual(parsed, 'SOUL')
+        self.assertEqual(stdout.getvalue(), '')
+
+    def test_numpy_expression_falls_back_to_eval(self):
+        """literal_eval rejects 'np.pi'; the eval-with-numpy fallback must recover the real value."""
+        parsed = self._parse('[68,56,-np.pi/4]', 'telescope', 'jitter_FWHM')
+        self.assertIsInstance(parsed, list)
+        self.assertEqual(parsed[:2], [68, 56])
+        self.assertAlmostEqual(parsed[2], -np.pi / 4)
+
+    def test_genuine_typo_falls_back_to_raw_string_with_warning(self):
+        """A value that's invalid Python even with numpy in scope (e.g. unbalanced brackets)
+        must not raise: it degrades to the raw string, but now prints a warning instead of
+        failing silently three stack frames away."""
+        broken_value = '[68,56,-np.pi/4'
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            parsed = self._parse(broken_value, 'telescope', 'jitter_FWHM')
+
+        self.assertEqual(parsed, broken_value)
+        self.assertIn('jitter_FWHM', stdout.getvalue())
+        self.assertIn(broken_value, stdout.getvalue())
 
 
 class TestMavis(TestTiptop):
