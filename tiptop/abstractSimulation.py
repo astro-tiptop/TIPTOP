@@ -73,14 +73,27 @@ class AbstractSimulation(ABC):
         self.loadConfigurationFile()
         self._validate_core_configuration()
 
-    def _parse_config_value(self, value):
+    def _parse_config_value(self, value, section=None, name=None):
         if not isinstance(value, str):
             return value
         value = value.strip()
         try:
             return ast.literal_eval(value)
         except (ValueError, SyntaxError):
-            return value
+            # literal_eval rejects expressions like 'np.pi/4' or 'np.array(...)';
+            # fall back to eval with numpy in scope to keep .ini files backward-compatible.
+            try:
+                return eval(value, {'np': np}, {})
+            except SyntaxError:
+                # value isn't valid Python at all (unbalanced brackets, stray commas, ...):
+                # almost certainly a typo, so warn instead of degrading silently.
+                print(f"Warning: could not parse config value [{section}] {name} = '{value}'; "
+                      f"keeping it as a raw string. Check for typos (unbalanced brackets, stray commas, ...).")
+                return value
+            except Exception:
+                # syntactically valid but not evaluable (e.g. a plain word like 'SOUL',
+                # parsed as an undefined name -> NameError): this is just a plain string.
+                return value
 
     def loadConfigurationFile(self, path=None, parametersFile=None):
         """Loads configuration from .ini or .yml file and populates self.my_data_map."""
@@ -104,7 +117,7 @@ class AbstractSimulation(ABC):
             for section in config.sections():
                 self.my_data_map[section] = {}
                 for name, value in config.items(section):
-                    self.my_data_map[section].update({name: self._parse_config_value(value)})
+                    self.my_data_map[section].update({name: self._parse_config_value(value, section, name)})
         else:
             raise FileNotFoundError(f'No .yml or .ini ({parametersFile}) can be found in {path}')
 
