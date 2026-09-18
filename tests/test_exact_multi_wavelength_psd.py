@@ -5,6 +5,7 @@ import numpy as np
 from configparser import ConfigParser
 
 from tiptop.baseSimulation import baseSimulation
+from tiptop.tiptopUtils import cpuArray
 
 """
 End-to-end regression tests for exactMultiWavelengthPSD=True: P3 computes one
@@ -72,8 +73,10 @@ class TestExactMultiWavelengthPSD(unittest.TestCase):
         self.assertEqual(sim.cubeResultsArray.shape[0], 2)
 
         for i in range(2):
-            sr_i = np.array(sim.sr[i]).ravel()
-            fwhm_i = np.array(sim.fwhm[i]).ravel()
+            # sr/fwhm can hold CuPy scalars when P3 runs with GPU enabled (its `np` is
+            # then cupy) -- cpuArray() normalizes to host-side NumPy before np.array().
+            sr_i = np.array(cpuArray(sim.sr[i])).ravel()
+            fwhm_i = np.array(cpuArray(sim.fwhm[i])).ravel()
             self.assertTrue(np.all(np.isfinite(sr_i)))
             self.assertTrue(np.all(sr_i > 0))
             self.assertTrue(np.all(sr_i <= 1.0))
