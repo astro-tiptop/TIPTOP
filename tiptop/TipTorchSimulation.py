@@ -1057,8 +1057,8 @@ class baseSimulation(object):
         cfg = copy.deepcopy(self.config_torch)
         device = self.model.device
         dtype = self.model.wvl.dtype
-        zenith = torch.as_tensor(zenith,  device=device, dtype=dtype).flatten()
-        azimuth = torch.as_tensor(azimuth, device=device, dtype=dtype).flatten()
+        zenith     = torch.as_tensor(zenith,  device=device, dtype=dtype).flatten()
+        azimuth    = torch.as_tensor(azimuth, device=device, dtype=dtype).flatten()
         wavelength = torch.as_tensor([wavelength], device=device, dtype=dtype).flatten()
 
         cfg['NumberSources'] = int(zenith.numel())
@@ -1067,10 +1067,10 @@ class baseSimulation(object):
         cfg['sources_science']['Wavelength'] = wavelength
 
         model = TipTorch(
-            AO_config=cfg,
-            norm_regime='sum',
+            AO_config = cfg,
+            norm_regime = 'sum',
             device=device,
-            oversampling=self.overSamp,
+            oversampling = self.overSamp,
             retain_PSDs=True,
         )
         self._zero_model_jitter(model)
@@ -1083,7 +1083,7 @@ class baseSimulation(object):
         return psf_pixel_scale_mas, self.nPixPSF, False
 
 
-    def _compute_sensor_psf_metrics_tiptorch(self, zenith, azimuth, wavelength, pixel_scales, label):
+    def _compute_sensor_PSF_metrics(self, zenith, azimuth, wavelength, pixel_scales, label):
         """Generate guide-star PSFs with TipTorch and measure SR/FWHM/EE."""
         model = self._source_model(zenith, azimuth, wavelength)
         psf_pixel_scale_mas, nPixPSF, _ = self._sensor_PSF_sampling(wavelength, pixel_scales)
@@ -1129,7 +1129,7 @@ class baseSimulation(object):
             print('******** TipTorch LO PSF - NGS directions')
 
         self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field = \
-            self._compute_sensor_psf_metrics_tiptorch(
+            self._compute_sensor_PSF_metrics(
                 self.LO_zen_field,
                 self.LO_az_field,
                 self.LO_wvl,
@@ -1164,7 +1164,7 @@ class baseSimulation(object):
             print('******** TipTorch Focus Sensor PSF - NGS directions')
 
         self.Focus_SR_field, self.Focus_FWHM_mas_field, self.Focus_EE_field = \
-            self._compute_sensor_psf_metrics_tiptorch(
+            self._compute_sensor_PSF_metrics(
                 self.LO_zen_field,
                 self.LO_az_field,
                 self.Focus_wvl,
