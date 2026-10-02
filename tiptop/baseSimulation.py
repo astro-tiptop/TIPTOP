@@ -13,7 +13,7 @@ from mastsel.mavisPsf import centeredPixelCoords, padOrCropCentered, mastselPsfP
 from mastsel.mavisUtilities import sigma_from_FWHM, tiledDisplay, plotEllipses, polarToCartesian, congrid
 
 # Tiptop Imports
-from .tiptopUtils import arrayP3toMastsel, cpuArray
+from .tiptopUtils import arrayP3toMastsel, arrayMastseltoP3, cpuArray
 from .abstractSimulation import AbstractSimulation
 
 rc("text", usetex=False)
@@ -151,6 +151,15 @@ class baseSimulation(AbstractSimulation):
         mastselPsfPrecision(dtype=self.fao.dtype)
 
         self.fao.initComputations()
+
+        # Fail here with a clear message: a non-finite HO PSD otherwise surfaces
+        # much later as an obscure error inside the LO (MASTSEL) computations.
+        for psd_i in (self.fao.PSD if isinstance(self.fao.PSD, list) else [self.fao.PSD]):
+            if not bool(np.isfinite(psd_i).all()):
+                raise ValueError(
+                    "The HO PSD computed by P3 contains non-finite values (NaN/Inf): "
+                    "check the [atmosphere], [sources_HO] and [sensor_HO] parameters."
+                )
 
         # self.fao.PSD is a list (one exact-grid array per science wavelength)
         # only when exactMultiWavelengthPSD=True *and* more than one wavelength
@@ -363,7 +372,7 @@ class baseSimulation(AbstractSimulation):
                 rebin_i = max(1, int(np.ceil(2.0 / samp_i))) if samp_i < 2.0 else 1
                 fwhmList = []
                 for idx, img in enumerate(psfList):
-                    fwhmX, fwhmY = getFWHM(img.sampling, self.psInMas, method='contour',
+                    fwhmX, fwhmY = getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
                                            rebin=rebin_i, nargout=2)
                     fwhm = np.sqrt(fwhmX * fwhmY)
                     fwhmList.append(fwhm)
@@ -491,15 +500,15 @@ class baseSimulation(AbstractSimulation):
 
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
-                    sr_l.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, samp, method='max', psfInOnePix=True))
-                    fwhm_l.append(getFWHM(img.sampling, self.psInMas, method='contour',
+                    sr_l.append(getStrehl(arrayMastseltoP3(img.sampling), self.fao.ao.tel.pupil, samp, method='max', psfInOnePix=True))
+                    fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
                                           rebin=rebin_fwhm, nargout=1))
 
                     if self.ensquaredEnergy:
-                        ee_ = cpuArray(getEnsquaredEnergy(img.sampling))
+                        ee_ = cpuArray(getEnsquaredEnergy(arrayMastseltoP3(img.sampling)))
                         rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas * 0.5
                     else:
-                        ee_, rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas,
+                        ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=self.psInMas,
                                                       center=centeredPixelCoords(self.nPixPSF), nargout=2)
 
                     ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
@@ -590,14 +599,14 @@ class baseSimulation(AbstractSimulation):
             SR = np.exp(-s1 * (2*np.pi*1e-9/self.LO_wvl)**2)
             self.NGS_SR_field.append(SR)
 
-            fwhmX, fwhmY = getFWHM(img.sampling, LO_PSFsInMas, method='contour', nargout=2)
+            fwhmX, fwhmY = getFWHM(arrayMastseltoP3(img.sampling), LO_PSFsInMas, method='contour', nargout=2)
             FWHM = np.sqrt(fwhmX * fwhmY)
             self.NGS_FWHM_mas_field.append(FWHM)
 
             if 2 * FWHM >= nPixPSFLO * LO_PSFsInMas:
                 ee_NGS = 1.0
             else:
-                ee_, rr_ = getEncircledEnergy(img.sampling, pixelscale=LO_PSFsInMas,
+                ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=LO_PSFsInMas,
                                               center=centeredPixelCoords(nPixPSFLO), nargout=2)
                 ee_ *= 1 / np.max(ee_)
                 ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
@@ -616,7 +625,7 @@ class baseSimulation(AbstractSimulation):
                 maskField.sampling = congrid(maskI, [self.sx, self.sx])
                 maskField.sampling = padOrCropCentered(maskField.sampling, self.N, xp=maskField.xp)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
-                fx, fy = getFWHM(psfNgsDL.sampling, LO_PSFsInMas, method='contour', nargout=2)
+                fx, fy = getFWHM(arrayMastseltoP3(psfNgsDL.sampling), LO_PSFsInMas, method='contour', nargout=2)
                 f_val = np.sqrt(fx * fy)
                 if self.NGS_DL_FWHM_mas is None:
                     self.NGS_DL_FWHM_mas = f_val
@@ -658,14 +667,14 @@ class baseSimulation(AbstractSimulation):
                     s1 = cpuArray(psdFocus[idx]).sum()
                     self.Focus_SR_field.append(np.exp(-s1 * (2*np.pi*1e-9/self.Focus_wvl)**2))
 
-                    fwhmX, fwhmY = getFWHM(img.sampling, Focus_PSFsInMas, method='contour', nargout=2)
+                    fwhmX, fwhmY = getFWHM(arrayMastseltoP3(img.sampling), Focus_PSFsInMas, method='contour', nargout=2)
                     FWHM = np.sqrt(fwhmX * fwhmY)
                     self.Focus_FWHM_mas_field.append(FWHM)
 
                     if 2 * FWHM >= nPixPSFFocus * Focus_PSFsInMas:
                         ee_Focus = 1.0
                     else:
-                        ee_, rr_ = getEncircledEnergy(img.sampling, pixelscale=Focus_PSFsInMas,
+                        ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=Focus_PSFsInMas,
                                                       center=centeredPixelCoords(nPixPSFFocus), nargout=2)
                         ee_ *= 1 / np.max(ee_)
                         ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
