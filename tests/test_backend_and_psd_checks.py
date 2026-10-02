@@ -5,6 +5,7 @@ from unittest import mock
 import numpy as np
 
 import tiptop.tiptopUtils as tu
+from tiptop.tiptopUtils import cpuArray
 from tiptop.baseSimulation import baseSimulation
 
 try:
@@ -67,6 +68,21 @@ class TestHoPsdFiniteCheck(unittest.TestCase):
         with mock.patch('tiptop.baseSimulation.fourierModel', _NaNFourierModel):
             with self.assertRaisesRegex(ValueError, 'non-finite'):
                 sim._prepare_static_PSF_state(None)
+
+
+class TestOpenLoopPsd(unittest.TestCase):
+
+    def test_open_loop_psd_is_not_piston_filtered(self):
+        path = os.path.join(os.path.dirname(__file__), '..', 'tiptop', 'perfTest')
+        sim = baseSimulation(path, 'MAVIStest', path, 'unused', doPlot=False)
+        sim._configure_LO_parameters(None)
+        sim._prepare_static_PSF_state(None)
+        k = np.sqrt(sim.fao.freq.k2_)
+        expected = cpuArray(sim.fao.ao.atm.spectrum(k))
+        np.testing.assert_array_equal(cpuArray(sim._open_loop_psd()), expected)
+        # the low-frequency power (scales larger than the pupil) is kept
+        n = expected.shape[0] // 2
+        self.assertGreater(float(cpuArray(sim._open_loop_psd())[n, n + 1]), 0)
 
 
 if __name__ == '__main__':

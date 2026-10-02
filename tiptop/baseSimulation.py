@@ -423,9 +423,7 @@ class baseSimulation(AbstractSimulation):
             return
 
         # OPEN-LOOP PSD
-        k = np.sqrt(self.fao.freq.k2_)
-        pf = pistonFilter(2*self.tel_radius, k)
-        spectrum = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf)
+        spectrum = arrayP3toMastsel(self._open_loop_psd())
         psdOL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
         psdOL.sampling = spectrum * (self.dk*self.wvlRef/np.pi)**2
 
@@ -455,6 +453,14 @@ class baseSimulation(AbstractSimulation):
                 print('LO_res [nm]:', self.LO_res)
             if self.GF_res is not None:
                 print('GF_res [nm]:', self.GF_res)
+
+    def _open_loop_psd(self):
+        """Open-loop phase PSD on the P3 grid.
+
+        No piston filter: it would remove the low-order power (scales larger
+        than the pupil) that broadens the seeing-limited PSF.
+        """
+        return self.fao.ao.atm.spectrum(np.sqrt(self.fao.freq.k2_))
 
     def computeMetrics(self):
         """
