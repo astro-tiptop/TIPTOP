@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
+    'sphinx.ext.napoleon',      # NumPy-style docstrings (e.g. tiptop.atmoProfile)
     'sphinx_tabs.tabs'
 
 ]
