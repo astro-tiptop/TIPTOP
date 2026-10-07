@@ -12,6 +12,12 @@ from mastsel import gpuEnabled as gpuMastsel
 from p3.aoSystem import gpuEnabled as gpuP3
 
 def gpuSelect(gpuIndex):
+    """
+        Select the GPU used by P3 and MASTSEL (no effect if neither runs on GPU).
+
+        :param gpuIndex: required, GPU index; if larger than the last available index, a warning is printed and the current device is kept.
+        :type gpuIndex: int
+    """
     if gpuMastsel or gpuP3:
         import cupy as cp
         max_index = cp.cuda.runtime.getDeviceCount() - 1
@@ -84,45 +90,48 @@ def gpuSelect(gpuIndex):
 def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve=True,
                       doPlot=False, returnRes=False, returnMetrics=False, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
-                      eeRadiusInMas=50, savePSDs=False, saveJson=False, gpuIndex=0):
+                      eeRadiusInMas=50, savePSDs=False, saveJson=False, gpuIndex=0,
+                      exactMultiWavelengthPSD=False):
     """
-        function to run the entire tiptop simulation based on the input file
+        Run a full TIPTOP simulation (HO PSD, LO residuals, PSFs) from a parameter file.
 
-        :param path2param: required, path to the parameter file.
+        :param path2param: required, path to the folder containing the parameter file.
         :type path2param: str
-        :param paramFileName: required, name of the parameter file to be used without the extention.
-        :type paramFileName: str
-        :param outpuDir: required, path to the folder in which to write the output.
+        :param parametersFile: required, name of the parameter file without the extension (.ini or .yml).
+        :type parametersFile: str
+        :param outputDir: required, path to the folder in which to write the output.
         :type outputDir: str
-        :param doConvolve: optional default: False, if you want to use the natural convolution operation set to True.
+        :param outputFile: required, name of the output file without the extension.
+        :type outputFile: str
+        :param doConvolve: optional default: True, if LO is enabled, convolve the HO PSFs with the LO residual (tip/tilt) kernel of each direction. If False, the HO PSFs are returned without this convolution.
         :type doConvolve: bool
-        :param doPlot: optional default: False, if you want to see the result in python set this to True.
+        :param doPlot: optional default: False, display the resulting PSFs.
         :type doPlot: bool
-        :param verbose: optional default: False, If you want all messages set this to True
-        :type verbose: bool
-        :param returnRes: optional default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
+        :param returnRes: optional default: False, return the residual errors instead of saving the results (see return).
         :type returnRes: bool
-        :param returnMetrics: optional default: False, The function will return Strehl Ratio, fwhm and encircled energy within eeRadiusInMas if set to True
+        :param returnMetrics: optional default: False, return Strehl ratio, FWHM and encircled energy within eeRadiusInMas instead of saving the results (ignored if returnRes is True).
         :type returnMetrics: bool
-        :param addSrAndFwhm: optional default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
+        :param addSrAndFwhm: optional default: True, add SR, FWHM and EE of each PSF in the header of the output fits file.
         :type addSrAndFwhm: bool
-        :param verbose: optional default: False, If you want all messages set this to True.
+        :param verbose: optional default: False, print all messages.
         :type verbose: bool
-        :param getHoErrorBreakDown: optional default: False, If you want HO error breakdown set this to True.
+        :param getHoErrorBreakDown: optional default: False, compute and print the HO error breakdown.
         :type getHoErrorBreakDown: bool
-        :param ensquaredEnergy: optional default: False, If you want ensquared energy instead of encircled energy set this to True.
+        :param ensquaredEnergy: optional default: False, compute the ensquared energy instead of the encircled energy.
         :type ensquaredEnergy: bool
-        :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy (if ensquaredEnergy is selected, this is half the side of the square)
+        :param eeRadiusInMas: optional default: 50, radius used for the encircled energy (if ensquaredEnergy is True, half the side of the square).
         :type eeRadiusInMas: float
-        :param savePSDs: optional default: False, If you want to save PSD in the output fits file set this to True.
+        :param savePSDs: optional default: False, also save the PSDs in the output fits file.
         :type savePSDs: bool
-        :param saveJson: optional default: False, If you want to save the PSF profile in a json file
+        :param saveJson: optional default: False, save the radial PSF profiles in ``<outputFile>1D_PSF.json``.
         :type saveJson: bool
-        :param gpuIndex: optional default: 0, Target GPU index where the simulation will be run
+        :param gpuIndex: optional default: 0, index of the GPU used for the simulation (if GPU is available).
         :type gpuIndex: int
+        :param exactMultiWavelengthPSD: optional default: False, with more than one science wavelength, compute one exact PSD grid per wavelength, so that each PSF is identical to a single-wavelength run. If False, all wavelengths share one approximate grid. If True, memory and computation time can be significantly higher than with False: the HO PSD (including reconstructor and controller) is computed and stored once per wavelength, so the cost grows roughly with the number of wavelengths.
+        :type exactMultiWavelengthPSD: bool
 
-        :return: TBD
-        :rtype: TBD
+        :return: if returnRes, HO residual in nm RMS per science direction (and LO residual in nm RMS per direction, if LO is enabled); if returnMetrics, (sr, fwhm, ee); otherwise None, and the results are saved in ``<outputDir>/<outputFile>.fits``.
+        :rtype: numpy.ndarray or tuple or None
 
     """
 
@@ -130,7 +139,7 @@ def overallSimulation(path2param, parametersFile, outputDir, outputFile, doConvo
 
     simulation = baseSimulation(path2param, parametersFile, outputDir, outputFile, doConvolve,
                       doPlot, addSrAndFwhm, verbose, getHoErrorBreakDown, savePSDs, ensquaredEnergy,
-                      eeRadiusInMas)
+                      eeRadiusInMas, exactMultiWavelengthPSD)
     
     simulation.doOverallSimulation()
 
@@ -156,43 +165,45 @@ def asterismSelection(simulName, path2param, parametersFile, outputDir, outputFi
                       progressStatus=False, gpuIndex=0):
 
     """
-        function to run the entire tiptop asterism evaluation on the input file
+        Evaluate the asterisms defined in the ``[ASTERISM_SELECTION]`` section (requires LO).
 
-        :param path2param: required, path to the parameter file.
+        :param simulName: required, name of the simulation, used as prefix of the saved/reloaded .npy files.
+        :type simulName: str
+        :param path2param: required, path to the folder containing the parameter file.
         :type path2param: str
-        :param paramFileName: required, name of the parameter file to be used without the extention.
-        :type paramFileName: str
-        :param outpuDir: required, path to the folder in which to write the output.
+        :param parametersFile: required, name of the parameter file without the extension (.ini or .yml).
+        :type parametersFile: str
+        :param outputDir: required, path to the folder in which to write the output.
         :type outputDir: str
-        :param doConvolve: optional default: False, if you want to use the natural convolution operation set to True.
-        :type doConvolve: bool
-        :param doPlot: optional default: False, if you want to see the result in python set this to True.
+        :param outputFile: required, name of the output file without the extension.
+        :type outputFile: str
+        :param doPlot: optional default: False, display intermediate plots.
         :type doPlot: bool
-        :param verbose: optional default: False, If you want all messages set this to True
-        :type verbose: bool
-        :param returnRes: optional default: False, The function will return the result in the environment if set to True, else it saves the result only in a .fits file.
+        :param returnRes: optional default: False, return the HO and LO residuals (see return).
         :type returnRes: bool
-        :param returnMetrics: optional default: False, The function will return Strehl Ratio, fwhm and encircled energy within eeRadiusInMas if set to True
+        :param returnMetrics: optional default: True, return Strehl ratio, FWHM, encircled energy and covariance ellipses (ignored if returnRes is True).
         :type returnMetrics: bool
-        :param addSrAndFwhm: optional default: False, The function will add in the header of the fits file SR anf FWHM for each PSF.
+        :param addSrAndFwhm: optional default: True, add SR and FWHM in the header of the output fits file.
         :type addSrAndFwhm: bool
-        :param verbose: optional default: False, If you want all messages set this to True.
+        :param verbose: optional default: False, print all messages.
         :type verbose: bool
-        :param getHoErrorBreakDown: optional default: False, If you want HO error breakdown set this to True.
+        :param getHoErrorBreakDown: optional default: False, currently ignored.
         :type getHoErrorBreakDown: bool
-        :param ensquaredEnergy: optional default: False, If you want ensquared energy instead of encircled energy set this to True.
+        :param ensquaredEnergy: optional default: False, currently ignored.
         :type ensquaredEnergy: bool
-        :param eeRadiusInMas: optional default: 50, used together with returnMetrics, radius used for the computation of the encirlced energy
+        :param eeRadiusInMas: optional default: 50, radius used for the encircled energy.
         :type eeRadiusInMas: float
-        :param plotInComputeAsterisms: optional default: False, If you want to display asterisms.
+        :param doConvolve: optional default: False, convolve the HO PSFs with the LO residual kernel of each asterism.
+        :type doConvolve: bool
+        :param plotInComputeAsterisms: optional default: False, display the asterisms.
         :type plotInComputeAsterisms: bool
-        :param progressStatus: optional default: False, If you want to display progress status.
+        :param progressStatus: optional default: False, display the progress status.
         :type progressStatus: bool
-        :param progressStatus: optional default: 0, The index of the GPU that will be used to perform this computation, if in use.
-        :type progressStatus: int
+        :param gpuIndex: optional default: 0, index of the GPU used for the simulation (if GPU is available).
+        :type gpuIndex: int
 
-        :return: TBD
-        :rtype: TBD
+        :return: if returnRes, (HO_res, LO_res, simulation); if returnMetrics, (sr, fwhm, ee, cov_ellipses, simulation); otherwise simulation. None if there is no ``[ASTERISM_SELECTION]`` section or LO is not enabled.
+        :rtype: tuple or asterismSimulation or None
 
     """
 
@@ -221,41 +232,42 @@ def hoAsterismSelection(simulName, path2param, parametersFile, outputDir, output
                         verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
                         eeRadiusInMas=50, progressStatus=False, gpuIndex=0):
     """
-    Function to run HO asterism evaluation using P3 fourierModel only
-    
-    :param simulName: required, name of the simulation
-    :type simulName: str
-    :param path2param: required, path to the parameter file
-    :type path2param: str
-    :param parametersFile: required, name of the parameter file without extension
-    :type parametersFile: str
-    :param outputDir: required, path to output directory
-    :type outputDir: str
-    :param outputFile: required, name of output file
-    :type outputFile: str
-    :param doPlot: optional default: False, plot results
-    :type doPlot: bool
-    :param returnRes: optional default: False, return HO residuals
-    :type returnRes: bool
-    :param returnMetrics: optional default: True, return metrics
-    :type returnMetrics: bool
-    :param addSrAndFwhm: optional default: True, add SR and FWHM to output
-    :type addSrAndFwhm: bool
-    :param verbose: optional default: False, verbose output
-    :type verbose: bool
-    :param getHoErrorBreakDown: optional default: False, get HO error breakdown
-    :type getHoErrorBreakDown: bool
-    :param ensquaredEnergy: optional default: False, use ensquared energy
-    :type ensquaredEnergy: bool
-    :param eeRadiusInMas: optional default: 50, radius for encircled energy
-    :type eeRadiusInMas: float
-    :param progressStatus: optional default: False, show progress
-    :type progressStatus: bool
-    :param gpuIndex: optional default: 0, GPU index
-    :type gpuIndex: int
-    
-    :return: Results based on return flags
-    :rtype: Various
+        Evaluate the HO asterisms defined in the ``[HO_ASTERISM_SELECTION]`` section, using P3 only (no LO).
+
+        :param simulName: required, name of the simulation, used as prefix of the saved/reloaded .npy files.
+        :type simulName: str
+        :param path2param: required, path to the folder containing the parameter file.
+        :type path2param: str
+        :param parametersFile: required, name of the parameter file without the extension (.ini or .yml).
+        :type parametersFile: str
+        :param outputDir: required, path to the folder in which to write the output.
+        :type outputDir: str
+        :param outputFile: required, name of the output file without the extension.
+        :type outputFile: str
+        :param doPlot: optional default: False, plot the results.
+        :type doPlot: bool
+        :param returnRes: optional default: False, return the HO residuals (see return).
+        :type returnRes: bool
+        :param returnMetrics: optional default: True, return Strehl ratio, FWHM and encircled energy (ignored if returnRes is True).
+        :type returnMetrics: bool
+        :param addSrAndFwhm: optional default: True, add SR and FWHM in the header of the output fits file.
+        :type addSrAndFwhm: bool
+        :param verbose: optional default: False, print all messages.
+        :type verbose: bool
+        :param getHoErrorBreakDown: optional default: False, compute the HO error breakdown.
+        :type getHoErrorBreakDown: bool
+        :param ensquaredEnergy: optional default: False, currently ignored.
+        :type ensquaredEnergy: bool
+        :param eeRadiusInMas: optional default: 50, radius used for the encircled energy.
+        :type eeRadiusInMas: float
+        :param progressStatus: optional default: False, display the progress status.
+        :type progressStatus: bool
+        :param gpuIndex: optional default: 0, index of the GPU used for the simulation (if GPU is available).
+        :type gpuIndex: int
+
+        :return: if returnRes, (HO_res, simulation); if returnMetrics, (sr, fwhm, ee, simulation); otherwise simulation. None if there is no ``[HO_ASTERISM_SELECTION]`` section.
+        :rtype: tuple or asterismSimulationHo or None
+
     """
 
     gpuSelect(gpuIndex)
@@ -284,6 +296,38 @@ def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, ou
                       doPlot=False, returnRes=False, returnMetrics=True, addSrAndFwhm=True,
                       verbose=False, getHoErrorBreakDown=False, ensquaredEnergy=False,
                       eeRadiusInMas=50, gpuIndex=0):
+    """
+        Reload the results of a previous asterismSelection run (the .npy files saved in outputDir with prefix simulName).
+
+        :param simulName: required, name of the simulation, used as prefix of the saved/reloaded .npy files.
+        :type simulName: str
+        :param path2param: required, path to the folder containing the parameter file.
+        :type path2param: str
+        :param parametersFile: required, name of the parameter file without the extension (.ini or .yml).
+        :type parametersFile: str
+        :param outputDir: required, path to the folder in which to write the output.
+        :type outputDir: str
+        :param outputFile: required, name of the output file without the extension.
+        :type outputFile: str
+        :param doPlot: optional default: False, display plots in later processing (e.g. heuristic model fit).
+        :type doPlot: bool
+        :param addSrAndFwhm: optional default: True, passed to the simulation object.
+        :type addSrAndFwhm: bool
+        :param verbose: optional default: False, print all messages.
+        :type verbose: bool
+        :param getHoErrorBreakDown: optional default: False, passed to the simulation object.
+        :type getHoErrorBreakDown: bool
+        :param returnRes: currently ignored.
+        :param returnMetrics: currently ignored.
+        :param ensquaredEnergy: currently ignored.
+        :param eeRadiusInMas: currently ignored.
+        :param gpuIndex: optional default: 0, index of the GPU used (if GPU is available).
+        :type gpuIndex: int
+
+        :return: (sr, fwhm, ee, cov_ellipses, simulation)
+        :rtype: tuple
+
+    """
 
     gpuSelect(gpuIndex)
 
@@ -295,6 +339,35 @@ def reloadAsterismSelection(simulName, path2param, parametersFile, outputDir, ou
 
 def generateHeuristicModel(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doTest=True,
                       share = 0.9, eeRadiusInMas=50, gpuIndex=0):
+    """
+        Run asterismSelection, then fit a heuristic model of the asterism metrics on the first
+        ``share`` fraction of the fields and, optionally, test it on the remaining ones.
+        The model is saved in outputDir as ``<parametersFile>_hmodel``.
+
+        :param simulName: required, name of the simulation, used as prefix of the saved/reloaded .npy files.
+        :type simulName: str
+        :param path2param: required, path to the folder containing the parameter file.
+        :type path2param: str
+        :param parametersFile: required, name of the parameter file without the extension (.ini or .yml).
+        :type parametersFile: str
+        :param outputDir: required, path to the folder in which to write the output.
+        :type outputDir: str
+        :param outputFile: required, name of the output file without the extension.
+        :type outputFile: str
+        :param doPlot: optional default: False, display the fit and test plots.
+        :type doPlot: bool
+        :param doTest: optional default: True, test the model on the fields not used for the fit.
+        :type doTest: bool
+        :param share: optional default: 0.9, fraction of the fields used for the fit.
+        :type share: float
+        :param eeRadiusInMas: currently ignored.
+        :param gpuIndex: optional default: 0, index of the GPU used (if GPU is available).
+        :type gpuIndex: int
+
+        :return: the asterism simulation object
+        :rtype: asterismSimulation
+
+    """
 
     sr, fw, ee, covs, simul = asterismSelection(simulName, path2param, parametersFile, outputDir, outputFile, doPlot=False, doConvolve=False, gpuIndex=gpuIndex)
 

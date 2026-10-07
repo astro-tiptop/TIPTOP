@@ -181,7 +181,7 @@ We now go more in detail for each section:
 |                         |``r0_value``|       |``r0 = 0.976 × λ / Seeing(rad)``. If not set, TipTop uses ``r0_value``.   |
 |                         |given       |       |                                                                          |
 +-------------------------+------------+-------+--------------------------------------------------------------------------+
-|r0_Value                 |Yes, unless |float  |Set the atmosphere Fried parameter ``r0`` in [meters]. Used directly      |
+|r0_value                 |Yes, unless |float  |Set the atmosphere Fried parameter ``r0`` in [meters]. Used directly      |
 |                         |``Seeing``  |       |if ``Seeing`` is not provided.                                            |
 |                         |given       |       |                                                                          |
 +-------------------------+------------+-------+--------------------------------------------------------------------------+
