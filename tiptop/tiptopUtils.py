@@ -20,9 +20,21 @@ def arrayP3toMastsel(v):
     if (gpuP3 and gpuMastsel) or (not gpuP3 and not gpuMastsel):
         return v
     elif not gpuP3 and gpuMastsel:
+        import cupy as cp  # only reachable when MASTSEL runs on GPU
         return cp.asarray(v)
     elif gpuP3 and not gpuMastsel:
         return v.get()
+
+def arrayMastseltoP3(v):
+    """Inverse of arrayP3toMastsel: move a MASTSEL array to P3's backend.
+
+    Dispatches on the array type, since some MASTSEL outputs are host arrays
+    even when MASTSEL runs on GPU.
+    """
+    if gpuP3:
+        import cupy as cp  # only reachable when P3 runs on GPU
+        return cp.asarray(v)
+    return cpuArray(v)
 
 def cpuArray(v):
     if isinstance(v, list):
