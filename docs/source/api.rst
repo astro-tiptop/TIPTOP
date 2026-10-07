@@ -19,3 +19,9 @@ Utilities
 
 .. autofunction:: tiptop.tiptop.gpuSelect
 .. autofunction:: tiptop.tiptopUtils.plot_directions
+
+Atmospheric profiles
+--------------------
+
+.. automodule:: tiptop.atmoProfile
+   :members: generateProfile, logGrid, layerWind, theta0FromProfile, seeingToR0, r0ToSeeing
