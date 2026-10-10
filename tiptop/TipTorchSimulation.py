@@ -494,7 +494,7 @@ class baseSimulation:
                 self.model.PSD_include['focus error'] = True
                 
                 with torch.no_grad():
-                    self.PSD = self.model.ComputePSD(update_LO_terms_only=True).real.clamp_min(0)
+                    self.PSD = self.model.ComputePSD(update_LO_only=True).real.clamp_min(0)
                     
                 self.model.PSD_include['focus error'] = False
                 self.GFinPSD = True
