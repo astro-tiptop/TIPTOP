@@ -347,7 +347,7 @@ class baseSimulation:
         model = TipTorch(AO_config=self.config_torch, device=self.device, **self.tiptorch_kwargs)
         self._set_jitter(model, None)
 
-        # P3-style PSD add-ons (the extra error and cone effects follow the config): tip/tilt is left to the LO loop when there is one, wind shake only without it
+        # LO terms (the extra errors and the cone effect follow the config): tip/tilt is left to the LO loop when there is one, wind shake only without it
         model.PSD_include['tilt filter'] = self.LOisOn
         model.PSD_include['wind shake']  = not self.LOisOn and model.vibration_PSD is not None
 
@@ -489,11 +489,13 @@ class baseSimulation:
             if self.addFocusError:
                 self.CtotFocus = _host(self.mLO.computeFocusTotalResidualMatrix(*focus_args))
                 self.GF_res = float(np.sqrt(max(self.CtotFocus[0], 0)))
-                # The residual global focus goes into the science PSD as a TipTorch add-on term re-applied to the cached core PSD (no recomputation)
+                # The residual global focus goes into the science PSD as a TipTorch LO term re-applied to the cached core PSD (no recomputation)
                 self.model.focus_error_nm = self.GF_res
                 self.model.PSD_include['focus error'] = True
+                
                 with torch.no_grad():
-                    self.PSD = self.model.ComputePSD(update_addons_only=True).real.clamp_min(0)
+                    self.PSD = self.model.ComputePSD(update_LO_terms_only=True).real.clamp_min(0)
+                    
                 self.model.PSD_include['focus error'] = False
                 self.GFinPSD = True
         else:
