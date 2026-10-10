@@ -1,1586 +1,764 @@
-# import p3.aoSystem
-# import p3.aoSystem.fourierModel
-# import p3.aoSystem.FourierUtils
-# from p3.aoSystem.fourierModel import *
-# from p3.aoSystem.FourierUtils import *
+"""
+TIPTOP simulation backed by TipTorch.
 
-import os
-import copy
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+TipTorch replaces P3 for all PSDs and for the science PSFs. MASTSEL still provides the low-order residual covariances
+(MavisLO) and the NGS / Focus sensor spot PSFs. The public interface mirrors `tiptop.baseSimulation.baseSimulation`
+so that `tiptop.py` and `asterismSimulation.py` can drive it the same way.
 
+Conventions
+    One TipTorch model holds all N_src = nPointings + nNaturalGS directions: the science pointings first, the NGS
+    directions last (as P3 does with getPSDatNGSpositions). PSDs are [N_src, N_wvl, nOtf, nOtf] in nm² on an odd grid
+    with the DC at nOtf//2; science PSFs are [nPointings, N_wvl, N_pix, N_pix] normalized to unit sum.
+"""
 
+from __future__ import annotations
+
+import ast
+import json
+from configparser import ConfigParser
+from copy import deepcopy
+from datetime import datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import numpy as np
+import torch
+import yaml
+from astropy.io import fits
+
+from mastsel import MavisLO, maskSA, polarToCartesian, psdSetToPsfSet
+from tiptorch._config import default_device, default_torch_type
 from tiptorch.PSF_models.TipTorch import TipTorch
 from tiptorch.managers.config_manager import ConfigManager
-from tiptorch._config import default_device, default_torch_type
-import torch
-
-try:
-    from utils import cov_to_jitter_mas
-except Exception:
-    cov_to_jitter_mas = None
-
-try:
-    # In the user project this helper may live in RotateGaussian.py.
-    from RotateGaussian import combine_zero_centered_jitters
-except Exception:
-    try:
-        from Gauss_rotate import combine_zero_centered_jitters
-    except Exception:
-        combine_zero_centered_jitters = None
-
-CALIBRATIONS_PATH = os.path.normpath(
-    os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), 
-        '../P3/p3/aoSystem/data/'
-    )
+from tiptorch.managers.parameter_parser import ParameterParser
+from tiptorch.tools.tiptop_integration import (
+    RAD_TO_MAS,
+    circular_pupil,
+    combine_zero_centered_jitters,
+    fwhm_to_jitter,
+    interpolate_curves,
+    pad_PSD_to_even,
+    PSF_encircled_energy,
+    PSF_ensquared_energy,
+    PSF_FWHM,
+    PSF_radial_profile,
+    tiptilt_covariance_to_jitter,
 )
 
-# import json
+try:
+    from ._version import __version__
 
-from mastsel import *
+except ImportError:
+    __version__ = 'unknown'
 
-# from .tiptopUtils import *
-# from ._version import __version__
-# import matplotlib as mpl
+MAX_HEADER_CHARS = 80 # as tiptopUtils.add_hdr_keyword
 
 
-rad2mas = 3600 * 180 * 1000 / np.pi
+def _as_list(value, count=None):
+    values = np.atleast_1d(value).tolist()
+    
+    if count is not None and len(values) == 1:
+        values = values * count
+    if count is not None and len(values) != count:
+        raise ValueError(f'Expected {count} values, got {len(values)}')
+    
+    return values
 
-class baseSimulation(object):
 
-    def __init__(
-        self,
-        path: str,
-        parametersFile: str,
-        outputDir: str,
-        outputFile: str,
-        doConvolve: bool = True,
-        doPlot: bool = False,
-        addSrAndFwhm: bool = True,
-        verbose: bool = False,
-        getHoErrorBreakDown: bool = False,
-        savePSDs: bool = False,
-        ensquaredEnergy: bool = False,
-        eeRadiusInMas: float = 50.0
-    ):
+def _host(value):
+    return value.get() if hasattr(value, 'get') else np.asarray(value)
 
-        self.path = path
-        self.verbose = verbose
-        self.firstSimCall = True    
+
+def _add_header_keyword(hdr, section, key, value, i=None, j=None):
+    ''' Store one config entry as a HIERARCH card, split over several cards when too long (as tiptopUtils.add_hdr_keyword) '''
+    card = ' '.join(str(part) for part in ('HIERARCH ' + section, key, i, j) if part is not None)
+    text = str(value)
+    
+    if len(card) + 4 > MAX_HEADER_CHARS:
+        return
+    
+    while len(card) + len(text) + 5 >= MAX_HEADER_CHARS:
+        cut = MAX_HEADER_CHARS - len(card) - 8
+        hdr[card + '+'] = text[:cut] + '&&&'
+        text = text[cut:]
+        
+    hdr[card] = text
+
+
+class baseSimulation:
+    """ TipTorch implementation of TIPTOP's `baseSimulation` interface """
+
+    def __init__(self, path, parametersFile, outputDir, outputFile, doConvolve=True, doPlot=False, addSrAndFwhm=True,
+                 verbose=False, getHoErrorBreakDown=False, savePSDs=False, ensquaredEnergy=False, eeRadiusInMas=50,
+                 backendHO='tiptorch', tiptorch_device=None, tiptorch_dtype=None, tiptorch_kwargs=None):
+
+        self.path, self.parametersFile  = str(path), parametersFile
+        self.outputDir, self.outputFile = str(outputDir), outputFile
+        self.doConvolve, self.doPlot, self.addSrAndFwhm, self.verbose = doConvolve, doPlot, addSrAndFwhm, verbose
+        self.getHoErrorBreakDown, self.savePSDs = getHoErrorBreakDown, savePSDs
+        self.ensquaredEnergy, self.eeRadiusInMas = ensquaredEnergy, eeRadiusInMas
+
+        self.firstSimCall = True
         self.doConvolveAsterism = True
         self.pointings_FWHM_mas = None
-        self.parametersFile = parametersFile
-        self.outputDir = outputDir
-        self.outputFile = outputFile
-        self.doPlot = doPlot
-        self.doConvolve = doConvolve
-        self.addSrAndFwhm = addSrAndFwhm
-        self.getHoErrorBreakDown = getHoErrorBreakDown
-        self.savePSDs = savePSDs
-        self.ensquaredEnergy = ensquaredEnergy
-        self.eeRadiusInMas = eeRadiusInMas
+        self.GFinPSD = False
+        self.model = None
+        self.results = []
+
+        filename = Path(self.path) / parametersFile
         
-        if verbose:
-            np.set_printoptions(precision=3)
- 
-        config_manager = ConfigManager()
-        config_dict = config_manager.Load( os.path.normpath(os.path.join(self.path, self.parametersFile)) )
-        config_dict = config_manager.Convert(config_dict, framework='pytorch', device=default_device, dtype=default_torch_type)
-        self.config_torch = config_dict
-        
-        # Initialize TipTorch model
-        self.model = TipTorch(
-            AO_config = config_dict,
-            norm_regime = 'sum',
-            device = default_device,
-            oversampling = 1,
-            retain_PSDs = True
-        )
-        
-        self.overSamp = self.model.oversampling # Oversampling factor
-        self.psInMas = float(self.model.psInMas.detach().cpu().item() if torch.is_tensor(self.model.psInMas) else self.model.psInMas)
-        self.nPixPSF = int(self.model.N_pix.detach().cpu().item() if torch.is_tensor(self.model.N_pix) else self.model.N_pix)
-        self.nPointings = int(self.model.N_src)
-        self.wvl = self.model.wvl.flatten().cpu().numpy().tolist()
-        self.wvlMax = max(self.wvl)
-        self.nWvl = len(self.wvl)
-        
-        # Convert back from torch
-        self.config = config_manager.Convert(config_dict, framework='list')
-        
-        self.tel_radius = self.config['telescope']['TelescopeDiameter'] / 2.0  # [m]
-            
-        self.zenithSrc  = self.config['sources_science']['Zenith']
-        self.azimuthSrc = self.config['sources_science']['Azimuth']
-        self.pointings  = polarToCartesian(np.array( [self.zenithSrc, self.azimuthSrc]))
-        
-        self.xxSciencePointigs = self.pointings[0,:]
-        self.yySciencePointigs = self.pointings[1,:]
-        
-        # self.psInMas = self.config['sensor_science']['PixelScale']
-        # self.SupSamp = self.config['sensor_science'].get('Super_Sampling', None)
-        
-        # it checks if LO parameters are set and then it acts accordingly
-        if 'sensor_LO' in self.config.keys():
-            self.LOisOn = True
-            if self.verbose:
-                print('LO part is present')
-        else:
-            self.LOisOn = False
-            self.nNaturalGS_field = 0
-            
-            if self.verbose:
-                print('LO part is not present')
-    
-        self.jitter_FWHM   = self.config['telescope'].get('jitter_FWHM', None)
-        self.addFocusError = self.config['telescope'].get('glFocusOnNGS', False)
-        
-        self.GFinPSD = False # defines whether the optional focus error is added as a fixed term in the PSD (True) or as a post-PSD quadratic term (False)
-
-        # LO covariance products are computed later, per simulation call.
-        # LO_tiptilt_cov: tip/tilt-like image-motion covariance used for PSF convolution.
-        # focus_cov: optional global-focus covariance reduced to GF_res.
-        self.LO_tiptilt_cov = None
-        self.focus_cov = None
-        
-        if not 'sensor_Focus' in self.config.keys() and self.addFocusError and max(self.config['sensor_LO']['NumberLenslets']) == 1:
-            raise ValueError("[telescope] glFocusOnNGS (that is focus correction with NGS) is available only if NGS/Focus WFSs have more than one sub-aperture")
-
-
-    def configLO(self):
-        def first_if_list(value):
-            return value[0] if isinstance(value, list) else value
-
-        def as_list(value, n):
-            return value if isinstance(value, list) else [value] * n
-
-        config = self.config
-        sources_LO = config["sources_LO"]
-        sensor_LO  = config["sensor_LO"]
-        rtc = config.get("RTC", {})
-
-        self.cartSciencePointingCoords = np.dstack( (self.xxSciencePointigs, self.yySciencePointigs) ).reshape(-1, 2)
-
-        self.LO_zen_field = sources_LO["Zenith"]
-        self.LO_az_field  = sources_LO["Azimuth"]
-
-        N_LO = len(self.LO_zen_field)
-
-        self.LO_wvl          = first_if_list(sources_LO["Wavelength"])
-        self.LO_fluxes_field = sensor_LO["NumberPhotons"]
-        self.LO_psInMas      = as_list(sensor_LO["PixelScale"], N_LO)
-        self.LO_freqs_field  = as_list(rtc["SensorFrameRate_LO"], N_LO)
-
-        self.addLOAlias = sensor_LO.get("addAliasError", False)
-
-        sensor_focus = config.get("sensor_Focus")
-
-        if sensor_focus is not None:
-            sources_focus = config.get("sources_Focus", sources_LO)
-
-            self.Focus_fluxes4s_field = sensor_focus["NumberPhotons"]
-            self.Focus_psInMas = as_list(sensor_focus["PixelScale"], N_LO)
-            self.Focus_wvl = first_if_list(sources_focus["Wavelength"])
-        else:
-            self.Focus_fluxes4s_field = self.LO_fluxes_field
-            self.Focus_psInMas = self.LO_psInMas
-            self.Focus_wvl = self.LO_wvl
-
-        self.Focus_freqs_field = as_list( rtc.get("SensorFrameRate_Focus", self.LO_freqs_field), N_LO, )
-
-        self.NGS_fluxes_field   = [flux*freq for flux, freq in zip(self.LO_fluxes_field, self.LO_freqs_field)]
-        self.Focus_fluxes_field = [flux*freq for flux, freq in zip(self.Focus_fluxes4s_field, self.Focus_freqs_field)]
-
-        polarNGSCoords = np.column_stack((self.LO_zen_field, self.LO_az_field))
-
-        self.nNaturalGS_field = N_LO
-        self.cartNGSCoords_field = np.asarray([ polarToCartesian(coords) for coords in polarNGSCoords ])
-        self.currentAsterismIndices = list(range(N_LO))
-
-        indices = self.currentAsterismIndices
-
-        self.LO_zen_asterism        = [self.LO_zen_field[i] for i in indices]
-        self.LO_az_asterism         = [self.LO_az_field[i] for i in indices]
-        self.LO_fluxes_asterism     = [self.LO_fluxes_field[i] for i in indices]
-        self.LO_freqs_asterism      = [self.LO_freqs_field[i] for i in indices]
-        self.NGS_fluxes_asterism    = [self.NGS_fluxes_field[i] for i in indices]
-        self.Focus_fluxes_asterism  = [self.Focus_fluxes_field[i] for i in indices]
-        self.cartNGSCoords_asterism = [self.cartNGSCoords_field[i] for i in indices]
-    
-    
-    '''
-    def finalPSF(self,astIndex):
-        if astIndex is None or self.firstSimCall:
-            # ----------------------------------------------------------------------------
-            ## HO PSF
-            PSD_HO = arrayP3toMastsel(self.PSD[0:self.nPointings])
-            mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
-            padPSD = self.nWvl > 1
-
-            if self.verbose:
-                print('******** HO PSF')
+        if not filename.suffix:
+            filename = filename.with_suffix('.ini')
+            if not filename.exists():
+                filename = filename.with_suffix('.yml')
                 
-            psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask,
-                                                    self.wvl, self.N, self.sx, self.grid_diameter,
-                                                    self.freq_range, self.dk, self.nPixPSF,
-                                                    self.wvlMax, self.overSamp,
-                                                    opdMap=self.opdMap, padPSD=padPSD)
-            # -----------------------------------------------------------------
-            ## Merit functions
-            self.pointings_FWHM_mas   = []
+        self.fullPathFilename = str(filename)
+        self.my_data_map = self._read_tiptop_config(filename)
+        self._validate_config()
 
-            for i in range(self.nWvl):
-                if self.nWvl>1:
-                    psfList = psfLongExpPointingsArr[i]
-                    wvl = self.wvl[i]
-                else:
-                    psfList = psfLongExpPointingsArr
-                    wvl = self.wvl[0]
-                fwhmList = []
-                idx = 0
-                for img in psfList:
-                    # Get SFWHM in mas the star positions at the sensing wavelength
-                    fwhmX,fwhmY = getFWHM(img.sampling, self.psInMas, method='contour', nargout=2)
-                    fwhm = np.sqrt(fwhmX*fwhmY)
-                    fwhmList.append(fwhm) #average over major and minor axes
-                    if self.verbose:
-                        s1 = cpuArray(PSD_HO[idx]).sum()
-                        sr = np.exp(-s1*(2*np.pi*1e-9/wvl)**2) # Strehl-ratio at the sensing wavelength
-                        print('SR(@',int(wvl*1e9),'nm)        :', "%.5f" % sr)
-                        print('FWHM(@',int(wvl*1e9),'nm) [mas]:', "%.3f" % fwhm)
-                    idx += 1
-                if self.nWvl > 1:
-                    self.pointings_FWHM_mas.append(fwhmList)
-                else:
-                    self.pointings_FWHM_mas = fwhmList
+        telescope, science, sensor = self.my_data_map['telescope'], self.my_data_map['sources_science'], self.my_data_map['sensor_science']
+        self.tel_radius = float(telescope['TelescopeDiameter']) / 2
+        self.wvl = [float(w) for w in _as_list(science['Wavelength'])]
+        self.nWvl, self.wvlMax = len(self.wvl), max(self.wvl)
+        self.iRef = int(np.argmin(self.wvl)) # P3 evaluates per-source quantities at the shortest wavelength
+        self.zenithSrc  = _as_list(science['Zenith'])
+        self.azimuthSrc = _as_list(science['Azimuth'], len(self.zenithSrc))
+        self.nPointings = len(self.zenithSrc)
+        self.pointings  = polarToCartesian(np.array([self.zenithSrc, self.azimuthSrc]))
+        self.xxSciencePointigs, self.yySciencePointigs = self.pointings[0, :], self.pointings[1, :]
+        self.cartSciencePointingCoords = self.pointings.T.copy()
+        self.psInMas = float(sensor['PixelScale'])
+        self.nPixPSF = int  (sensor['FieldOfView'])
+        self.SupSamp = sensor['Super_Sampling']
+        self.jitter_FWHM   = telescope.get('jitter_FWHM')
+        self.addFocusError = bool(telescope['glFocusOnNGS'])
+        self.LOisOn = 'sensor_LO' in self.my_data_map
+        self.nNaturalGS_field = 0
+        self.LO_zen_field, self.LO_az_field = [], []
 
-            self.psfLongExpPointingsArr = psfLongExpPointingsArr
+        if self.LOisOn and self.addFocusError and 'sensor_Focus' not in self.my_data_map \
+           and max(_as_list(self.my_data_map['sensor_LO']['NumberLenslets'])) == 1:
+            raise ValueError('[telescope] glFocusOnNGS is available only if NGS/Focus WFSs have more than one sub-aperture')
 
-            # ----------------------------------------------------------------------------
-            ## computation of the HO error (this is fixed for the simulation)
-            self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings],axis=(1,2)))
+        # TipTorch configuration: the LO-independent part is parsed once, the sources are set when the model is built
+        self.device = torch.device(tiptorch_device or default_device)
+        self.dtype  = tiptorch_dtype or default_torch_type
+        self.model_params = self._model_params_from_file(filename)
+        
+        for key in ('PathPupil', 'PathApodizer', 'PathStaticOn'):
+            resolved = self._resolve_data_path(telescope.get(key), filename)
+            if resolved is not None:
+                self.model_params['telescope'][key] = str(resolved)
 
-        def jitter_ellipse():
-            if self.jitter_FWHM is None:
-                return None
-            
-            if isinstance(self.jitter_FWHM, list):
-                return np.array([
-                    self.jitter_FWHM[2],
-                    sigma_from_FWHM(self.jitter_FWHM[0]),
-                    sigma_from_FWHM(self.jitter_FWHM[1])
-                ], dtype=self.fao.dtype)
-            
-            return np.array([
-                0,
-                sigma_from_FWHM(self.jitter_FWHM),
-                sigma_from_FWHM(self.jitter_FWHM)
-            ], dtype=self.fao.dtype)
-
-
-        def ellipse_to_spectrum(ellp):
-            if ellp is None:
-                return None
-            return residualToSpectrum(
-                ellp, self.wvlRef, self.nPixPSF,
-                1/(self.nPixPSF * self.psInMas)
+        self.tiptorch_kwargs = dict(tiptorch_kwargs or {})
+        self.tiptorch_kwargs.setdefault('norm_regime', 'sum')
+        self.tiptorch_kwargs.setdefault('oversampling', 1)
+        self.tiptorch_kwargs.setdefault('retain_PSDs', getHoErrorBreakDown)
+        self.tiptorch_kwargs.setdefault('dtype', self.dtype)
+        
+        if self.model_params['telescope'].get('PathPupil') is None and 'pupil' not in self.tiptorch_kwargs:
+            self.tiptorch_kwargs['pupil'] = circular_pupil(
+                int(telescope['Resolution']),
+                float(telescope.get('ObscurationRatio', 0)),
+                device=self.device,
+                dtype=self.dtype
             )
+            
+        static_path = self.model_params['telescope'].get('PathStaticOn')
+        self.static_WFE_nm = None if static_path is None else np.asarray(fits.getdata(static_path), dtype=np.float64)
 
 
-        def store_results(convolve_one):
-            for i in range(self.nWvl):
-                psfList = self.psfLongExpPointingsArr[i] if self.nWvl > 1 else self.psfLongExpPointingsArr
-                resultList = [convolve_one(psf, idx) for idx, psf in enumerate(psfList)]
-                if self.nWvl > 1:
-                    self.results.append(resultList)
-                else:
-                    self.results = resultList
+    # ----------------------------------------- Configuration -----------------------------------------
+    def check_section_key(self, primary):
+        return primary in self.my_data_map
 
-        # ------------------------------------------------------------------------
-        ## final PSFs computation after optional convolution with LO/jitter kernels
-        jitterSpec = ellipse_to_spectrum(jitter_ellipse())
+    def check_config_key(self, primary, secondary):
+        return primary in self.my_data_map and secondary in self.my_data_map[primary]
+
+
+    @staticmethod
+    def _read_tiptop_config(filename):
+        if not filename.exists():
+            raise FileNotFoundError(filename)
+        
+        if filename.suffix.lower() in ('.yaml', '.yml'):
+            with filename.open(encoding='utf-8') as stream:
+                return yaml.safe_load(stream)
+
+        parser = ConfigParser(interpolation=None)
+        parser.optionxform = str
+        parser.read(filename, encoding='utf-8')
+        result = {}
+        
+        for section in parser.sections():
+            result[section] = {}
+            for key, value in parser.items(section):
+                try:
+                    result[section][key] = ast.literal_eval(value)
+                except (ValueError, SyntaxError):
+                    result[section][key] = value.strip()
+                    
+        return result
+
+
+    def _validate_config(self):
+        ''' The checks and defaults of baseSimulation.__init__ '''
+        for section in ('telescope', 'sources_science', 'sensor_science'):
+            if section not in self.my_data_map:
+                raise ValueError(f"The section '{section}' is missing from the parameter file")
+            
+        for section, key in (('telescope', 'TelescopeDiameter'), ('sources_science', 'Wavelength')):
+            if key not in self.my_data_map[section]:
+                raise ValueError(f"'{key}' is missing from section '{section}'")
+
+        science = self.my_data_map['sources_science']
+        science.setdefault('Zenith',  [0.0])
+        science.setdefault('Azimuth', [0.0])
+        
+        if len(_as_list(science['Zenith'])) != len(_as_list(science['Azimuth'])):
+            raise ValueError("'Zenith' and 'Azimuth' in section 'sources_science' must have the same length")
+        
+        self.my_data_map['telescope'].setdefault('glFocusOnNGS', False)
+
+        sensor = self.my_data_map['sensor_science']
+        super_sampling = sensor.get('Super_Sampling')
+        
+        if super_sampling is None:
+            sensor['Super_Sampling'] = None
+        elif isinstance(super_sampling, (int, float)):
+            sensor['Super_Sampling'] = [float(super_sampling), 2]  
+        elif isinstance(super_sampling, (list, tuple)) and len(super_sampling) in (1, 2):
+            sensor['Super_Sampling'] = [float(super_sampling[0]), int(super_sampling[1]) if len(super_sampling) == 2 else 2]
+        else:
+            raise KeyError('Super_Sampling must be a scalar or list of one/two values.')
+
+        if ('sensor_LO' in self.my_data_map) != ('sources_LO' in self.my_data_map):
+            raise KeyError("'sensor_LO' and 'sources_LO' must be defined together")
+        
+        if 'sensor_LO' in self.my_data_map:
+            if 'Wavelength' not in self.my_data_map['sources_LO']:
+                raise ValueError("'Wavelength' is missing from section 'sources_LO'")
+            
+            if 'NumberPhotons' not in self.my_data_map['sensor_LO']:
+                raise ValueError("'NumberPhotons' is missing from section 'sensor_LO'")
+            
+            if 'RTC' not in self.my_data_map or 'SensorFrameRate_LO' not in self.my_data_map['RTC']:
+                raise ValueError("'SensorFrameRate_LO' is missing from section 'RTC'")
+            
+            self.my_data_map['sources_LO'].setdefault('Zenith',  [0.0])
+            self.my_data_map['sources_LO'].setdefault('Azimuth', [0.0])
+
+
+    @staticmethod
+    def _resolve_data_path(value, config_file):
+        if not isinstance(value, str) or value == '' or value.startswith('$CALIBRATIONS_PATH$'):
+            return None # ParameterParser resolves TipTorch calibration tokens itself
+        
+        path = Path(value)
+        candidates = [path] if path.is_absolute() else [base / path for base in (Path.cwd(), *config_file.resolve().parents)]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate.resolve()
+        
+        raise FileNotFoundError(f'{value} (from {config_file})')
+
+
+    def _model_params_from_file(self, filename):
+        if filename.suffix.lower() == '.ini':
+            return ParameterParser(str(filename)).params
+        # TipTorch's parser supplies the defaults its model needs but reads INI only: feed it an INI view of the YAML
+        parser = ConfigParser(interpolation=None)
+        parser.optionxform = str
+        for section, values in self.my_data_map.items():
+            if isinstance(values, dict):
+                parser[section] = {key: repr(value) for key, value in values.items()}
+                
+        with TemporaryDirectory() as temp_dir:
+            ini_path = Path(temp_dir) / 'tiptop_config.ini'
+            with ini_path.open('w', encoding='utf-8') as stream:
+                parser.write(stream)
+            
+            return ParameterParser(str(ini_path)).params
+
+
+    def configLO(self, astIndex=None):
+        source, sensor, RTC = self.my_data_map['sources_LO'], self.my_data_map['sensor_LO'], self.my_data_map['RTC']
+        self.LO_zen_field = _as_list(source['Zenith'])
+        count = len(self.LO_zen_field)
+        self.LO_az_field     = _as_list(source['Azimuth'], count)
+        self.LO_wvl          = float(_as_list(source['Wavelength'])[0]) # one wavelength for all the asterism stars
+        self.LO_fluxes_field = _as_list(sensor['NumberPhotons'], count)
+        self.LO_psInMas      = _as_list(sensor['PixelScale'], count)
+        self.LO_freqs_field  = _as_list(RTC['SensorFrameRate_LO'], count)
+        self.addLoAlias      = bool(sensor.get('addAliasError', False))
+
+        focus = self.my_data_map.get('sensor_Focus')
+        if focus is None:
+            self.Focus_fluxes4s_field, self.Focus_psInMas, self.Focus_wvl = self.LO_fluxes_field, self.LO_psInMas, self.LO_wvl
+        else:
+            self.Focus_fluxes4s_field = _as_list(focus['NumberPhotons'], count)
+            self.Focus_psInMas = _as_list(focus['PixelScale'], count)
+            self.Focus_wvl = float(_as_list(self.my_data_map.get('sources_Focus', source)['Wavelength'])[0])
+            
+        self.Focus_freqs_field = _as_list(RTC.get('SensorFrameRate_Focus', self.LO_freqs_field), count)
+
+        self.NGS_fluxes_field   = (np.asarray(self.LO_fluxes_field) * np.asarray(self.LO_freqs_field)).tolist()
+        self.Focus_fluxes_field = (np.asarray(self.Focus_fluxes4s_field) * np.asarray(self.Focus_freqs_field)).tolist()
+        self.nNaturalGS_field   = count
+        self.cartNGSCoords_field = np.array([polarToCartesian(np.array([z, a])) for z, a in zip(self.LO_zen_field, self.LO_az_field)])
+        self.currentAsterismIndices = list(range(count))
+        self.setAsterismData()
+
+
+    def setAsterismData(self):
+        ids = self.currentAsterismIndices
+        self.LO_zen_asterism        = [self.LO_zen_field[i] for i in ids]
+        self.LO_az_asterism         = [self.LO_az_field[i] for i in ids]
+        self.LO_fluxes_asterism     = [self.LO_fluxes_field[i] for i in ids]
+        self.LO_freqs_asterism      = [self.LO_freqs_field[i] for i in ids]
+        self.NGS_fluxes_asterism    = [self.NGS_fluxes_field[i] for i in ids]
+        self.Focus_fluxes_asterism  = [self.Focus_fluxes_field[i] for i in ids]
+        self.cartNGSCoords_asterism = [self.cartNGSCoords_field[i] for i in ids]
+
+
+    # ----------------------------------------- TipTorch model -----------------------------------------
+    def _build_model(self):
+        ''' One TipTorch model for the science pointings followed by the NGS directions, sharing one observation '''
+        params = deepcopy(self.model_params)
+        params['sources_science']['Zenith']  = [float(z) for z in (*self.zenithSrc,  *self.LO_zen_field)]
+        params['sources_science']['Azimuth'] = [float(a) for a in (*self.azimuthSrc, *self.LO_az_field)]
+        params['NumberSources'] = 1
+
+        manager = ConfigManager()
+        manager.select_required_fields(params)
+        manager.wrap_scalars_to_lists(params)
+        manager.ensure_dimensions(params, 1) # one atmosphere / WFS observation serves all directions
+        params['NumberSources'] = len(params['sources_science']['Zenith'])
+        self.config_torch = manager.Convert(params, framework='pytorch', device=self.device, dtype=self.dtype)
+
+        model = TipTorch(AO_config=self.config_torch, device=self.device, **self.tiptorch_kwargs)
+        self._set_jitter(model, None)
+
+        if self.static_WFE_nm is not None:
+            if self.static_WFE_nm.shape != tuple(model.pupil.shape):
+                raise ValueError('PathStaticOn map shape does not match the pupil')
+            static_WFE = torch.as_tensor(self.static_WFE_nm, device=self.device, dtype=self.dtype)
+            phase = 2*torch.pi*1e-9 * static_WFE[None, None] / model.wvl[..., None, None] # [1, N_wvl, N, N]
+            model.ComputeStaticOTF(model.pupil * torch.exp(1j*phase))
+        return model
+
+
+    @staticmethod
+    def _set_jitter(model, jitter):
+        ''' Set the (Jx, Jy, Jxy) jitter of the science pointings; the NGS directions always get zero '''
+        zeros = torch.zeros(model.N_src, device=model.device, dtype=model.wvl.dtype)
+        if jitter is None:
+            model.Jx, model.Jy, model.Jxy = zeros, zeros.clone(), zeros.clone()
+        else:
+            model.Jx, model.Jy, model.Jxy = (torch.cat([j.to(zeros), zeros[j.numel():]]) for j in jitter)
+
+
+    def _extra_error_PSD(self):
+        ''' P3's extra-error PSDs [N_src, 1, nOtf, nOtf]: science pointings get extraErrorNm, NGS directions extraErrorLoNm (field-dependent) '''
+        tel = self.my_data_map['telescope']
+        rms_HO, n_NGS = float(tel.get('extraErrorNm', 0)), self.nNaturalGS_field
+        HO_shape = (float(tel.get('extraErrorExp', -2)), float(tel.get('extraErrorMin', 0)), float(tel.get('extraErrorMax', 0)))
+
+        RMS_LO = _as_list(tel.get('extraErrorLoNm', rms_HO))
+        if len(RMS_LO) == 2: # linear interpolation between the field center and the edge of the technical field
+            RMS_LO = np.interp(self.LO_zen_field, [0, float(tel['TechnicalFoV'])/2], RMS_LO).tolist()
+        elif len(RMS_LO) == 1:
+            RMS_LO = RMS_LO * n_NGS
+        else:
+            raise ValueError('extraErrorLoNm must be a scalar or [center, edge] values')
+        
+        LO_shape = (float(tel.get('extraErrorLoExp', HO_shape[0])), float(tel.get('extraErrorLoMin', 0)), float(tel.get('extraErrorLoMax', 0)))
+
+        PSD = 0.0
+        if np.sum(RMS_LO) >= 0 and n_NGS > 0:
+            PSD = PSD + self.model.ExtraErrorPSD([0.0]*self.nPointings + RMS_LO, *LO_shape)
+            rms_HO_per_source = [rms_HO]*self.nPointings + [0.0]*n_NGS
+        else:
+            rms_HO_per_source = [rms_HO]*(self.nPointings + n_NGS) # negative LO values fall back to the HO extra error
+        if rms_HO > 0:
+            PSD = PSD + self.model.ExtraErrorPSD(rms_HO_per_source, *HO_shape)
+        
+        return PSD
+
+
+    def _prepare_state(self):
+        ''' Build the model and compute everything that does not depend on the selected asterism '''
+        self.model = self._build_model()
+        model = self.model
+        
+        with torch.no_grad():
+            PSD = model.ComputePSD().real.clamp_min(0) # [N_src, N_wvl, nOtf, nOtf] in nm²
+            
+            if self.LOisOn:
+                PSD = PSD * model.TiltFilter() # tip/tilt is handled by the LO loop
+                
+            elif self.my_data_map['telescope'].get('windPsdFile'):
+                wind_path = self._resolve_data_path(self.my_data_map['telescope']['windPsdFile'], Path(self.fullPathFilename))
+                PSD = PSD + model.WindShakePSD(fits.getdata(wind_path))
+                
+            self.PSD_HO = PSD + self._extra_error_PSD()
+
+        if self.getHoErrorBreakDown:
+            self.HO_error_budget = model.ErrorBudget(verbose=self.verbose)
+
+        # MASTSEL grid description of the TipTorch PSD, see baseSimulation.doOverallSimulation
+        self.N  = int(model.nOtf)
+        self.dk = 0.5e9 * float(model.dk) # TIPTOP convention: MASTSEL gets nm² PSDs together with half of the frequency step scaled by 1e9
+        self.PSDstep = float(model.dk)
+        pixels_per_l_D = self.wvlMax * float(model.rad2mas) / (self.psInMas * 2*self.tel_radius)
+        self.overSamp = max(1, int(round(model.sampling_min / pixels_per_l_D)))
+        self.pupil = model.pupil.detach().cpu().numpy()
 
         if self.LOisOn:
-            if not self.doConvolve:
-                store_results(lambda psf, idx: psf)
-                return
-
-            self.cov_ellipses = self.mLO.ellipsesFromCovMats(self.LO_tiptilt_cov)
-
-            if self.verbose:
-                for n in range(self.cov_ellipses.shape[0]):
-                    print('cov_ellipses #', n, ': ', self.cov_ellipses[n,:], ' (unit: rad, mas, mas)')
-
-            # Preserve old behavior: cache ellipses only when asterism convolution is disabled.
-            if not self.doConvolveAsterism:
-                return
-
-            if self.verbose:
-                print('******** FINAL CONVOLUTION')
-
-            loSpecs = [
-                ellipse_to_spectrum(ellp.astype(self.fao.dtype))
-                for ellp in self.cov_ellipses
-            ]
-
-            def convolve_one(psf, idx):
-                psf = convolve(psf, loSpecs[idx])
-                return convolve(psf, jitterSpec) if jitterSpec is not None else psf
-
-            store_results(convolve_one)
-        else:
-            store_results(
-                lambda psf, idx: convolve(psf, jitterSpec) if jitterSpec is not None else psf
-            )
-    '''
-    
-    
-    def _sensor_PSF_sampling(self, sensor_wvl, sensor_pixel_scales):
-        """Return PSF pixel scale, output size, and reshape mode for an LO-like sensor.
-
-        The NGS/focus PSFs are generated at the science-camera sampling scaled to
-        the sensor wavelength.  If that sampling is coarser than the sensor pixel
-        scale, keep the native high-resolution PSF instead of reshaping too early.
-        """
-        psf_pixel_scale_mas = self.model.psInMas * sensor_wvl / self.wvlMax
-        min_sensor_pixel_scale = np.min(sensor_pixel_scales)
-
-        if psf_pixel_scale_mas / min_sensor_pixel_scale > 1 and self.overSamp > 1:
-            return psf_pixel_scale_mas / self.overSamp, int(self.overSamp * self.nPixPSF), True
-
-        return psf_pixel_scale_mas, self.nPixPSF, False
+            self.ngsPSF()
+            self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
 
 
-    def _build_sensor_PSD_and_mask(self, n_lenslets):
-        """Build NGS-direction PSDs and the matching LO/focus sub-aperture mask."""
-        PSD   = arrayP3toMastsel(self.PSD[-self.nNaturalGS_field:])
-        pupil = arrayP3toMastsel(self.fao.ao.tel.pupil)
-        mask  = maskSA(n_lenslets, self.nNaturalGS_field, pupil)
-        self._apply_subaperture_piston_filter(PSD, n_lenslets)
+    # ----------------------------------------- LO sensors (MASTSEL) -----------------------------------------
+    def _MASTSEL_PSFs(self, PSD, mask, wavelength, nPixPSF, skip_reshape=False):
+        ''' Long-exposure PSFs from TipTorch PSDs [N, nOtf, nOtf] through MASTSEL; odd PSDs are zero-padded to the parity of nPixPSF '''
+        PSD = pad_PSD_to_even(PSD) if nPixPSF % 2 == 0 else PSD
+        n = PSD.shape[-1]
+        freq_range = n * self.PSDstep
+        sx = int(2 * np.round(self.tel_radius * freq_range))
+        PSFs = psdSetToPsfSet(list(PSD.detach().cpu().numpy()), mask, wavelength, n, sx, 1/self.PSDstep, freq_range, self.dk,
+                              nPixPSF, self.wvlMax, self.overSamp, opdMap=self.static_WFE_nm, skip_reshape=skip_reshape)
+        images = torch.as_tensor(np.stack([_host(p.sampling) for p in PSFs]), device=self.device, dtype=self.dtype)
         
-        return PSD, mask
+        return images, float(PSFs[0].pixel_size * RAD_TO_MAS)
 
 
-    def _apply_subaperture_piston_filter(self, PSD, n_lenslets):
-        """Filter each NGS PSD by the piston filter of its effective sub-aperture.
+    def _sensor_metrics(self, wavelength, pixel_scales, lenslets):
+        ''' Strehl, FWHM [mas] and encircled energy of the NGS spots seen by a LO-type sensor, as baseSimulation.ngsPSF '''
+        model, n_NGS = self.model, self.nNaturalGS_field
+        
+        lenslets = _as_list(lenslets)
+        if len(lenslets) not in (1, n_NGS):
+            raise ValueError('NumberLenslets must be a scalar or have one value per NGS')
+        
+        mask = maskSA(lenslets, n_NGS, self.pupil)
 
-        A one-lenslet sensor is treated as a pure full-aperture measurement and is
-        left unchanged.  If the config provides one lenslet count for all stars,
-        that value is reused for every NGS direction.
-        """
-        spatial_freq = np.sqrt(self.fao.freq.k2_)
+        with torch.no_grad():
+            PSD = self.PSD_HO[self.nPointings:, self.iRef] # [N_NGS, nOtf, nOtf]
+            n_sub = torch.as_tensor(lenslets if len(lenslets) == n_NGS else lenslets * n_NGS, device=self.device, dtype=self.dtype).view(-1, 1, 1)
+            sub_aperture_filter = model.half_PSD_to_full(model._spatial_filters(model.k, D=model.D/n_sub)[0])
+            PSD = torch.where(n_sub > 1, PSD * sub_aperture_filter, PSD)
 
-        for i in range(self.nNaturalGS_field):
-            n_lenslets_i = n_lenslets[i] if len(n_lenslets) == self.nNaturalGS_field else n_lenslets[0]
+            psf_scale = self.psInMas * wavelength / self.wvlMax
+            skip_reshape = psf_scale / min(pixel_scales) > 1 and self.overSamp > 1
+            nPix = self.nPixPSF * self.overSamp if skip_reshape else self.nPixPSF
+            images, scale = self._MASTSEL_PSFs(PSD, mask, wavelength, nPix, skip_reshape)
 
-            if n_lenslets_i == 1:
-                continue
-
-            piston_filter = FourierUtils.pistonFilter(2 * self.tel_radius / n_lenslets_i, spatial_freq)
-            PSD[i] *= piston_filter
-
-
-    def _PSFs_from_sensor_PSDs(self, PSD, mask, sensor_wvl, nPixPSF, skip_reshape):
-        """Convert a set of NGS-direction PSDs into long-exposure sensor PSFs."""
-        return psdSetToPsfSet(
-            PSD,
-            mask,
-            sensor_wvl,
-            self.N,
-            self.sx,
-            self.grid_diameter,
-            self.freq_range,
-            self.dk,
-            nPixPSF,
-            self.wvlMax,
-            self.overSamp,
-            opdMap=self.opdMap,
-            skip_reshape=skip_reshape
-        )
-
-
-    def _encircled_energy_at_sensor_radius(self, img, fwhm_mas, psf_pixel_scale_mas, sensor_pixel_scale_mas, nPixPSF):
-        """Measure EE at max(FWHM, sensor pixel scale), matching the old logic."""
-        if 2 * fwhm_mas >= nPixPSF * psf_pixel_scale_mas:
-            return 1
-
-        ee, rr = getEncircledEnergy(
-            img.sampling,
-            pixelscale=psf_pixel_scale_mas,
-            center=centeredPixelCoords(nPixPSF),
-            nargout=2
-        )
-        ee *= 1 / np.max(ee)
-        ee_at_radius = interp1d(rr, ee, kind='cubic', bounds_error=False)
-        return ee_at_radius(max([fwhm_mas, sensor_pixel_scale_mas]))
-
-
-    def _measure_sensor_PSFs(self, PSFs, PSD, sensor_wvl, PSF_pixel_scale_mas, sensor_pixel_scales, nPixPSF, label):
-        """Return SR, FWHM, and EE lists for NGS/focus sensor PSFs."""
-        sr_list, fwhm_list, ee_list = [], [], []
-
-        for idx, img in enumerate(PSFs):
-            psd_variance_nm2 = cpuArray(PSD[idx]).sum()
-            SR = np.exp(-psd_variance_nm2 * (2 * np.pi * 1e-9 / sensor_wvl)**2)
-
-            fwhmX, fwhmY = getFWHM(img.sampling, PSF_pixel_scale_mas, method='contour', nargout=2)
-            FWHM = np.sqrt(fwhmX * fwhmY)
-
-            sensor_pixel_scale_i = sensor_pixel_scales[idx] if isinstance(sensor_pixel_scales, list) else sensor_pixel_scales
-            EE = self._encircled_energy_at_sensor_radius(
-                img,
-                FWHM,
-                PSF_pixel_scale_mas,
-                sensor_pixel_scale_i,
-                nPixPSF
-            )
-
-            sr_list.append(SR)
-            fwhm_list.append(FWHM)
-            ee_list.append(EE)
-
-            if self.verbose:
-                print('SR(@', int(sensor_wvl * 1e9), 'nm)        :', "%.5f" % SR)
-                print('FWHM(@', int(sensor_wvl * 1e9), 'nm) [mas]:', "%.3f" % FWHM)
-                print(label, ':', "%.5f" % EE)
-
-        return sr_list, fwhm_list, ee_list
-
-
-    def _compute_NGS_DL_FWHM(self, maskLO, n_lenslet_masks, psf_pixel_scale_mas):
-        """Compute diffraction-limited NGS FWHM used by the optional LO aliasing term."""
-        if not self.addLOAlias:
-            self.NGS_DL_FWHM_mas = None
-            return
-
-        if self.verbose:
-            print('Adding aliasing error on LO!')
-
-        self.NGS_DL_FWHM_mas = [] if isinstance(maskLO, list) else None
-
-        for i in range(n_lenslet_masks):
-            mask_i = maskLO[i] if isinstance(maskLO, list) else maskLO
-
-            PSD_DL    = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
-            maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
+            SR = torch.exp(-PSD.sum(dim=(-2,-1)) * (2*torch.pi*1e-9/wavelength)**2)
+            FWHM = torch.sqrt(torch.prod(torch.stack(PSF_FWHM(images, scale)), dim=0))
+            radii, EE_curves = PSF_encircled_energy(images, scale)
+            EE = interpolate_curves(radii, EE_curves, torch.maximum(FWHM, torch.as_tensor(pixel_scales, device=self.device, dtype=self.dtype)))
+            EE = torch.where(2*FWHM >= nPix*scale, torch.ones_like(EE), EE)
             
-            maskField.sampling = congrid(mask_i, [self.sx, self.sx])
-            maskField.sampling = padOrCropCentered(maskField.sampling, self.N, xp=maskField.xp)
-
-            psfNgsDL = longExposurePsf(maskField, PSD_DL)
-            fwhmX, fwhmY = getFWHM(psfNgsDL.sampling, psf_pixel_scale_mas, method='contour', nargout=2)
-            fwhm = np.sqrt(fwhmX * fwhmY)
-
-            if self.NGS_DL_FWHM_mas is None:
-                self.NGS_DL_FWHM_mas = fwhm
-            else:
-                self.NGS_DL_FWHM_mas.append(fwhm)
-
-
-    def _use_NGS_metrics_for_focus(self):
-        """Reuse LO NGS PSF metrics when no separate focus sensor is configured."""
-        if self.verbose:
-            print('Focus sensor is not set: using LO PSFs.')
-
-        self.Focus_SR_field = self.NGS_SR_field
-        self.Focus_FWHM_mas_field = self.NGS_FWHM_mas_field
-        self.Focus_EE_field = self.NGS_EE_field
-
-
-    def _compute_focus_sensor_PSF_metrics(self):
-        """Compute PSF quality metrics for a dedicated focus sensor, if present."""
-        if not self.addFocusError:
-            return
-
-        if 'sensor_Focus' not in self.config:
-            self._use_NGS_metrics_for_focus()
-            return
-
-        if self.verbose:
-            print('Focus sensor is set: computing new PSFs.')
-            print('******** Focus Sensor PSF - NGS directions (1 sub-aperture)')
-
-        PSF_pixel_scale_mas, nPixPSF, skip_reshape = self._sensor_PSF_sampling(self.Focus_wvl, self.Focus_psInMas)
-
-        n_lenslets = self.config['sensor_Focus']['NumberLenslets']
-        PSD_focus, mask_focus = self._build_sensor_PSD_and_mask(n_lenslets)
-        
-        PSF_focus = self._PSFs_from_sensor_PSDs(
-            PSD_focus,
-            mask_focus,
-            self.Focus_wvl,
-            nPixPSF,
-            skip_reshape
-        )
-
-        self.Focus_SR_field, self.Focus_FWHM_mas_field, self.Focus_EE_field = self._measure_sensor_PSFs(
-            PSF_focus,
-            PSD_focus,
-            self.Focus_wvl,
-            PSF_pixel_scale_mas,
-            self.Focus_psInMas,
-            nPixPSF,
-            label='EE (focus sensor)    '
-        )
+        return SR.cpu().tolist(), FWHM.cpu().tolist(), EE.cpu().tolist(), mask
 
 
     def ngsPSF(self):
-        """Compute PSF-based quantities needed by the low-order MavisLO model.
+        lenslets = self.my_data_map['sensor_LO']['NumberLenslets']
+        self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field, mask = self._sensor_metrics(self.LO_wvl, self.LO_psInMas, lenslets)
 
-        This does not produce the final science PSF.  It prepares guide-star
-        quality inputs for the LO covariance calculation:
-        1. Generate long-exposure PSFs in the NGS directions.
-        2. Measure NGS SR/FWHM/EE from those PSFs.
-        3. Optionally compute diffraction-limited NGS FWHM for LO aliasing.
-        4. If focus correction uses a dedicated sensor, repeat the same metric
-           calculation for that sensor; otherwise reuse the NGS metrics.
-        """
-        if self.verbose:
-            print('******** LO PSF - NGS directions (1 sub-aperture)')
-
-        PSF_pixel_scale_mas, nPixPSF, skip_reshape = self._sensor_PSF_sampling(self.LO_wvl, self.LO_psInMas)
-
-        n_lenslets = self.config['sensor_LO']['NumberLenslets']
-        n_lenslet_masks = len(n_lenslets) if len(n_lenslets) == self.nNaturalGS_field else 1
-
-        PSD_NGS, mask_LO = self._build_sensor_PSD_and_mask(n_lenslets)
-        PSF_NGS = self._PSFs_from_sensor_PSDs(PSD_NGS, mask_LO, self.LO_wvl, nPixPSF, skip_reshape)
-
-        self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field = self._measure_sensor_PSFs(
-            PSF_NGS,
-            PSD_NGS,
-            self.LO_wvl,
-            PSF_pixel_scale_mas,
-            self.LO_psInMas,
-            nPixPSF,
-            label = 'EE                  '
-        )
-
-        self._compute_NGS_DL_FWHM(mask_LO, n_lenslet_masks, PSF_pixel_scale_mas)
-        self._compute_focus_sensor_PSF_metrics()
-
-
-    '''
-    def computeMetrics(self):
-        self.penalty, self.sr, self.fwhm, self.ee = [], [], [], []
+        self.NGS_DL_FWHM_mas = None
         
-        if len(self.results) == 0:
-            if self.LOisOn:
-                if self.addFocusError and not self.GFinPSD:
-                    self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) + self.GF_res**2 ) )
-                else:
-                    self.penalty.append( np.sqrt( np.mean(cpuArray(self.LO_res)**2 + cpuArray(self.HO_res)**2) ) )
+        if self.addLoAlias: # diffraction-limited spot width of every distinct sub-aperture mask
+            masks = mask if isinstance(mask, list) else [mask]
+            widths = []
+            for mask_i in masks:
+                zero_PSD = torch.zeros(1, self.N, self.N, device=self.device, dtype=self.dtype)
+                images, scale = self._MASTSEL_PSFs(zero_PSD, mask_i, self.LO_wvl, self.nPixPSF)
+                widths.append(float(torch.sqrt(torch.prod(torch.stack(PSF_FWHM(images, scale))))))
+            self.NGS_DL_FWHM_mas = widths if isinstance(mask, list) else widths[0]
+
+        if self.addFocusError:
+            if 'sensor_Focus' in self.my_data_map:
+                lenslets = self.my_data_map['sensor_Focus']['NumberLenslets']
+                self.Focus_SR_field, self.Focus_FWHM_mas_field, self.Focus_EE_field, _ = self._sensor_metrics(self.Focus_wvl, self.Focus_psInMas, lenslets)
             else:
-                self.penalty.append( np.sqrt( np.mean(cpuArray(self.HO_res)**2) ) )
-                
-            self.sr.append( np.exp( -4*np.pi**2 * ( self.penalty[-1]**2 )/(self.wvlRef*1e9)**2) )
-            scale = (np.pi/(180*3600*1000) * 2 * self.tel_radius / (4*1e-9))
-            FWHMS_LO = 2.355 * self.LO_res/scale / np.sqrt(2)
-            self.fwhm.append(np.sqrt(FWHMS_LO**2 + np.asarray(self.pointings_FWHM_mas)**2))
-            self.ee.append(0)
-            
-        else:
-            for idx, HO_res in enumerate(cpuArray(self.HO_res)):
-                if self.LOisOn:
-                    if self.addFocusError and not self.GFinPSD:
-                        self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 + self.GF_res**2) )
-                    else:
-                        self.penalty.append( np.sqrt( cpuArray(self.LO_res)[idx]**2 + HO_res**2 ) )
-                else:
-                    self.penalty.append( HO_res )
-            if self.verbose:
-                print('EE is computed for a radius of ', self.eeRadiusInMas,' mas')
-
-            for i in range(self.nWvl):
-                if self.nWvl > 1:
-                    results = self.results[i]
-                else:
-                    results = self.results
-                    
-                samp = self.wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
-                
-                sr, fwhm, ee = [], [], []
-                
-                for img in results:
-                    sr.append(getStrehl(img.sampling, self.fao.ao.tel.pupil, samp, method='max', psfInOnePix=True))
-                    fwhm.append(getFWHM(img.sampling, self.psInMas, method='contour', nargout=1))
-                    
-                    if self.ensquaredEnergy:
-                        ee_ = cpuArray(getEnsquaredEnergy(img.sampling))
-                        rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas * 0.5
-                    else:
-                        ee_,rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas,
-                                                     center=centeredPixelCoords(self.nPixPSF), nargout=2)
-                    ee_at_radius_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
-                    ee.append( cpuArray(ee_at_radius_fn(self.eeRadiusInMas)).item() )
-                    
-                if self.nWvl > 1:
-                    self.sr.append(sr)
-                    self.fwhm.append(fwhm)
-                    self.ee.append(ee)
-                else:
-                    self.sr = sr
-                    self.fwhm = fwhm
-                    self.ee = ee
-    '''
-
-    # def _configure_P3_LO_maps(self):
-    #     """Push LO source/sensor values into the P3/fourierModel structures."""
-    #     if 'sensor_LO' in self.config:
-    #         photons = self.config['sensor_LO']['NumberPhotons']
-    #         self.fao.my_data_map['sensor_LO']['NumberPhotons'] = photons
-    #         self.fao.ao.my_data_map['sensor_LO']['NumberPhotons'] = photons
-
-    #     if 'sources_LO' in self.config:
-    #         self.fao.my_data_map['sources_LO'] = self.config['sources_LO']
-    #         self.fao.ao.my_data_map['sources_LO'] = self.config['sources_LO']
-    #         self.fao.ao.configLOsensor()
-    #         self.fao.ao.configLO()
-    #         self.fao.ao.configLO_SC()
-    
-
-    # def _init_HO_fourier_model(self):
-    #     """Initialize P3/fourierModel and cache the geometry needed downstream."""
-    #     if self.verbose:
-    #         print('******** HO PSD science and NGSs directions')
-
-    #     self.fao = fourierModel(
-    #         self.fullPathFilename,
-    #         calcPSF=False,
-    #         verbose=self.verbose,
-    #         display=False,
-    #         getPSDatNGSpositions=self.LOisOn,
-    #         computeFocalAnisoCov=False,
-    #         TiltFilter=self.LOisOn,
-    #         getErrorBreakDown=self.getHoErrorBreakDown,
-    #         doComputations=False,
-    #         psdExpansion=True,
-    #         reduce_memory=True
-    #     )
-
-    #     self._configure_P3_LO_maps()
-
-    #     if self.verbose:
-    #         print('Setting MASTSEL PSF precision to:', self.fao.dtype)
-
-    #     mastselPsfPrecision(dtype=self.fao.dtype)
-    #     self.fao.initComputations()
-
-    #     # High-order PSD calculations at science directions and, optionally, NGS directions.
-    #     self.PSD = self.fao.PSD.transpose()  # [nm^2]
-    #     self.N = self.PSD[0].shape[0]
-    #     self.nPointings = self.pointings.shape[1]
-    #     self.nPixPSF = int(self.fao.ao.cam.fovInPix)
-    #     self.overSamp = int(self.fao.freq.kRef_)
-    #     self.PSDstep = self.fao.freq.PSDstep
-    #     self.freq_range = self.N * self.PSDstep
-    #     self.grid_diameter = 1 / self.PSDstep
-    #     self.sx = int(2 * np.round(self.tel_radius * self.freq_range))
-
-    #     # Same as in p3.aoSystem.powerSpectrumDensity, except multiplied by 1e9 instead of 2.
-    #     self.dk = 1e9 * self.fao.freq.kcMax_ / self.fao.freq.resAO
-
-    #     # P3 reference wavelength, required to scale the OL PSD from rad to m.
-    #     self.wvlRef = self.fao.freq.wvlRef
-
-    #     self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
-    #     self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
-    #     self.mask.sampling = padOrCropCentered(self.mask.sampling, self.N, xp=self.mask.xp)
-
-    #     if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
-    #         raise ValueError(
-    #             "sensor_science.PixelScale, '{}', is different from self.fao.freq.psInMas,'{}'"
-    #             .format(self.psInMas, cpuArray(self.fao.freq.psInMas[0]))
-    #         )
-
-    #     if self.fao.ao.tel.opdMap_on is not None:
-    #         self.opdMap = arrayP3toMastsel(self.fao.ao.tel.opdMap_on)
-    #     else:
-    #         self.opdMap = None
-
-    #     if self.verbose:
-    #         print('PSD step:', self.PSDstep)
-    #         print('PSD freq range:', self.freq_range)
-    #         print('PSD shape:', self.PSD.shape)
-    #         print('PSD dtype:', self.PSD.dtype)
-    #         print('oversampling:', self.overSamp)
-    #         print('sensor_science.PixelScale:', self.psInMas)
+                self.Focus_SR_field, self.Focus_FWHM_mas_field, self.Focus_EE_field = self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field
 
 
-    def _prepare_static_PSF_state(self, astIndex):
-        """Prepare the expensive static state used by finalPSF and LO covariance calls."""
-        """Return True when the static HO/NGS/MavisLO state must be recomputed."""
-        if not (astIndex is None or self.firstSimCall):
-            return       
-
-        # self._init_HO_fourier_model()
-
-        if not self.LOisOn:
-            return
-
-        if self.verbose:
-            print('******** LO PART')
-
-        # self.ngsPSF()
-        self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
-
-
-    def _compute_full_field_LO_terms(self):
-        """Compute full-field LO terms using all available guide stars.
-
-        Produces two separate quantities:
-        - self.LO_tiptilt_cov: residual image-motion covariance in science directions.
-          finalPSF converts this into anisotropic convolution ellipses/kernels.
-        - self.focus_cov/self.GF_res: optional global-focus residual. In full-field
-          mode it is injected into self.PSD immediately, so it is not added again
-          in the residual metric budget.
-        """
-        self.LO_tiptilt_cov = self.mLO.computeTotalResidualMatrix(
-            np.array(self.cartSciencePointingCoords),
+    def _compute_LO(self, astIndex):
+        ''' Total tip/tilt (and focus) residual covariances from MavisLO, as the LO part of baseSimulation.doOverallSimulation '''
+        field_args = (
+            self.cartSciencePointingCoords,
             self.cartNGSCoords_field,
             self.NGS_fluxes_field,
             self.LO_freqs_field,
             self.NGS_SR_field,
             self.NGS_EE_field,
-            self.NGS_FWHM_mas_field,
-            aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas,
-            doAll=True
+            self.NGS_FWHM_mas_field
         )
-        self.LO_res = np.sqrt(np.trace(self.LO_tiptilt_cov, axis1=1, axis2=2))
-
-        if not self.addFocusError:
-            return
-
-        self.focus_cov = self.mLO.computeFocusTotalResidualMatrix(
+        
+        focus_args = (
             self.cartNGSCoords_field,
             self.Focus_fluxes_field,
             self.Focus_freqs_field,
             self.Focus_SR_field,
             self.Focus_EE_field,
             self.Focus_FWHM_mas_field
-        )
-        
-        self.GF_res = np.sqrt(max(self.focus_cov[0], 0))
-        self.GFinPSD = True
-
-        # Add the global-focus residual to HO PSD
-        FocusFilter = self.fao.FocusFilter()
-        FocusFilter /= FocusFilter.sum()
-
-        self.PSD += self.GF_res**2 * FocusFilter
-
-
-    def _prepare_asterism_LO_cache(self):
-        """Initialize MavisLO internal caches before per-asterism covariance calls."""
-        if not self.firstSimCall:
-            return
-
-        # Warm up/cache the full guide-star geometry for the indexed tip/tilt calls.
-        self.mLO.computeTotalResidualMatrix(
-            np.array(self.cartSciencePointingCoords),
-            self.cartNGSCoords_field,
-            self.NGS_fluxes_field,
-            self.LO_freqs_field,
-            self.NGS_SR_field,
-            self.NGS_EE_field,
-            self.NGS_FWHM_mas_field,
-            aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas,
-            doAll=False
-        )
-
-        if self.addFocusError:
-            # Warm up/cache the full guide-star geometry for the indexed focus calls.
-            self.mLO.computeFocusTotalResidualMatrix(
-                self.cartNGSCoords_field,
-                self.Focus_fluxes_field,
-                self.Focus_freqs_field,
-                self.Focus_SR_field,
-                self.Focus_EE_field,
-                self.Focus_FWHM_mas_field
-            )
-
-
-    def _discard_too_faint_asterism_stars(self):
-        """Drop guide stars with less than one photon per frame per sub-aperture."""
-        if not (np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1):
-            return
-
-        valid_indices = np.where(np.array(self.NGS_fluxes_asterism) > 1)[0]
-        self.NGS_fluxes_asterism    = [ elem for i, elem in enumerate(self.NGS_fluxes_asterism)    if i in valid_indices ]
-        self.Focus_fluxes_asterism  = [ elem for i, elem in enumerate(self.Focus_fluxes_asterism)  if i in valid_indices ]
-        self.cartNGSCoords_asterism = [ elem for i, elem in enumerate(self.cartNGSCoords_asterism) if i in valid_indices ]
-        self.currentAsterismIndices = [ elem for i, elem in enumerate(self.currentAsterismIndices) if i in valid_indices ]
-
-
-    def _compute_asterism_LO_terms(self):
-        """Compute LO terms for the currently selected guide-star asterism.
-
-        The tip/tilt covariance changes with the selected guide-star subset and is
-        still used by finalPSF for LO convolution. The focus residual is also
-        recomputed for this asterism, but it is deliberately kept outside self.PSD:
-        the HO PSF is reused across asterism trials, and injecting focus into the
-        cached PSD would contaminate later trials.
-        """
-        self._prepare_asterism_LO_cache()
-        self._discard_too_faint_asterism_stars()
-
-        self.LO_tiptilt_cov = self.mLO.computeTotalResidualMatrixI(
-            self.currentAsterismIndices,
-            np.array(self.cartSciencePointingCoords),
-            np.array(self.cartNGSCoords_asterism),
-            self.NGS_fluxes_asterism
-        )
-        self.LO_res = np.sqrt(np.trace(self.LO_tiptilt_cov, axis1=1, axis2=2))
-
-        if not self.addFocusError:
-            return
-
-        self.focus_cov = self.mLO.computeFocusTotalResidualMatrixI(
-            self.currentAsterismIndices,
-            np.array(self.cartNGSCoords_asterism),
-            self.Focus_fluxes_asterism
-        )
-        self.GF_res = np.sqrt(max(self.focus_cov[0], 0))
-        self.GFinPSD = False
-
-
-    def _compute_LO_terms(self, astIndex):
-        """Compute per-call LO terms used by finalPSF and residual metrics."""
-        if not self.LOisOn:
-            return
+        ) if self.addFocusError else None
 
         if astIndex is None:
-            self._compute_full_field_LO_terms()
+            self.Ctot = _host(self.mLO.computeTotalResidualMatrix(*field_args, aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas, doAll=True))
+            if self.addFocusError:
+                self.CtotFocus = _host(self.mLO.computeFocusTotalResidualMatrix(*focus_args))
+                self.GF_res = float(np.sqrt(max(self.CtotFocus[0], 0)))
+                self.PSD = self.PSD + self.model.FocusErrorPSD(self.GF_res)
+                self.GFinPSD = True
         else:
-            self._compute_asterism_LO_terms()
+            if self.firstSimCall:
+                self.mLO.computeTotalResidualMatrix(*field_args, aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas, doAll=False)
+                
+                if self.addFocusError:
+                    self.mLO.computeFocusTotalResidualMatrix(*focus_args)
+            
+            # Discard guide stars with less than 1 photon per frame per sub-aperture
+            if np.min(self.NGS_fluxes_asterism) < 1 and np.max(self.NGS_fluxes_asterism) > 1:
+                keep = [i for i, flux in enumerate(self.NGS_fluxes_asterism) if flux > 1]
+                self.currentAsterismIndices = [self.currentAsterismIndices[i] for i in keep]
+                self.setAsterismData()
+                
+            self.Ctot = _host(self.mLO.computeTotalResidualMatrixI(self.currentAsterismIndices, self.cartSciencePointingCoords,
+                                                                   np.asarray(self.cartNGSCoords_asterism), self.NGS_fluxes_asterism))
+            if self.addFocusError:
+                self.CtotFocus = _host(self.mLO.computeFocusTotalResidualMatrixI(self.currentAsterismIndices, np.asarray(self.cartNGSCoords_asterism),
+                                                                                 self.Focus_fluxes_asterism))
+                self.GF_res = float(np.sqrt(max(self.CtotFocus[0], 0)))
+                self.GFinPSD = False
+
+        self.LO_res = np.sqrt(np.maximum(np.trace(self.Ctot, axis1=-2, axis2=-1), 0))
+        covariance = torch.as_tensor(self.Ctot, device=self.device, dtype=self.dtype)
+        self.LO_jitter = tiptilt_covariance_to_jitter(covariance, 2*self.tel_radius) # (Jx, Jy [mas], Jxy [deg]) per pointing
+        Jx, Jy, Jxy = (j.detach().cpu().numpy() for j in self.LO_jitter)
+        self.cov_ellipses = np.column_stack((np.deg2rad(Jxy), Jx, Jy)) # (angle [rad], sigma_max, sigma_min [mas]) as MavisLO.ellipsesFromCovMats
 
 
-    '''
-    def _plot_final_PSFs(self):
-        if not self.doPlot:
-            return
-
-        results = self.results[0] if self.nWvl > 1 else self.results
-
-        if self.LOisOn and self.doConvolve:
-            tiledDisplay(results)
-            plotEllipses(self.cartSciencePointingCoords, self.cov_ellipses, 0.4)
-        else:
-            results[0].standardPlot(True)
+    # ----------------------------------------- Science PSFs -----------------------------------------
+    def _combined_jitter(self):
+        ''' Science jitter kernel: the LO residual convolved with the optional telescope jitter, as baseSimulation.finalConvolution '''
+        telescope = fwhm_to_jitter(self.jitter_FWHM, device=self.device, dtype=self.dtype, count=self.nPointings) if self.jitter_FWHM is not None else None
+        LO = self.LO_jitter if self.LOisOn else None
+        if LO is None:
+            return telescope
+        if telescope is None:
+            return LO
+        return combine_zero_centered_jitters(*LO, *telescope)
 
 
-    def _collect_cube_results(self):
-        """Convert Field PSFs into plain arrays used by FITS/profile output."""
-        self.cubeResults = []
-        cubeResultsArray = []
-
-        for i in range(self.nWvl):
-            results = self.results[i] if self.nWvl > 1 else self.results
-            cubeResults = [cpuArray(img.sampling) for img in results]
-
-            if self.nWvl > 1:
-                self.cubeResults.append(cubeResults)
-                cubeResultsArray.append(np.array(cubeResults))
-            else:
-                self.cubeResults = cubeResults
-                cubeResultsArray = cubeResults
-
-        self.cubeResultsArray = np.array(cubeResultsArray)
-
-    def _print_residual_summary(self):
-        if not self.verbose:
-            return
-
-        print('HO_res [nm]:', self.HO_res)
-
-        if self.LOisOn:
-            print('LO_res [nm]:', self.LO_res)
-
-        if hasattr(self, 'GF_res'):
-            print('GF_res [nm]:', self.GF_res)
+    def _pixel_centered(self, PSFs):
+        ''' TipTorch pads its odd OTF grid to an even FieldOfView on the right/bottom, which leaves the PSF peak on pixel N//2 - 1; P3 and MASTSEL center even PSFs on pixel N//2 '''
+        if self.nPixPSF % 2 == 0 and self.model.nOtf < self.nPixPSF:
+            return torch.roll(PSFs, (1, 1), dims=(-2, -1))
+        return PSFs
 
 
-    def _finalize_full_field_results(self, astIndex):
-        """Only full-field runs build OL/DL PSFs and radial-profile products."""
-        if astIndex is not None:
-            return
-
-        self.computeOL_PSD()
-        self.computeDL_PSD()
-        self._collect_cube_results()
-        self.computePSF1D()
-        self._print_residual_summary()
-    '''
-
-
-    # -------------------------------------------------------------------------
-    # TipTorch-native simulation path.
-    # The P3-based versions above are intentionally left commented as reference.
-
-    def _as_model_tensor(self, value, *, dtype=None):
-        """Create a tensor on the same device/dtype as the TipTorch model."""
-        dtype = dtype or self.model.wvl.dtype
-        return torch.as_tensor(value, device=self.model.device, dtype=dtype)
-
-
-    def _zero_model_jitter(self, model=None):
-        """Mute TipTorch's OTF-domain jitter convolution."""
-        model = self.model if model is None else model
-        model.Jx  = torch.zeros(model.N_src, device=model.device, dtype=model.wvl.dtype)
-        model.Jy  = torch.zeros(model.N_src, device=model.device, dtype=model.wvl.dtype)
-        model.Jxy = torch.zeros(model.N_src, device=model.device, dtype=model.wvl.dtype)
-
-
-    def _set_model_jitter(self, Jx, Jy, Jxy):
-        """Set final jitter parameters used internally by TipTorch.JitterKernel()."""
-        self.model.Jx  = Jx.to(self.model.device, dtype=self.model.wvl.dtype).flatten()
-        self.model.Jy  = Jy.to(self.model.device, dtype=self.model.wvl.dtype).flatten()
-        self.model.Jxy = Jxy.to(self.model.device, dtype=self.model.wvl.dtype).flatten()
-
-
-    def _jitter_cov_from_params(self, Jx, Jy, Jxy_deg):
-        """Convert principal-axis jitter parameters [mas, mas, deg] to covariance."""
-        theta = torch.deg2rad(Jxy_deg)
-        c, s = torch.cos(theta), torch.sin(theta)
-        R = torch.stack((
-            torch.stack((c, -s), dim=-1),
-            torch.stack((s,  c), dim=-1),
-        ), dim=-2)
-        D = torch.zeros(*Jx.shape, 2, 2, device=Jx.device, dtype=Jx.dtype)
-        D[..., 0, 0] = Jx**2
-        D[..., 1, 1] = Jy**2
-        return R @ D @ R.transpose(-1, -2)
-
-
-    def _jitter_params_from_cov_mas(self, Sigma_mas2):
-        """Convert covariance in mas² to TipTorch jitter parameters."""
-        if cov_to_jitter_mas is not None:
-            # cov_to_jitter_mas expects TT covariance in nm² and applies the
-            # nm->mas scaling itself, so do not use it for already-mas covariances.
-            pass
-
-        eigvals, eigvecs = torch.linalg.eigh(Sigma_mas2)
-        order = torch.argsort(eigvals, dim=-1, descending=True)
-        eigvals = torch.gather(eigvals, -1, order)
-        batch_shape = Sigma_mas2.shape[:-2]
-        eigvecs = torch.gather(eigvecs, -1, order[..., None, :].expand(*batch_shape, 2, 2))
-
-        Jx = torch.sqrt(torch.clamp(eigvals[..., 0], min=0.0))
-        Jy = torch.sqrt(torch.clamp(eigvals[..., 1], min=0.0))
-        Jxy = torch.rad2deg(torch.atan2(eigvecs[..., 1, 0], eigvecs[..., 0, 0]))
-        return Jx, Jy, Jxy
-
-
-    def _static_jitter_params(self):
-        """Return telescope static jitter as TipTorch parameters in [mas, mas, deg]."""
-        if self.jitter_FWHM is None:
-            return None
-
-        sigma_from_fwhm = 1.0 / (2.0 * np.sqrt(2.0 * np.log(2.0)))
-
-        if isinstance(self.jitter_FWHM, list):
-            Jx = float(self.jitter_FWHM[0]) * sigma_from_fwhm
-            Jy = float(self.jitter_FWHM[1]) * sigma_from_fwhm
-            # The historical P3 ellipse stored the angle in radians.
-            Jxy = np.rad2deg(float(self.jitter_FWHM[2]))
-        else:
-            Jx = Jy = float(self.jitter_FWHM) * sigma_from_fwhm
-            Jxy = 0.0
-
-        n_src = self.nPointings
-        dtype = self.model.wvl.dtype
-        device = self.model.device
-        return (
-            torch.full((n_src,), Jx,  device=device, dtype=dtype),
-            torch.full((n_src,), Jy,  device=device, dtype=dtype),
-            torch.full((n_src,), Jxy, device=device, dtype=dtype),
-        )
-
-
-    def _LO_jitter_params(self):
-        """Convert MavisLO tip/tilt covariance to TipTorch jitter parameters."""
-        if not (self.LOisOn and self.doConvolve and self.LO_tiptilt_cov is not None):
-            return None
-
-        Sigma_tt_nm2 = torch.as_tensor(
-            self.LO_tiptilt_cov,
-            device=self.model.device,
-            dtype=self.model.wvl.dtype,
-        )
-
-        if cov_to_jitter_mas is not None:
-            return cov_to_jitter_mas(Sigma_tt_nm2, telescope_diameter=2.0*self.tel_radius)
-
-        # Fallback equivalent to utils.cov_to_jitter_mas().
-        Jx_nm, Jy_nm, Jxy = self._jitter_params_from_cov_mas(Sigma_tt_nm2)
-        scale = (1.0 / rad2mas) * (2.0*self.tel_radius) / (4.0e-9)
-        return Jx_nm / scale, Jy_nm / scale, Jxy
-
-
-    def _combined_jitter_params(self):
-        """Combine static telescope jitter and LO residual jitter in covariance space."""
-        static = self._static_jitter_params()
-        lo = self._LO_jitter_params()
-
-        if static is None and lo is None:
-            zeros = torch.zeros(self.nPointings, device=self.model.device, dtype=self.model.wvl.dtype)
-            return zeros, zeros, zeros
-        if static is None:
-            return lo
-        if lo is None:
-            return static
-
-        if combine_zero_centered_jitters is not None:
-            return combine_zero_centered_jitters(*lo, *static)
-
-        # Fallback: convolution of two centered Gaussian jitters => add covariances.
-        Sigma = self._jitter_cov_from_params(*lo) + self._jitter_cov_from_params(*static)
-        return self._jitter_params_from_cov_mas(Sigma)
-
-
-    def _compute_reference_tiptorch_psd(self):
-        """Compute/cache the HO PSD with TipTorch, without any jitter convolution."""
-        if self.verbose:
-            print('******** TipTorch HO PSD science directions')
-
-        self._zero_model_jitter()
+    def _science_PSFs(self, jitter):
+        ''' Science PSFs [nPointings, N_wvl, N_pix, N_pix] of the current PSD with the given jitter '''
+        self._set_jitter(self.model, jitter)
         with torch.no_grad():
-            self.PSD = self.model.ComputePSD().detach().clone()
-
-        self.HO_res = torch.sqrt(torch.clamp(self.PSD.sum(dim=(-2, -1)), min=0.0)).cpu().numpy()
-        if self.HO_res.ndim > 1:
-            self.HO_res = self.HO_res[:, 0]
+            return self._pixel_centered(self.model(PSD=self.PSD)[:self.nPointings])
 
 
-    def _source_model(self, zenith, azimuth, wavelength):
-        """Create a temporary TipTorch model for guide-star/focus directions."""
-        cfg = copy.deepcopy(self.config_torch)
-        device = self.model.device
-        dtype = self.model.wvl.dtype
-        zenith     = torch.as_tensor(zenith,  device=device, dtype=dtype).flatten()
-        azimuth    = torch.as_tensor(azimuth, device=device, dtype=dtype).flatten()
-        wavelength = torch.as_tensor([wavelength], device=device, dtype=dtype).flatten()
-
-        cfg['NumberSources'] = int(zenith.numel())
-        cfg['sources_science']['Zenith'] = zenith
-        cfg['sources_science']['Azimuth'] = azimuth
-        cfg['sources_science']['Wavelength'] = wavelength
-
-        model = TipTorch(
-            AO_config = cfg,
-            norm_regime = 'sum',
-            device=device,
-            oversampling = self.overSamp,
-            retain_PSDs=True,
-        )
-        self._zero_model_jitter(model)
-        return model
-
-
-    def _sensor_PSF_sampling(self, sensor_wvl, sensor_pixel_scales):
-        """Return the TipTorch PSF sampling for a sensor wavelength."""
-        psf_pixel_scale_mas = self.psInMas * sensor_wvl / self.wvlMax
-        return psf_pixel_scale_mas, self.nPixPSF, False
-
-
-    def _compute_sensor_PSF_metrics(self, zenith, azimuth, wavelength, pixel_scales, label):
-        """Generate guide-star PSFs with TipTorch and measure SR/FWHM/EE."""
-        model = self._source_model(zenith, azimuth, wavelength)
-        psf_pixel_scale_mas, nPixPSF, _ = self._sensor_PSF_sampling(wavelength, pixel_scales)
-
-        with torch.no_grad():
-            PSF = model().detach().cpu().numpy()[:, 0]
-            PSD = model.PSD.detach().cpu().numpy()[:, 0]
-            PSF_DL = model.DLPSF().detach().cpu().numpy()[0, 0]
-
-        sr_list, fwhm_list, ee_list = [], [], []
-        for idx, psf in enumerate(PSF):
-            sr = np.max(psf) / np.max(PSF_DL) * PSF_DL.sum() / psf.sum()
-            fwhm = getFWHM(psf, psf_pixel_scale_mas, method='contour', nargout=1)
-
-            sensor_pixel_scale_i = pixel_scales[idx] if isinstance(pixel_scales, list) else pixel_scales
-            if 2 * fwhm >= nPixPSF * psf_pixel_scale_mas:
-                ee = 1.0
-            else:
-                ee_curve, rr = getEncircledEnergy(
-                    psf,
-                    pixelscale=psf_pixel_scale_mas,
-                    center=centeredPixelCoords(nPixPSF),
-                    nargout=2,
-                )
-                ee_curve *= 1 / np.max(ee_curve)
-                ee = interp1d(rr, ee_curve, kind='cubic', bounds_error=False)(max(fwhm, sensor_pixel_scale_i))
-
-            sr_list.append(float(sr))
-            fwhm_list.append(float(fwhm))
-            ee_list.append(float(np.asarray(ee)))
-
-            if self.verbose:
-                print('SR(@', int(wavelength * 1e9), 'nm)        :', "%.5f" % sr)
-                print('FWHM(@', int(wavelength * 1e9), 'nm) [mas]:', "%.3f" % fwhm)
-                print(label, ':', "%.5f" % float(np.asarray(ee)))
-
-        return sr_list, fwhm_list, ee_list
-
-
-    def ngsPSF(self):
-        """Compute guide-star PSF quality inputs for MavisLO using TipTorch."""
-        if self.verbose:
-            print('******** TipTorch LO PSF - NGS directions')
-
-        self.NGS_SR_field, self.NGS_FWHM_mas_field, self.NGS_EE_field = \
-            self._compute_sensor_PSF_metrics(
-                self.LO_zen_field,
-                self.LO_az_field,
-                self.LO_wvl,
-                self.LO_psInMas,
-                label='EE                  '
-            )
-
-        if self.addLOAlias:
-            if self.verbose:
-                print('Adding aliasing error on LO!')
-            dl_fwhm = []
-            model = self._source_model(self.LO_zen_field, self.LO_az_field, self.LO_wvl)
-            with torch.no_grad():
-                dl = model.DLPSF().detach().cpu().numpy()
-            psf_pixel_scale_mas, _, _ = self._sensor_PSF_sampling(self.LO_wvl, self.LO_psInMas)
-            for psf in dl[:, 0]:
-                dl_fwhm.append(float(getFWHM(psf, psf_pixel_scale_mas, method='contour', nargout=1)))
-            self.NGS_DL_FWHM_mas = dl_fwhm
-        else:
-            self.NGS_DL_FWHM_mas = None
-
-        if not self.addFocusError:
-            return
-
-        if 'sensor_Focus' not in self.config:
-            self.Focus_SR_field = self.NGS_SR_field
-            self.Focus_FWHM_mas_field = self.NGS_FWHM_mas_field
-            self.Focus_EE_field = self.NGS_EE_field
-            return
-
-        if self.verbose:
-            print('******** TipTorch Focus Sensor PSF - NGS directions')
-
-        self.Focus_SR_field, self.Focus_FWHM_mas_field, self.Focus_EE_field = \
-            self._compute_sensor_PSF_metrics(
-                self.LO_zen_field,
-                self.LO_az_field,
-                self.Focus_wvl,
-                self.Focus_psInMas,
-                label='EE (focus sensor)    '
-            )
-
-
-    def _prepare_static_PSF_state(self, astIndex):
-        """Prepare TipTorch HO state and MavisLO guide-star inputs."""
-        if not (astIndex is None or self.firstSimCall):
-            return
-
-        self._compute_reference_tiptorch_psd()
-
-        if not self.LOisOn:
-            return
-
-        if self.verbose:
-            print('******** LO PART')
-
-        self.ngsPSF()
-        self.mLO = MavisLO(self.path, self.parametersFile, verbose=self.verbose)
-
-
-    def _focus_filter_full_psd(self):
-        """Build a normalized full-plane TipTorch focus filter in PSD coordinates."""
-        focus_half = self.model.FocusFilter(self.model.k2).real
-        focus_full = self.model.half_PSD_to_full(focus_half).real
-        return focus_full / torch.clamp(focus_full.sum(dim=(-2, -1), keepdim=True), min=1e-30)
-
-
-    def _compute_full_field_LO_terms(self):
-        """Compute full-field MavisLO tip/tilt and optional focus terms."""
-        self.LO_tiptilt_cov = self.mLO.computeTotalResidualMatrix(
-            np.array(self.cartSciencePointingCoords),
-            self.cartNGSCoords_field,
-            self.NGS_fluxes_field,
-            self.LO_freqs_field,
-            self.NGS_SR_field,
-            self.NGS_EE_field,
-            self.NGS_FWHM_mas_field,
-            aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas,
-            doAll=True,
-        )
-        self.LO_res = np.sqrt(np.trace(self.LO_tiptilt_cov, axis1=1, axis2=2))
-
-        if not self.addFocusError:
-            return
-
-        self.focus_cov = self.mLO.computeFocusTotalResidualMatrix(
-            self.cartNGSCoords_field,
-            self.Focus_fluxes_field,
-            self.Focus_freqs_field,
-            self.Focus_SR_field,
-            self.Focus_EE_field,
-            self.Focus_FWHM_mas_field,
-        )
-        self.GF_res = np.sqrt(max(self.focus_cov[0], 0))
-        self.GFinPSD = True
-
-        # Preserve the old full-field convention: focus is folded into the HO PSD.
-        self.PSD = self.PSD + (self.GF_res**2) * self._focus_filter_full_psd()
-
-
-    def _prepare_asterism_LO_cache(self):
-        """Initialize MavisLO caches before indexed per-asterism calls."""
-        if not self.firstSimCall:
-            return
-
-        self.mLO.computeTotalResidualMatrix(
-            np.array(self.cartSciencePointingCoords),
-            self.cartNGSCoords_field,
-            self.NGS_fluxes_field,
-            self.LO_freqs_field,
-            self.NGS_SR_field,
-            self.NGS_EE_field,
-            self.NGS_FWHM_mas_field,
-            aNGS_FWHM_DL_mas=self.NGS_DL_FWHM_mas,
-            doAll=False,
-        )
-
-        if self.addFocusError:
-            self.mLO.computeFocusTotalResidualMatrix(
-                self.cartNGSCoords_field,
-                self.Focus_fluxes_field,
-                self.Focus_freqs_field,
-                self.Focus_SR_field,
-                self.Focus_EE_field,
-                self.Focus_FWHM_mas_field,
-            )
+    def _FWHM_per_wavelength(self, PSFs):
+        ''' Mean FWHM [mas] of PSFs [nPointings, N_wvl, N, N] as nested lists [N_wvl][nPointings], or [nPointings] for one wavelength '''
+        FWHM = 0.5 * sum(PSF_FWHM(PSFs, self.psInMas)) # as P3's getFWHM(nargout=1)
+        FWHM = FWHM.T.cpu().tolist()
+        return FWHM if self.nWvl > 1 else FWHM[0]
 
 
     def finalPSF(self, astIndex=None):
-        """Generate final science PSFs with TipTorch.
+        if astIndex is None or self.firstSimCall:
+            self.pointings_FWHM_mas = self._FWHM_per_wavelength(self._science_PSFs(None)) # jitter-free HO PSFs
 
-        The final jitter is not applied by an external image convolution anymore.
-        Instead, LO residual covariance and static telescope jitter are converted
-        to a single Gaussian jitter ellipse and passed to TipTorch through Jx/Jy/Jxy.
-        TipTorch then applies it as an OTF-domain convolution kernel.
-        """
-        if self.verbose:
-            print('******** TipTorch FINAL PSF')
+        if self.LOisOn and not self.doConvolveAsterism:
+            self.results = [] # asterism selection only needs the covariance ellipses
+            return
 
-        if self.LOisOn and self.LO_tiptilt_cov is not None:
-            self.cov_ellipses = np.column_stack([
-                self._LO_jitter_params()[2].detach().cpu().numpy(),
-                self._LO_jitter_params()[0].detach().cpu().numpy(),
-                self._LO_jitter_params()[1].detach().cpu().numpy(),
-            ])
-            if not self.doConvolveAsterism:
-                return
-
-        Jx, Jy, Jxy = self._combined_jitter_params() if self.doConvolve else (
-            torch.zeros(self.nPointings, device=self.model.device, dtype=self.model.wvl.dtype),
-            torch.zeros(self.nPointings, device=self.model.device, dtype=self.model.wvl.dtype),
-            torch.zeros(self.nPointings, device=self.model.device, dtype=self.model.wvl.dtype),
-        )
-        self._set_model_jitter(Jx, Jy, Jxy)
-
-        with torch.no_grad():
-            self.PSF_tensor = self.model(PSD=self.PSD).detach()
-
-        self.cubeResultsArray = self.PSF_tensor.detach().cpu().numpy()
-        self.results = self.cubeResultsArray
+        PSFs = self._science_PSFs(self._combined_jitter() if (not self.LOisOn or self.doConvolve) else None)
+        self.PSF_tensor = PSFs
+        self.results = PSFs
+        PSFs = PSFs.cpu().numpy()
+        self.cubeResultsArray = np.moveaxis(PSFs, 1, 0) if self.nWvl > 1 else PSFs[:, 0]
         self.cubeResults = self.cubeResultsArray
-
-        self.pointings_FWHM_mas = []
-        for i, wvl in enumerate(self.wvl):
-            fwhm_list = []
-            for psf in self.cubeResultsArray[:, i]:
-                fwhm_list.append(float(getFWHM(psf, self.psInMas, method='contour', nargout=1)))
-            self.pointings_FWHM_mas.append(fwhm_list)
-        if self.nWvl == 1:
-            self.pointings_FWHM_mas = self.pointings_FWHM_mas[0]
-
-        self.final_Jx_mas = Jx.detach().cpu().numpy()
-        self.final_Jy_mas = Jy.detach().cpu().numpy()
-        self.final_Jxy_deg = Jxy.detach().cpu().numpy()
-
-
-    def _plot_final_PSFs(self):
-        if not self.doPlot:
-            return
-        tiledDisplay(self.cubeResultsArray[:, 0])
-
-
-    def _finalize_full_field_results(self, astIndex):
-        """Compute TipTorch open-loop and diffraction-limited reference PSFs."""
-        if astIndex is not None:
-            return
-        with torch.no_grad():
-            self.psfOL = self.model.OLPSF(include_static=True, include_jitter=False).detach().cpu().numpy()
-            self.psfDL = self.model.DLPSF().detach().cpu().numpy()
-
-        if self.verbose:
-            print('HO_res [nm]:', self.HO_res)
-            if self.LOisOn and hasattr(self, 'LO_res'):
-                print('LO_res [nm]:', self.LO_res)
-            if hasattr(self, 'GF_res'):
-                print('GF_res [nm]:', self.GF_res)
 
 
     def doOverallSimulation(self, astIndex=None):
         if self.LOisOn:
-            self.configLO()
-
+            self.configLO(astIndex)
         self.results = []
 
-        self._prepare_static_PSF_state(astIndex)
-        self._compute_LO_terms(astIndex)
+        if astIndex is None or self.firstSimCall:
+            self._prepare_state()
+
+        self.PSD = self.PSD_HO
+        if self.LOisOn:
+            self._compute_LO(astIndex)
+        self.HO_res = self.PSD[:self.nPointings, self.iRef].sum(dim=(-2,-1)).clamp_min(0).sqrt().cpu().numpy()
         self.finalPSF(astIndex)
-        self._plot_final_PSFs()
-
         self.firstSimCall = False
-        self._finalize_full_field_results(astIndex)
+
+        if astIndex is None:
+            with torch.no_grad():
+                self.PSF_DL = self._pixel_centered(self.model.DLPSF()[0])                                          # [N_wvl, N_pix, N_pix]
+                self.PSF_OL = self._pixel_centered(self.model.OLPSF(include_static=True, include_jitter=False)[0]) # [N_wvl, N_pix, N_pix]
+            self.psfDL = self.PSF_DL[self.iRef].cpu().numpy()
+            self.psfOL = self.PSF_OL[self.iRef].cpu().numpy()
+            self.computePSF1D()
+            if self.verbose:
+                print('HO_res [nm]:', self.HO_res)
+                if self.LOisOn:
+                    print('LO_res [nm]:', self.LO_res)
+                if hasattr(self, 'GF_res'):
+                    print('GF_res [nm]:', self.GF_res)
+
+        if self.doPlot and len(self.results):
+            import matplotlib.pyplot as plt
+            plt.imshow(np.log10(np.abs(self.cubeResultsArray[0] if self.nWvl == 1 else self.cubeResultsArray[0, 0]) + 1e-12))
+            plt.show()
 
 
-    '''
-    def computePSF1D(self):
-        psf1d = []
-        psf1d_radius = None
-        psf1d_radius_list_list = []
-        # === Precompute polar grid once if SupSamp flag ===
-        use_polar_interp = self.SupSamp and self.SupSamp[1] == 2
-        polar_grid = None
-        r_vals_interp = None
-        
-        if use_polar_interp:
-            step_interp = self.SupSamp[0]
-            first_psf = self.cubeResults[0][0] if self.nWvl > 1 else self.cubeResults[0]
-            center = np.unravel_index(np.argmax(first_psf), first_psf.shape)
-            maxradius = self.psInMas * (first_psf.shape[0] / 2)
-            r_vals_interp, polar_grid = precompute_polar_grid(step=step_interp, pixelscale=self.psInMas,
-                                                              maxradius=maxradius, center=center)
-        for i in range(self.nWvl):
-            if self.nWvl>1:
-                cubeResults = self.cubeResults[i]
+    # ----------------------------------------- Metrics and outputs -----------------------------------------
+    def computeMetrics(self):
+        HO_res = np.asarray(self.HO_res, dtype=float)
+        if not len(self.results): # covariance-only asterism evaluation, as baseSimulation.computeMetrics
+            variance = HO_res**2 + (self.LO_res**2 if self.LOisOn else 0) + (self.GF_res**2 if self.addFocusError and not self.GFinPSD else 0)
+            self.penalty = [float(np.sqrt(np.mean(variance)))]
+            self.sr = [float(np.exp(-4*np.pi**2 * self.penalty[0]**2 / (self.wvl[self.iRef]*1e9)**2))]
+            scale = np.pi/(180*3600*1000) * 2*self.tel_radius / 4e-9
+            FWHM_LO = 2.355 * self.LO_res / scale / np.sqrt(2) if self.LOisOn else 0.0
+            self.fwhm = [np.sqrt(FWHM_LO**2 + np.asarray(self.pointings_FWHM_mas)**2)]
+            self.ee = [0]
+            return
+
+        variance = HO_res**2 + (self.LO_res**2 if self.LOisOn else 0) + (self.GF_res**2 if self.LOisOn and self.addFocusError and not self.GFinPSD else 0)
+        self.penalty = np.sqrt(variance).tolist()
+
+        with torch.no_grad():
+            PSFs = self.PSF_tensor # [nPointings, N_wvl, N, N]
+            peak = lambda x: x.amax(dim=(-2,-1)) / x.sum(dim=(-2,-1))
+            SR = peak(PSFs) / peak(self.PSF_DL)
+            FWHM = 0.5 * sum(PSF_FWHM(PSFs, self.psInMas))
+            if self.ensquaredEnergy:
+                EE_curves = PSF_ensquared_energy(PSFs)
+                radii = (torch.arange(EE_curves.shape[-1], device=self.device, dtype=self.dtype) + 0.5) * self.psInMas
             else:
-                cubeResults = self.cubeResults
-            psf1dList= []
-            psf1d_radius_list = []
-            for psf in cubeResults:
-                psfRadius = psf.shape[0]/2
-                center = np.unravel_index(np.argmax(psf), psf.shape)
-                rr, radialprofile, ee = radial_profile(psf,
-                                                       ext=0,
-                                                       pixelscale=self.psInMas,
-                                                       ee=True,
-                                                       center=center,
-                                                       stddev=False,
-                                                       binsize=None,
-                                                       maxradius=self.psInMas*psfRadius,
-                                                       normalize='total',
-                                                       pa_range=None,
-                                                       slice=0,
-                                                       nargout=2,
-                                                       supersamp=self.SupSamp, 
-                                                       polar_grid=polar_grid,
-                                                       r_vals=r_vals_interp,
-                                                       verbose=self.verbose)
-                psf1dList.append(radialprofile)
-                psf1d_radius = rr
-                psf1d_radius_list.append(rr)
-            psf1d.append(psf1dList)
-            psf1d_radius_list_list.append(psf1d_radius_list)
-        self.psf1d = np.asarray(psf1d)
-        self.psf1d_radius = np.asarray(psf1d_radius)
-        self.psf1d_radius_list_list = np.asarray(psf1d_radius_list_list)
-        self.psf1d_data = np.vstack( (self.psf1d_radius_list_list, self.psf1d) )
+                radii, EE_curves = PSF_encircled_energy(PSFs, self.psInMas)
+            EE = interpolate_curves(radii, EE_curves, self.eeRadiusInMas)
+
+        to_lists = lambda x: x.T.cpu().tolist() if self.nWvl > 1 else x[:, 0].cpu().tolist() # [N_wvl][nPointings] or [nPointings]
+        self.sr, self.fwhm, self.ee = to_lists(SR), to_lists(FWHM), to_lists(EE)
+
+
+    def computePSF1D(self):
+        ''' Radial profiles about the PSF peaks, as baseSimulation.computePSF1D without the Super_Sampling interpolation '''
+        with torch.no_grad():
+            radii, profiles = PSF_radial_profile(self.PSF_tensor, self.psInMas) # [nPointings, N_wvl, n_bins]
+            keep = radii < self.psInMas * self.nPixPSF / 2
+            self.psf1d_radius = radii[keep].cpu().numpy()
+            self.psf1d = profiles[..., keep].permute(1, 0, 2).cpu().numpy() # [N_wvl, nPointings, n_bins]
+        self.psf1d_radius_list_list = np.broadcast_to(self.psf1d_radius, self.psf1d.shape).copy()
+        self.psf1d_data = np.vstack((self.psf1d_radius_list_list, self.psf1d))
 
 
     def savePSFprofileJSON(self):
-        now = datetime.now()
-        psf_data = {}
-        psf_data['radius'] = self.psf1d_radius.tolist()
-        psf_data['psf'] = self.psf1d.tolist()
-        filename = os.path.join(self.outputDir, self.outputFile + '1D_PSF' + '.json')
-        execution_infos = {}
-        execution_infos['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        execution_infos['TIPTOP version'] = __version__
-        jsondict = {}
-        jsondict['execution_infos'] = execution_infos
-        jsondict['infos'] = self.config
-        jsondict['psf'] = psf_data
-        with open(filename, 'w') as f:
-            json.dump(jsondict, f)
+        output = Path(self.outputDir) / f'{self.outputFile}1D_PSF.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            'execution_infos': {'TIME': datetime.now().strftime('%Y%m%d_%H%M%S'), 'TIPTOP version': __version__},
+            'infos': self.my_data_map,
+            'psf': {'radius': self.psf1d_radius.tolist(), 'psf': self.psf1d.tolist()},
+        }
+        output.write_text(json.dumps(payload, default=str), encoding='utf-8')
 
 
     def saveResults(self):
-        # save PSF cube in fits
-        hdul1 = fits.HDUList()
-        hdul1.append(fits.PrimaryHDU())
-        hdul1.append(fits.ImageHDU(data=self.cubeResultsArray))
-        hdul1.append(fits.ImageHDU(data=cpuArray(self.psfOL.sampling))) # append open-loop PSF
-        hdul1.append(fits.ImageHDU(data=cpuArray(self.psfDL.sampling))) # append diffraction limited PSF
+        ''' FITS output with the HDUs and header keywords of baseSimulation.saveResults '''
+        if not hasattr(self, 'psfOL'):
+            raise RuntimeError('Run doOverallSimulation() without astIndex before saving')
+        
+        now = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        hdus = [fits.PrimaryHDU(), fits.ImageHDU(data=self.cubeResultsArray), fits.ImageHDU(data=self.psfOL), fits.ImageHDU(data=self.psfDL)]
+        
         if self.savePSDs:
-            hdul1.append(fits.ImageHDU(data=cpuArray(self.PSD))) # append high order PSD
-        hdul1.append(fits.ImageHDU(data=cpuArray(self.psf1d_data))) # append radial profiles forthe final PSFs
+            hdus.append(fits.ImageHDU(data=self.PSD[:self.nPointings, self.iRef].cpu().numpy())) # [nPointings, nOtf, nOtf] as baseSimulation
+       
+        hdus.append(fits.ImageHDU(data=self.psf1d_data))
 
-        now = datetime.now()
-        # header
-        hdr0 = hdul1[0].header       
-        hdr0['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr0['TIPTOP_V'] = __version__
-        # parameters in the header
-        for key_primary in self.config:
-            for key_secondary in self.config[key_primary]:
-                temp = self.config[key_primary][key_secondary]
-                if isinstance(temp, list):
-                    iii = 0
-                    for elem in temp:
-                        if isinstance(elem, list):
-                            jjj = 0
-                            for elem2 in elem:
-                                add_hdr_keyword(hdr0,key_primary,key_secondary,elem2,iii=str(iii),jjj=str(jjj))
-                                jjj += 1
-                        else:                        
-                            add_hdr_keyword(hdr0,key_primary,key_secondary,elem,iii=str(iii))
-                        iii += 1
+        hdr0 = hdus[0].header
+        hdr0['TIME'], hdr0['TIPTOP_V'] = now, __version__
+        for section, entries in self.my_data_map.items():
+            for key, value in entries.items():
+                if isinstance(value, list):
+                    for i, item in enumerate(value):
+                        if isinstance(item, list):
+                            for j, element in enumerate(item):
+                                _add_header_keyword(hdr0, section, key, element, i, j)
+                        else:
+                            _add_header_keyword(hdr0, section, key, item, i)
                 else:
-                    add_hdr_keyword(hdr0, key_primary,key_secondary,temp)
+                    _add_header_keyword(hdr0, section, key, value)
 
-        # header of the PSFs
-        hdr1 = hdul1[1].header
-        hdr1['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr1['CONTENT'] = "PSF CUBE"
-        hdr1['SIZE'] = str(self.cubeResultsArray.shape)
-        if self.nWvl>1:
-            for i in range(self.nWvl):
-                hdr1['WL_NM'+str(i).zfill(3)] = str(int(self.wvl[i]*1e9))
+        hdr1 = hdus[1].header
+        hdr1['TIME'], hdr1['CONTENT'], hdr1['SIZE'] = now, 'PSF CUBE', str(self.cubeResultsArray.shape)
+        
+        if self.nWvl > 1:
+            for i, wavelength in enumerate(self.wvl):
+                hdr1['WL_NM' + str(i).zfill(3)] = str(int(wavelength*1e9))
         else:
             hdr1['WL_NM'] = str(int(self.wvl[0]*1e9))
+       
         hdr1['PIX_MAS'] = str(self.psInMas)
-        hdr1['CC'] = "CARTESIAN COORD. IN ASEC OF THE "+str(self.pointings.shape[1])+" SOURCES"
+        hdr1['CC'] = f'CARTESIAN COORD. IN ASEC OF THE {self.nPointings} SOURCES'
         
-        for i in range(self.pointings.shape[1]):
-            hdr1['CCX' + str(i).zfill(4)] = np.round(self.pointings[0, i], 3).item()
-            hdr1['CCY' + str(i).zfill(4)] = np.round(self.pointings[1, i], 3).item()
-            
-        if hasattr(self,'HO_res'):
-            hdr1['RESH'] = "High Order residual in nm RMS"
-            for i in range(self.HO_res.shape[0]):
-                hdr1['RESH'+str(i).zfill(4)] =  np.round(cpuArray(self.HO_res[i]), 3)
-                
-        if hasattr(self,'LO_res'):
-            hdr1['RESL'] = "Low Order residual in nm RMS"
-            for i in range(self.LO_res.shape[0]):
-                hdr1['RESL'+str(i).zfill(4)] = np.round(cpuArray(self.LO_res[i]), 3)
-                
-        if hasattr(self,'GF_res'):
-            hdr1['RESF'] = "Global Focus residual in nm RMS (included in PSD)"
-            hdr1['RESF0000'] = np.round(cpuArray(self.GF_res), 3)
-            
+        for i in range(self.nPointings):
+            hdr1['CCX' + str(i).zfill(4)] = round(float(self.pointings[0, i]), 3)
+            hdr1['CCY' + str(i).zfill(4)] = round(float(self.pointings[1, i]), 3)
+        
+        hdr1['RESH'] = 'High Order residual in nm RMS'
+        
+        for i, residual in enumerate(self.HO_res):
+            hdr1['RESH' + str(i).zfill(4)] = round(float(residual), 3)
+        
+        if self.LOisOn:
+            hdr1['RESL'] = 'Low Order residual in nm RMS'
+            for i, residual in enumerate(self.LO_res):
+                hdr1['RESL' + str(i).zfill(4)] = round(float(residual), 3)
+        if hasattr(self, 'GF_res'):
+            hdr1['RESF'] = 'Global Focus residual in nm RMS (included in PSD)'
+            hdr1['RESF0000'] = round(float(self.GF_res), 3)
+
         if self.addSrAndFwhm:
+            self.computeMetrics()
             for i in range(self.nWvl):
-                if self.nWvl>1:
-                    cubeResultsArray = self.cubeResultsArray[i]
-                    wTxt = 'W'+str(i).zfill(2)
-                    fTxt = 'FW'
-                    eTxt = 'EE'
-                    Nfill = 2
-                else:
-                    cubeResultsArray = self.cubeResultsArray
-                    wTxt = ''
-                    fTxt = 'FWHM'
-                    eTxt = 'EE'+str(np.round(self.eeRadiusInMas))
-                    Nfill = 4
-                samp = self.wvl[i] * rad2mas / (self.psInMas*2*self.tel_radius)
-                
-                for j in range(cubeResultsArray.shape[0]):
-                    sr_temp = getStrehl(cubeResultsArray[j,:,:], self.fao.ao.tel.pupil,
-                                        samp, method='max', psfInOnePix=True)
-                    hdr1['SR'+str(j).zfill(Nfill)+wTxt] = float(np.round(sr_temp,5))
-                    
-                for j in range(cubeResultsArray.shape[0]):
-                    fwhm_temp = getFWHM(cubeResultsArray[j,:,:], self.psInMas, method='contour', nargout=1)
-                    hdr1[fTxt+str(j).zfill(Nfill)+wTxt] = np.round(fwhm_temp, 3)
-                    
-                for j in range(cubeResultsArray.shape[0]):
-                    if self.ensquaredEnergy:
-                        ee = cpuArray(getEnsquaredEnergy(cubeResultsArray[j,:,:]))
-                        rr = np.arange(1, ee.shape[0]*2, 2) * self.psInMas * 0.5
-                    else:
-                        ee,rr = getEncircledEnergy(cubeResultsArray[j,:,:], pixelscale=self.psInMas, center=centeredPixelCoords(self.nPixPSF), nargout=2)
-                    ee_at_radius_fn = interp1d(rr, ee, kind='cubic', bounds_error=False)
-                    hdr1[eTxt+str(j).zfill(Nfill)+wTxt] = np.round(ee_at_radius_fn(self.eeRadiusInMas).take(0),5)
+                multi = self.nWvl > 1
+                sr, fwhm, ee = (metric[i] if multi else metric for metric in (self.sr, self.fwhm, self.ee))
+                wTxt, fTxt, eTxt, Nfill = ('W' + str(i).zfill(2), 'FW', 'EE', 2) if multi else ('', 'FWHM', 'EE' + str(np.round(self.eeRadiusInMas)), 4)
+                for j in range(self.nPointings):
+                    hdr1['SR' + str(j).zfill(Nfill) + wTxt] = round(float(sr[j]), 5)
+                for j in range(self.nPointings):
+                    hdr1[fTxt + str(j).zfill(Nfill) + wTxt] = round(float(fwhm[j]), 3)
+                for j in range(self.nPointings):
+                    hdr1[eTxt + str(j).zfill(Nfill) + wTxt] = round(float(ee[j]), 5)
 
-        # header of the OPEN-LOOP PSF
-        hdr2 = hdul1[2].header
-        hdr2['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr2['CONTENT'] = "OPEN-LOOP PSF"
-        hdr2['SIZE'] = str(self.psfOL.sampling.shape)
-
-        # header of the DIFFRACTION LIMITED PSF
-        hdr3 = hdul1[3].header
-        hdr3['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr3['CONTENT'] = "DIFFRACTION LIMITED PSF"
-        hdr3['SIZE'] = str(self.psfDL.sampling.shape)
-
-        ii = 4
-        if self.savePSDs:
-            # header of the PSD
-            hdr4 = hdul1[4].header
-            hdr4['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-            hdr4['CONTENT'] = "High Order PSD"
-            hdr4['SIZE'] = str(self.PSD.shape)
-            ii = 5
-
-        # header of the Total PSFs profiles
-        hdr5 = hdul1[ii].header
-        hdr5['TIME'] = now.strftime("%Y%m%d_%H%M%S")
-        hdr5['CONTENT'] = "Final PSFs profiles"
-        hdr5['SIZE'] = str(self.psf1d_data.shape)
-        if self.SupSamp:
-            hdr5['SAMP_MAS'] = str(self.SupSamp[0])
-
-        hdul1.writeto( os.path.join(self.outputDir, self.outputFile + '.fits'), overwrite=True)
-        if self.verbose:
-            print("Output cube shape:", self.cubeResultsArray.shape)
-            print("Output dtype:", self.cubeResultsArray.dtype)
-
-
-    def computeOL_PSD(self):
-        # OPEN-LOOP PSD
-        k = np.sqrt(self.fao.freq.k2_)
-        pf = FourierUtils.pistonFilter(2*self.tel_radius,k)
-        spectrum = arrayP3toMastsel(self.fao.ao.atm.spectrum(k) * pf)
-        psdOL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
-        psdOL.sampling = spectrum * (self.dk*self.wvlRef/np.pi)**2 # the PSD must be provided in m^2.m^2
-        padPSD = self.nWvl > 1
-        mask  = arrayP3toMastsel(self.fao.ao.tel.pupil)
-        psfOL = psdSetToPsfSet([psdOL.sampling], mask,
-                                self.wvlRef, self.N, self.sx, self.grid_diameter,
-                                self.freq_range, self.dk, self.nPixPSF,
-                                self.wvlMax, self.overSamp, padPSD=padPSD)
-        self.psfOL = psfOL[0]
+        for hdu, content in zip(hdus[2:], ('OPEN-LOOP PSF', 'DIFFRACTION LIMITED PSF', *(('High Order PSD',) if self.savePSDs else ()), 'Final PSFs profiles')):
+            hdu.header['TIME'], hdu.header['CONTENT'], hdu.header['SIZE'] = now, content, str(hdu.data.shape)
         
-        if self.doPlot:
-            fig, ax1 = plt.subplots(1,1)
-            im = ax1.imshow(np.log(np.abs(cpuArray(self.psfOL.sampling)) + 1e-20), cmap='hot')
-            ax1.set_title('open loop PSF', color='black')
+        if self.SupSamp:
+            hdus[-1].header['SAMP_MAS'] = str(self.SupSamp[0])
 
-
-    def computeDL_PSD(self):
-        # DIFFRACTION LIMITED PSD
-        psdDL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
-        padPSD = self.nWvl > 1
-        mask = arrayP3toMastsel(self.fao.ao.tel.pupil)
-        psfDL = psdSetToPsfSet([psdDL.sampling], mask,
-                                self.wvlRef, self.N, self.sx, self.grid_diameter,
-                                self.freq_range, self.dk, self.nPixPSF,
-                                self.wvlMax, self.overSamp, padPSD=padPSD)
-        self.psfDL = psfDL[0]
-        if self.doPlot:
-            fig, ax2 = plt.subplots(1,1)
-            im = ax2.imshow(np.log(np.abs(cpuArray(self.psfDL.sampling)) + 1e-20), cmap='hot')
-            ax2.set_title('diffraction limited PSF', color='black')
-'''
+        output = Path(self.outputDir) / f'{self.outputFile}.fits'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        fits.HDUList(hdus).writeto(output, overwrite=True)
+        
+        if self.verbose:
+            print('Output cube shape:', self.cubeResultsArray.shape)
