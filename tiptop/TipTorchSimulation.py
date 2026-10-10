@@ -42,6 +42,8 @@ from tiptorch.tools.tiptop_integration import (
     PSF_ensquared_energy,
     PSF_FWHM,
     PSF_radial_profile,
+    PSF_radial_profile_polar,
+    resample_profile_cubic,
     tiptilt_covariance_to_jitter,
 )
 
@@ -145,7 +147,7 @@ class baseSimulation:
         self.dtype  = tiptorch_dtype or default_torch_type
         self.model_params = self._model_params_from_file(filename)
         
-        for key in ('PathPupil', 'PathApodizer', 'PathStaticOn'):
+        for key in ('PathPupil', 'PathApodizer', 'PathStaticOn', 'windPsdFile'):
             resolved = self._resolve_data_path(telescope.get(key), filename)
             if resolved is not None:
                 self.model_params['telescope'][key] = str(resolved)
@@ -312,12 +314,12 @@ class baseSimulation:
 
     def setAsterismData(self):
         ids = self.currentAsterismIndices
-        self.LO_zen_asterism        = [self.LO_zen_field[i] for i in ids]
-        self.LO_az_asterism         = [self.LO_az_field[i] for i in ids]
-        self.LO_fluxes_asterism     = [self.LO_fluxes_field[i] for i in ids]
-        self.LO_freqs_asterism      = [self.LO_freqs_field[i] for i in ids]
-        self.NGS_fluxes_asterism    = [self.NGS_fluxes_field[i] for i in ids]
-        self.Focus_fluxes_asterism  = [self.Focus_fluxes_field[i] for i in ids]
+        self.LO_zen_asterism        = [self.LO_zen_field[i]        for i in ids]
+        self.LO_az_asterism         = [self.LO_az_field[i]         for i in ids]
+        self.LO_fluxes_asterism     = [self.LO_fluxes_field[i]     for i in ids]
+        self.LO_freqs_asterism      = [self.LO_freqs_field[i]      for i in ids]
+        self.NGS_fluxes_asterism    = [self.NGS_fluxes_field[i]    for i in ids]
+        self.Focus_fluxes_asterism  = [self.Focus_fluxes_field[i]  for i in ids]
         self.cartNGSCoords_asterism = [self.cartNGSCoords_field[i] for i in ids]
 
 
@@ -329,6 +331,12 @@ class baseSimulation:
         params['sources_science']['Azimuth'] = [float(a) for a in (*self.azimuthSrc, *self.LO_az_field)]
         params['NumberSources'] = 1
 
+        if self.LOisOn: # TipTorch gives the trailing [sources_LO] directions the LO extra error (P3's getPSDatNGSpositions layout)
+            params['sources_LO']['Zenith']  = [float(z) for z in self.LO_zen_field]
+            params['sources_LO']['Azimuth'] = [float(a) for a in self.LO_az_field]
+        else:
+            params.pop('sources_LO', None)
+
         manager = ConfigManager()
         manager.select_required_fields(params)
         manager.wrap_scalars_to_lists(params)
@@ -339,12 +347,18 @@ class baseSimulation:
         model = TipTorch(AO_config=self.config_torch, device=self.device, **self.tiptorch_kwargs)
         self._set_jitter(model, None)
 
+        # P3-style PSD add-ons (the extra error and cone effects follow the config): tip/tilt is left to the LO loop when there is one, wind shake only without it
+        model.PSD_include['tilt filter'] = self.LOisOn
+        model.PSD_include['wind shake']  = not self.LOisOn and model.vibration_PSD is not None
+
         if self.static_WFE_nm is not None:
             if self.static_WFE_nm.shape != tuple(model.pupil.shape):
                 raise ValueError('PathStaticOn map shape does not match the pupil')
+            
             static_WFE = torch.as_tensor(self.static_WFE_nm, device=self.device, dtype=self.dtype)
             phase = 2*torch.pi*1e-9 * static_WFE[None, None] / model.wvl[..., None, None] # [1, N_wvl, N, N]
             model.ComputeStaticOTF(model.pupil * torch.exp(1j*phase))
+        
         return model
 
 
@@ -358,50 +372,13 @@ class baseSimulation:
             model.Jx, model.Jy, model.Jxy = (torch.cat([j.to(zeros), zeros[j.numel():]]) for j in jitter)
 
 
-    def _extra_error_PSD(self):
-        ''' P3's extra-error PSDs [N_src, 1, nOtf, nOtf]: science pointings get extraErrorNm, NGS directions extraErrorLoNm (field-dependent) '''
-        tel = self.my_data_map['telescope']
-        rms_HO, n_NGS = float(tel.get('extraErrorNm', 0)), self.nNaturalGS_field
-        HO_shape = (float(tel.get('extraErrorExp', -2)), float(tel.get('extraErrorMin', 0)), float(tel.get('extraErrorMax', 0)))
-
-        RMS_LO = _as_list(tel.get('extraErrorLoNm', rms_HO))
-        if len(RMS_LO) == 2: # linear interpolation between the field center and the edge of the technical field
-            RMS_LO = np.interp(self.LO_zen_field, [0, float(tel['TechnicalFoV'])/2], RMS_LO).tolist()
-        elif len(RMS_LO) == 1:
-            RMS_LO = RMS_LO * n_NGS
-        else:
-            raise ValueError('extraErrorLoNm must be a scalar or [center, edge] values')
-        
-        LO_shape = (float(tel.get('extraErrorLoExp', HO_shape[0])), float(tel.get('extraErrorLoMin', 0)), float(tel.get('extraErrorLoMax', 0)))
-
-        PSD = 0.0
-        if np.sum(RMS_LO) >= 0 and n_NGS > 0:
-            PSD = PSD + self.model.ExtraErrorPSD([0.0]*self.nPointings + RMS_LO, *LO_shape)
-            rms_HO_per_source = [rms_HO]*self.nPointings + [0.0]*n_NGS
-        else:
-            rms_HO_per_source = [rms_HO]*(self.nPointings + n_NGS) # negative LO values fall back to the HO extra error
-        if rms_HO > 0:
-            PSD = PSD + self.model.ExtraErrorPSD(rms_HO_per_source, *HO_shape)
-        
-        return PSD
-
-
     def _prepare_state(self):
         ''' Build the model and compute everything that does not depend on the selected asterism '''
         self.model = self._build_model()
         model = self.model
-        
-        with torch.no_grad():
-            PSD = model.ComputePSD().real.clamp_min(0) # [N_src, N_wvl, nOtf, nOtf] in nm²
-            
-            if self.LOisOn:
-                PSD = PSD * model.TiltFilter() # tip/tilt is handled by the LO loop
-                
-            elif self.my_data_map['telescope'].get('windPsdFile'):
-                wind_path = self._resolve_data_path(self.my_data_map['telescope']['windPsdFile'], Path(self.fullPathFilename))
-                PSD = PSD + model.WindShakePSD(fits.getdata(wind_path))
-                
-            self.PSD_HO = PSD + self._extra_error_PSD()
+
+        with torch.no_grad(): # the tilt filter, wind shake and extra-error terms are PSD_include entries of the model, see _build_model
+            self.PSD_HO = model.ComputePSD().real.clamp_min(0) # [N_src, N_wvl, nOtf, nOtf] in nm²
 
         if self.getHoErrorBreakDown:
             self.HO_error_budget = model.ErrorBudget(verbose=self.verbose)
@@ -512,7 +489,12 @@ class baseSimulation:
             if self.addFocusError:
                 self.CtotFocus = _host(self.mLO.computeFocusTotalResidualMatrix(*focus_args))
                 self.GF_res = float(np.sqrt(max(self.CtotFocus[0], 0)))
-                self.PSD = self.PSD + self.model.FocusErrorPSD(self.GF_res)
+                # The residual global focus goes into the science PSD as a TipTorch add-on term re-applied to the cached core PSD (no recomputation)
+                self.model.focus_error_nm = self.GF_res
+                self.model.PSD_include['focus error'] = True
+                with torch.no_grad():
+                    self.PSD = self.model.ComputePSD(update_addons_only=True).real.clamp_min(0)
+                self.model.PSD_include['focus error'] = False
                 self.GFinPSD = True
         else:
             if self.firstSimCall:
@@ -659,12 +641,22 @@ class baseSimulation:
 
 
     def computePSF1D(self):
-        ''' Radial profiles about the PSF peaks, as baseSimulation.computePSF1D without the Super_Sampling interpolation '''
+        '''
+        Radial profiles about the PSF peaks, as baseSimulation.computePSF1D: discrete pixel bins, or with Super_Sampling = [step_mas, option]
+        resampled every step_mas either from the discrete profile with a cubic spline (option 1) or on a polar grid (option 2)
+        '''
+        max_radius = self.psInMas * self.nPixPSF / 2
         with torch.no_grad():
-            radii, profiles = PSF_radial_profile(self.PSF_tensor, self.psInMas) # [nPointings, N_wvl, n_bins]
-            keep = radii < self.psInMas * self.nPixPSF / 2
-            self.psf1d_radius = radii[keep].cpu().numpy()
-            self.psf1d = profiles[..., keep].permute(1, 0, 2).cpu().numpy() # [N_wvl, nPointings, n_bins]
+            if self.SupSamp and int(self.SupSamp[1]) == 2:
+                radii, profiles = PSF_radial_profile_polar(self.PSF_tensor, self.psInMas, self.SupSamp[0], max_radius) # [nPointings, N_wvl, n_r]
+            else:
+                radii, profiles = PSF_radial_profile(self.PSF_tensor, self.psInMas) # [nPointings, N_wvl, n_bins]
+                keep = radii < max_radius
+                radii, profiles = radii[keep], profiles[..., keep]
+                if self.SupSamp:
+                    radii, profiles = resample_profile_cubic(radii, profiles, self.psInMas, self.SupSamp[0])
+            self.psf1d_radius = radii.cpu().numpy()
+            self.psf1d = profiles.permute(1, 0, 2).cpu().numpy() # [N_wvl, nPointings, n_r]
         self.psf1d_radius_list_list = np.broadcast_to(self.psf1d_radius, self.psf1d.shape).copy()
         self.psf1d_data = np.vstack((self.psf1d_radius_list_list, self.psf1d))
 
