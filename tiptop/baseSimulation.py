@@ -413,6 +413,11 @@ class baseSimulation(AbstractSimulation):
             self.cubeResultsArray = np.array(cubeResultsArray)
         else:
             self.cubeResultsArray = np.array(cubeResultsArray[0])
+        # Output PSFs have unit sum over the field of view. Without jitter or LO
+        # convolution the MASTSEL PSFs are not normalized (e.g. SOUL: sum ~3700): this
+        # used to happen only as a side effect of computePSF1D.
+        if self.cubeResultsArray.ndim >= 3:  # empty when only the asterism covariances are computed
+            self.cubeResultsArray /= self.cubeResultsArray.sum(axis=(-2, -1), keepdims=True)
 
     def _finalize_full_field_results(self, astIndex):
         """

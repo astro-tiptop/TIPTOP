@@ -320,7 +320,8 @@ class AbstractSimulation(ABC):
             for psf in cubeResults:
                 psfRadius = psf.shape[0] / 2
                 center = np.unravel_index(np.argmax(psf), psf.shape)
-                rr, radialprofile, _ = radial_profile(psf,
+                # copy: radial_profile(normalize='total') normalizes its input in place
+                rr, radialprofile, _ = radial_profile(psf.copy(),
                                                       ext=0,
                                                       pixelscale=self.psInMas,
                                                       ee=True,
