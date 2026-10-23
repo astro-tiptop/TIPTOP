@@ -9,7 +9,7 @@ from p3.aoSystem.FourierUtils import getFWHM, getEncircledEnergy, getEnsquaredEn
 
 # Mastsel Imports
 from mastsel import MavisLO, psdSetToPsfSet, longExposurePsf, Field, convolve, residualToSpectrum, maskSA
-from mastsel.mavisPsf import centeredPixelCoords, padOrCropCentered, mastselPsfPrecision
+from mastsel.mavisPsf import centeredPixelCoords, padOrCropCentered, mastselPsfPrecision, pupilOnGrid
 from mastsel.mavisUtilities import sigma_from_FWHM, tiledDisplay, plotEllipses, polarToCartesian, congrid
 
 # Tiptop Imports
@@ -22,6 +22,18 @@ rad2mas = 3600 * 180 * 1000 / np.pi
 # TIPTOP repo root — used as path_root when calling fourierModel so that
 # auxiliary files referenced as 'tiptop/data/...' in config files are found.
 _TIPTOP_ROOT = str(Path(__file__).resolve().parent.parent)
+
+
+def _ee_at_bin_edges(ee, rr, pixel_scale):
+    """Radii at which the encircled energy of radial_profile applies.
+
+    ee[k] is the energy of the pixels with round(r) <= k, i.e. inside the outer
+    edge of bin k at rr[k] + pixel/2 (PSF centred on a pixel, rr[0] = 0). Using
+    rr[k] itself overestimated the EE (Gaussian sigma 32 mas at 50 mas: 0.733
+    instead of 0.705). The point (0, 0) is added so that radii below half a
+    pixel stay inside the interpolation range.
+    """
+    return np.concatenate(([0.0], cpuArray(ee))), np.concatenate(([0.0], cpuArray(rr) + 0.5 * float(pixel_scale)))
 
 
 def _lo_psf_fwhm(psf, pixel_scale, max_contour_pixels=10000):
@@ -202,12 +214,16 @@ class baseSimulation(AbstractSimulation):
         self.nPointings = self.pointings.shape[1]
         self.nPixPSF = int(self.fao.ao.cam.fovInPix)
         self.overSamp = getattr(self.fao.freq, 'kRef_float', int(self.fao.freq.kRef_))
-        self.PSDstep = self.fao.freq.PSDstep
+        # Host scalars: with P3 on GPU these are 0-d cupy arrays, which MASTSEL on
+        # CPU cannot use (MASTSEL_DISABLE_GPU with P3 on GPU crashed in longExposurePsf)
+        self.PSDstep = float(cpuArray(self.fao.freq.PSDstep))
         self.overSamp_lo = self.fao.freq.kGrid_
         self.freq_range = self.N * self.PSDstep
         self.grid_diameter = 1 / self.PSDstep
-        self.sx = int(2 * np.round(self.tel_radius * self.freq_range))
-        self.dk = self.fao.freq.dk_
+        # Pupil diameter in pixels of the PSD grid, not rounded: MASTSEL resamples the pupil
+        # with this exact scale (rounding it changed D, hence the PSF peak, by up to ~2/sx).
+        self.sx = 2 * self.tel_radius * self.freq_range
+        self.dk = float(cpuArray(self.fao.freq.dk_))
         self.wvlRef = self.fao.freq.wvlRef
 
         if self.multiGridPSD:
@@ -219,7 +235,7 @@ class baseSimulation(AbstractSimulation):
             # does not), so nPixPup (self.sx) must vary per wavelength too --
             # same formula as self.sx above, evaluated at each grid's own
             # freq_range_i instead of the shared one.
-            self.sx_per_wvl = [int(2 * np.round(self.tel_radius * fr))
+            self.sx_per_wvl = [2 * self.tel_radius * fr
                               for fr in self.freq_range_per_wvl]
             # Index into self.wvl/self.PSD whose grid matches self.wvlRef
             # (the minimum requested wavelength): used as "the" representative
@@ -231,8 +247,7 @@ class baseSimulation(AbstractSimulation):
 
         # Setup Mask
         self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
-        self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
-        self.mask.sampling = padOrCropCentered(self.mask.sampling, self.N, xp=self.mask.xp)
+        self.mask.sampling = pupilOnGrid(arrayP3toMastsel(self.fao.ao.tel.pupil), self.sx, self.N, self.mask.xp)
 
         if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
             raise ValueError(f"sensor_science.PixelScale '{self.psInMas}'"
@@ -531,13 +546,13 @@ class baseSimulation(AbstractSimulation):
                 # Same operations as getStrehl(method='max', psfInOnePix=True),
                 # with the diffraction-limited PSF computed once per wavelength
                 # instead of once per PSF.
-                psfDL = otf2psf(telescopeOtf(self.fao.ao.tel.pupil, samp), psfInOnePix=True)
+                psfDL = otf2psf(telescopeOtf(self.fao.ao.tel.pupil, samp), psfInOnePix=True).clip(0, None)
                 psfDL /= psfDL.sum()
                 dl_peak = psfDL.max()
 
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
-                    psf = arrayMastseltoP3(img.sampling)
+                    psf = arrayMastseltoP3(img.sampling).clip(0, None)
                     psf /= psf.sum()
                     sr_l.append(np.round(psf.max() / dl_peak, 5))
                     fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
@@ -549,6 +564,7 @@ class baseSimulation(AbstractSimulation):
                     else:
                         ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=self.psInMas,
                                                       center=centeredPixelCoords(self.nPixPSF), nargout=2)
+                        ee_, rr_ = _ee_at_bin_edges(ee_, rr_, self.psInMas)
 
                     ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     ee_val = ee_fn(self.eeRadiusInMas)
@@ -648,6 +664,7 @@ class baseSimulation(AbstractSimulation):
                 ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=LO_PSFsInMas,
                                               center=centeredPixelCoords(nPixPSFLO), nargout=2)
                 ee_ *= 1 / np.max(ee_)
+                ee_, rr_ = _ee_at_bin_edges(ee_, rr_, LO_PSFsInMas)
                 ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                 ps_mas_i = self.LO_psInMas[idx] if isinstance(self.LO_psInMas, list) else self.LO_psInMas
                 ee_NGS = ee_fn(max([FWHM, ps_mas_i]))
@@ -661,8 +678,7 @@ class baseSimulation(AbstractSimulation):
                 maskI = maskLO[i] if isinstance(maskLO, list) else maskLO
                 psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
                 maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
-                maskField.sampling = congrid(maskI, [self.sx, self.sx])
-                maskField.sampling = padOrCropCentered(maskField.sampling, self.N, xp=maskField.xp)
+                maskField.sampling = pupilOnGrid(maskI, self.sx, self.N, maskField.xp)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
                 fx, fy = getFWHM(arrayMastseltoP3(psfNgsDL.sampling), LO_PSFsInMas, method='contour', nargout=2)
                 f_val = np.sqrt(fx * fy)
@@ -693,7 +709,7 @@ class baseSimulation(AbstractSimulation):
                     nSAfocusI = nSAfocus[i] if len(nSAfocus) == self.nNaturalGS_field else nSAfocus[0]
                     if nSAfocusI != 1:
                         pf = pistonFilter(2*self.tel_radius/nSAfocusI, k)
-                        psdFocus[i] = psdFocus[i] * pf
+                        psdFocus[i] = psdFocus[i] * arrayP3toMastsel(pf)
 
                 psfLE_Focus = psdSetToPsfSet(psdFocus, maskFocus, self.Focus_wvl,
                                              nPixPup=ngs_nPixPup, freq_range=ngs_freq_range,
@@ -716,6 +732,7 @@ class baseSimulation(AbstractSimulation):
                         ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=Focus_PSFsInMas,
                                                       center=centeredPixelCoords(nPixPSFFocus), nargout=2)
                         ee_ *= 1 / np.max(ee_)
+                        ee_, rr_ = _ee_at_bin_edges(ee_, rr_, Focus_PSFsInMas)
                         ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                         ps_mas_i = self.Focus_psInMas[idx] if isinstance(self.Focus_psInMas, list) else self.Focus_psInMas
                         ee_Focus = ee_fn(max([FWHM, ps_mas_i]))
