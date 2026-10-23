@@ -202,14 +202,16 @@ class baseSimulation(AbstractSimulation):
         self.nPointings = self.pointings.shape[1]
         self.nPixPSF = int(self.fao.ao.cam.fovInPix)
         self.overSamp = getattr(self.fao.freq, 'kRef_float', int(self.fao.freq.kRef_))
-        self.PSDstep = self.fao.freq.PSDstep
+        # Host scalars: with P3 on GPU these are 0-d cupy arrays, which MASTSEL on
+        # CPU cannot use (MASTSEL_DISABLE_GPU with P3 on GPU crashed in longExposurePsf)
+        self.PSDstep = float(cpuArray(self.fao.freq.PSDstep))
         self.overSamp_lo = self.fao.freq.kGrid_
         self.freq_range = self.N * self.PSDstep
         self.grid_diameter = 1 / self.PSDstep
         # Pupil diameter in pixels of the PSD grid, not rounded: MASTSEL resamples the pupil
         # with this exact scale (rounding it changed D, hence the PSF peak, by up to ~2/sx).
         self.sx = 2 * self.tel_radius * self.freq_range
-        self.dk = self.fao.freq.dk_
+        self.dk = float(cpuArray(self.fao.freq.dk_))
         self.wvlRef = self.fao.freq.wvlRef
 
         if self.multiGridPSD:
@@ -693,7 +695,7 @@ class baseSimulation(AbstractSimulation):
                     nSAfocusI = nSAfocus[i] if len(nSAfocus) == self.nNaturalGS_field else nSAfocus[0]
                     if nSAfocusI != 1:
                         pf = pistonFilter(2*self.tel_radius/nSAfocusI, k)
-                        psdFocus[i] = psdFocus[i] * pf
+                        psdFocus[i] = psdFocus[i] * arrayP3toMastsel(pf)
 
                 psfLE_Focus = psdSetToPsfSet(psdFocus, maskFocus, self.Focus_wvl,
                                              nPixPup=ngs_nPixPup, freq_range=ngs_freq_range,
