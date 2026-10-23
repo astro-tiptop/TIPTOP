@@ -531,13 +531,13 @@ class baseSimulation(AbstractSimulation):
                 # Same operations as getStrehl(method='max', psfInOnePix=True),
                 # with the diffraction-limited PSF computed once per wavelength
                 # instead of once per PSF.
-                psfDL = otf2psf(telescopeOtf(self.fao.ao.tel.pupil, samp), psfInOnePix=True)
+                psfDL = otf2psf(telescopeOtf(self.fao.ao.tel.pupil, samp), psfInOnePix=True).clip(0, None)
                 psfDL /= psfDL.sum()
                 dl_peak = psfDL.max()
 
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
-                    psf = arrayMastseltoP3(img.sampling)
+                    psf = arrayMastseltoP3(img.sampling).clip(0, None)
                     psf /= psf.sum()
                     sr_l.append(np.round(psf.max() / dl_peak, 5))
                     fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
