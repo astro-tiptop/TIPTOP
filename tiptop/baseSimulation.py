@@ -5,7 +5,7 @@ from scipy.interpolate import interp1d
 
 # P3 Imports
 from p3.aoSystem.fourierModel import fourierModel
-from p3.aoSystem.FourierUtils import getStrehl, getFWHM, getEncircledEnergy, getEnsquaredEnergy, pistonFilter
+from p3.aoSystem.FourierUtils import getFWHM, getEncircledEnergy, getEnsquaredEnergy, pistonFilter, telescopeOtf, otf2psf
 
 # Mastsel Imports
 from mastsel import MavisLO, psdSetToPsfSet, longExposurePsf, Field, convolve, residualToSpectrum, maskSA
@@ -22,6 +22,25 @@ rad2mas = 3600 * 180 * 1000 / np.pi
 # TIPTOP repo root — used as path_root when calling fourierModel so that
 # auxiliary files referenced as 'tiptop/data/...' in config files are found.
 _TIPTOP_ROOT = str(Path(__file__).resolve().parent.parent)
+
+
+def _lo_psf_fwhm(psf, pixel_scale, max_contour_pixels=10000):
+    """FWHM (x, y) [mas] of an NGS/Focus PSF, the input of the MASTSEL LO noise model.
+
+    Contour method as for the science PSFs, except for very wide PSFs (more than
+    max_contour_pixels above half maximum, e.g. focus sensors with small
+    sub-apertures): there the contour costs O(boundary x area) (~0.1 s) and the
+    equivalent-circle diameter 2 sqrt(A/pi) is used instead. For an ellipse it is
+    exactly sqrt(FWHM_x FWHM_y), the quantity used downstream; at these sizes the
+    pixel quantization of A is below ~1 % (MORFEO focus PSFs: -0.5..+1.1 % vs the
+    contour, GF_res -0.2 %).
+    """
+    img = cpuArray(psf)
+    n_above = int((img > img.max() / 2).sum())
+    if n_above > max_contour_pixels:
+        fwhm = 2 * np.sqrt(n_above / np.pi) * float(pixel_scale)
+        return fwhm, fwhm
+    return getFWHM(arrayMastseltoP3(psf), pixel_scale, method='contour', nargout=2)
 
 
 class baseSimulation(AbstractSimulation):
@@ -413,6 +432,11 @@ class baseSimulation(AbstractSimulation):
             self.cubeResultsArray = np.array(cubeResultsArray)
         else:
             self.cubeResultsArray = np.array(cubeResultsArray[0])
+        # Output PSFs have unit sum over the field of view. Without jitter or LO
+        # convolution the MASTSEL PSFs are not normalized (e.g. SOUL: sum ~3700): this
+        # used to happen only as a side effect of computePSF1D.
+        if self.cubeResultsArray.ndim >= 3:  # empty when only the asterism covariances are computed
+            self.cubeResultsArray /= self.cubeResultsArray.sum(axis=(-2, -1), keepdims=True)
 
     def _finalize_full_field_results(self, astIndex):
         """
@@ -504,9 +528,18 @@ class baseSimulation(AbstractSimulation):
                 samp = self.wvl[i] * rad2mas / (self.psInMas * 2 * self.tel_radius)
                 rebin_fwhm = max(1, int(np.ceil(2.0 / samp))) if samp < 2.0 else 1
 
+                # Same operations as getStrehl(method='max', psfInOnePix=True),
+                # with the diffraction-limited PSF computed once per wavelength
+                # instead of once per PSF.
+                psfDL = otf2psf(telescopeOtf(self.fao.ao.tel.pupil, samp), psfInOnePix=True)
+                psfDL /= psfDL.sum()
+                dl_peak = psfDL.max()
+
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
-                    sr_l.append(getStrehl(arrayMastseltoP3(img.sampling), self.fao.ao.tel.pupil, samp, method='max', psfInOnePix=True))
+                    psf = arrayMastseltoP3(img.sampling)
+                    psf /= psf.sum()
+                    sr_l.append(np.round(psf.max() / dl_peak, 5))
                     fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
                                           rebin=rebin_fwhm, nargout=1))
 
@@ -605,7 +638,7 @@ class baseSimulation(AbstractSimulation):
             SR = np.exp(-s1 * (2*np.pi*1e-9/self.LO_wvl)**2)
             self.NGS_SR_field.append(SR)
 
-            fwhmX, fwhmY = getFWHM(arrayMastseltoP3(img.sampling), LO_PSFsInMas, method='contour', nargout=2)
+            fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, LO_PSFsInMas)
             FWHM = np.sqrt(fwhmX * fwhmY)
             self.NGS_FWHM_mas_field.append(FWHM)
 
@@ -673,7 +706,7 @@ class baseSimulation(AbstractSimulation):
                     s1 = cpuArray(psdFocus[idx]).sum()
                     self.Focus_SR_field.append(np.exp(-s1 * (2*np.pi*1e-9/self.Focus_wvl)**2))
 
-                    fwhmX, fwhmY = getFWHM(arrayMastseltoP3(img.sampling), Focus_PSFsInMas, method='contour', nargout=2)
+                    fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, Focus_PSFsInMas)
                     FWHM = np.sqrt(fwhmX * fwhmY)
                     self.Focus_FWHM_mas_field.append(FWHM)
 

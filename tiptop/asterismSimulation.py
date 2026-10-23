@@ -8,7 +8,6 @@ import pickle
 import os
 import sys
 import time
-import torch
 from dataclasses import dataclass
 from typing import List
 from scipy import interpolate
@@ -19,7 +18,6 @@ from .baseSimulation import baseSimulation
 from .tiptopUtils import cpuArray, arrayP3toMastsel
 from mastsel import MavisLO, polarToCartesian, cartesianToPolar, tiledDisplay, plotEllipses
 from mastsel.mavisUtilities import sigma_from_FWHM
-from tiptop.nnModel import NeuralNetwork
 
 @dataclass
 class Star:
@@ -763,6 +761,7 @@ class asterismSimulation(baseSimulation):
 
 
     def setModelData(self):
+        import torch  # deferred: torch is only needed by the NN asterism model and is slow to import
         self.jitterM = np.log(self.jitterMeasure+1)
         self.coordsM = self.asterismsInputDataCartesian
         self.xcoordsM = self.coordsM[self.currentBase:self.lastJitterIndex, 0, :]
@@ -781,6 +780,7 @@ class asterismSimulation(baseSimulation):
 
 
     def fitModel(self, modelName, num_epochs, steps, geom):
+        from tiptop.nnModel import NeuralNetwork
         if self.isMono:
             ast = 0
             self.firstConfigCall = True
@@ -911,6 +911,8 @@ class asterismSimulation(baseSimulation):
 
 
     def testHeuristicModel(self, fieldIndex1, fieldIndex2, modelName, geom):
+        import torch
+        from tiptop.nnModel import NeuralNetwork
         self.selectData(fieldIndex1, fieldIndex2)
         self.setModelData()
         if self.isMono:
