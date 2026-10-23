@@ -86,9 +86,11 @@ class TestMetricsStrehl(unittest.TestCase):
                         self.assertLessEqual(sr, 1)
 
     def test_diffraction_limited_psf_has_near_unit_strehl(self):
-        # psf_dl_array is MASTSEL's DL PSF at the reference wavelength, while the
-        # reference peak is P3's analytic otf2psf(telescopeOtf): different pixel
-        # integration/decimation gives 1-3 % differences, so 1e-3 is not attainable.
+        # psf_dl_array is the DL PSF built by TIPTOP/MASTSEL (pupil resampled to the
+        # exact diameter in PSD-grid pixels), the reference is P3's otf2psf(telescopeOtf).
+        # They must agree within the grey-edge effect of the linearly resampled pupil
+        # (+0.2..+0.7 %). Before the exact pupil scale the integer pupil size gave up
+        # to -3 % (SOUL 0.967).
         for case in CASES:
             with self.subTest(case=case):
                 sim, _ = _run_case(case)
@@ -96,8 +98,7 @@ class TestMetricsStrehl(unittest.TestCase):
                 sr = float(cpuArray(getStrehl(
                     np.array(sim.psf_dl_array, dtype=float), sim.fao.ao.tel.pupil,
                     samp, method='max', psfInOnePix=True)))
-                self.assertGreater(sr, 0.95)
-                self.assertLessEqual(sr, 1.0 + 1e-3)
+                self.assertLess(abs(sr - 1.0), 5e-3)
 
 
 if __name__ == '__main__':

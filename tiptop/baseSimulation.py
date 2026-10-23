@@ -9,7 +9,7 @@ from p3.aoSystem.FourierUtils import getFWHM, getEncircledEnergy, getEnsquaredEn
 
 # Mastsel Imports
 from mastsel import MavisLO, psdSetToPsfSet, longExposurePsf, Field, convolve, residualToSpectrum, maskSA
-from mastsel.mavisPsf import centeredPixelCoords, padOrCropCentered, mastselPsfPrecision
+from mastsel.mavisPsf import centeredPixelCoords, padOrCropCentered, mastselPsfPrecision, pupilOnGrid
 from mastsel.mavisUtilities import sigma_from_FWHM, tiledDisplay, plotEllipses, polarToCartesian, congrid
 
 # Tiptop Imports
@@ -206,7 +206,9 @@ class baseSimulation(AbstractSimulation):
         self.overSamp_lo = self.fao.freq.kGrid_
         self.freq_range = self.N * self.PSDstep
         self.grid_diameter = 1 / self.PSDstep
-        self.sx = int(2 * np.round(self.tel_radius * self.freq_range))
+        # Pupil diameter in pixels of the PSD grid, not rounded: MASTSEL resamples the pupil
+        # with this exact scale (rounding it changed D, hence the PSF peak, by up to ~2/sx).
+        self.sx = 2 * self.tel_radius * self.freq_range
         self.dk = self.fao.freq.dk_
         self.wvlRef = self.fao.freq.wvlRef
 
@@ -219,7 +221,7 @@ class baseSimulation(AbstractSimulation):
             # does not), so nPixPup (self.sx) must vary per wavelength too --
             # same formula as self.sx above, evaluated at each grid's own
             # freq_range_i instead of the shared one.
-            self.sx_per_wvl = [int(2 * np.round(self.tel_radius * fr))
+            self.sx_per_wvl = [2 * self.tel_radius * fr
                               for fr in self.freq_range_per_wvl]
             # Index into self.wvl/self.PSD whose grid matches self.wvlRef
             # (the minimum requested wavelength): used as "the" representative
@@ -231,8 +233,7 @@ class baseSimulation(AbstractSimulation):
 
         # Setup Mask
         self.mask = Field(self.wvlRef, self.N, self.grid_diameter)
-        self.mask.sampling = congrid(arrayP3toMastsel(self.fao.ao.tel.pupil), [self.sx, self.sx])
-        self.mask.sampling = padOrCropCentered(self.mask.sampling, self.N, xp=self.mask.xp)
+        self.mask.sampling = pupilOnGrid(arrayP3toMastsel(self.fao.ao.tel.pupil), self.sx, self.N, self.mask.xp)
 
         if abs(float(self.psInMas) - float(cpuArray(self.fao.freq.psInMas[0]))) > 1e-6:
             raise ValueError(f"sensor_science.PixelScale '{self.psInMas}'"
@@ -661,8 +662,7 @@ class baseSimulation(AbstractSimulation):
                 maskI = maskLO[i] if isinstance(maskLO, list) else maskLO
                 psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
                 maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
-                maskField.sampling = congrid(maskI, [self.sx, self.sx])
-                maskField.sampling = padOrCropCentered(maskField.sampling, self.N, xp=maskField.xp)
+                maskField.sampling = pupilOnGrid(maskI, self.sx, self.N, maskField.xp)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
                 fx, fy = getFWHM(arrayMastseltoP3(psfNgsDL.sampling), LO_PSFsInMas, method='contour', nargout=2)
                 f_val = np.sqrt(fx * fy)
