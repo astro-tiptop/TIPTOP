@@ -24,6 +24,25 @@ rad2mas = 3600 * 180 * 1000 / np.pi
 _TIPTOP_ROOT = str(Path(__file__).resolve().parent.parent)
 
 
+def _lo_psf_fwhm(psf, pixel_scale, max_contour_pixels=10000):
+    """FWHM (x, y) [mas] of an NGS/Focus PSF, the input of the MASTSEL LO noise model.
+
+    Contour method as for the science PSFs, except for very wide PSFs (more than
+    max_contour_pixels above half maximum, e.g. focus sensors with small
+    sub-apertures): there the contour costs O(boundary x area) (~0.1 s) and the
+    equivalent-circle diameter 2 sqrt(A/pi) is used instead. For an ellipse it is
+    exactly sqrt(FWHM_x FWHM_y), the quantity used downstream; at these sizes the
+    pixel quantization of A is below ~1 % (MORFEO focus PSFs: -0.5..+1.1 % vs the
+    contour, GF_res -0.2 %).
+    """
+    img = cpuArray(psf)
+    n_above = int((img > img.max() / 2).sum())
+    if n_above > max_contour_pixels:
+        fwhm = 2 * np.sqrt(n_above / np.pi) * float(pixel_scale)
+        return fwhm, fwhm
+    return getFWHM(arrayMastseltoP3(psf), pixel_scale, method='contour', nargout=2)
+
+
 class baseSimulation(AbstractSimulation):
     """
     P3-based Backend Implementation for TIPTOP Simulations.
@@ -619,7 +638,7 @@ class baseSimulation(AbstractSimulation):
             SR = np.exp(-s1 * (2*np.pi*1e-9/self.LO_wvl)**2)
             self.NGS_SR_field.append(SR)
 
-            fwhmX, fwhmY = getFWHM(arrayMastseltoP3(img.sampling), LO_PSFsInMas, method='contour', nargout=2)
+            fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, LO_PSFsInMas)
             FWHM = np.sqrt(fwhmX * fwhmY)
             self.NGS_FWHM_mas_field.append(FWHM)
 
@@ -687,7 +706,7 @@ class baseSimulation(AbstractSimulation):
                     s1 = cpuArray(psdFocus[idx]).sum()
                     self.Focus_SR_field.append(np.exp(-s1 * (2*np.pi*1e-9/self.Focus_wvl)**2))
 
-                    fwhmX, fwhmY = getFWHM(arrayMastseltoP3(img.sampling), Focus_PSFsInMas, method='contour', nargout=2)
+                    fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, Focus_PSFsInMas)
                     FWHM = np.sqrt(fwhmX * fwhmY)
                     self.Focus_FWHM_mas_field.append(FWHM)
 
