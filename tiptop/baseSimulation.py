@@ -5,7 +5,7 @@ from scipy.interpolate import interp1d
 
 # P3 Imports
 from p3.aoSystem.fourierModel import fourierModel
-from p3.aoSystem.FourierUtils import getStrehl, getFWHM, getEncircledEnergy, getEnsquaredEnergy, pistonFilter
+from p3.aoSystem.FourierUtils import getFWHM, getEncircledEnergy, getEnsquaredEnergy, pistonFilter, telescopeOtf, otf2psf
 
 # Mastsel Imports
 from mastsel import MavisLO, psdSetToPsfSet, longExposurePsf, Field, convolve, residualToSpectrum, maskSA
@@ -504,9 +504,18 @@ class baseSimulation(AbstractSimulation):
                 samp = self.wvl[i] * rad2mas / (self.psInMas * 2 * self.tel_radius)
                 rebin_fwhm = max(1, int(np.ceil(2.0 / samp))) if samp < 2.0 else 1
 
+                # Same operations as getStrehl(method='max', psfInOnePix=True),
+                # with the diffraction-limited PSF computed once per wavelength
+                # instead of once per PSF.
+                psfDL = otf2psf(telescopeOtf(self.fao.ao.tel.pupil, samp), psfInOnePix=True)
+                psfDL /= psfDL.sum()
+                dl_peak = psfDL.max()
+
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
-                    sr_l.append(getStrehl(arrayMastseltoP3(img.sampling), self.fao.ao.tel.pupil, samp, method='max', psfInOnePix=True))
+                    psf = arrayMastseltoP3(img.sampling)
+                    psf /= psf.sum()
+                    sr_l.append(np.round(psf.max() / dl_peak, 5))
                     fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
                                           rebin=rebin_fwhm, nargout=1))
 
