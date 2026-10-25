@@ -552,17 +552,21 @@ class baseSimulation(AbstractSimulation):
 
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
-                    psf = arrayMastseltoP3(img.sampling).clip(0, None)
+                    # one host->device copy per PSF: getFWHM (rebin 1) and radial_profile
+                    # work on host arrays, so the image is passed to them as it is
+                    psf_p3 = arrayMastseltoP3(img.sampling)
+                    psf = psf_p3.clip(0, None)
                     psf /= psf.sum()
                     sr_l.append(np.round(psf.max() / dl_peak, 5))
-                    fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
+                    psf_fwhm = img.sampling if rebin_fwhm == 1 else psf_p3
+                    fwhm_l.append(getFWHM(psf_fwhm, self.psInMas, method='contour',
                                           rebin=rebin_fwhm, nargout=1))
 
                     if self.ensquaredEnergy:
-                        ee_ = cpuArray(getEnsquaredEnergy(arrayMastseltoP3(img.sampling)))
+                        ee_ = cpuArray(getEnsquaredEnergy(psf_p3))
                         rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas * 0.5
                     else:
-                        ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=self.psInMas,
+                        ee_, rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas,
                                                       center=centeredPixelCoords(self.nPixPSF), nargout=2)
                         ee_, rr_ = _ee_at_bin_edges(ee_, rr_, self.psInMas)
 
