@@ -320,8 +320,10 @@ class AbstractSimulation(ABC):
             for psf in cubeResults:
                 psfRadius = psf.shape[0] / 2
                 center = np.unravel_index(np.argmax(psf), psf.shape)
-                # copy: radial_profile(normalize='total') normalizes its input in place
-                rr, radialprofile, _ = radial_profile(psf.copy(),
+                # profile of the PSF normalized to unit sum; normalizing the profile
+                # instead of the image (radial_profile(normalize='total') divides its
+                # input in place) avoids a copy of the image
+                rr, radialprofile, _ = radial_profile(psf,
                                                       ext=0,
                                                       pixelscale=self.psInMas,
                                                       ee=True,
@@ -329,13 +331,13 @@ class AbstractSimulation(ABC):
                                                       stddev=False,
                                                       binsize=None,
                                                       maxradius=self.psInMas * psfRadius,
-                                                      normalize='total',
+                                                      normalize='None',
                                                       nargout=2,
                                                       supersamp=self.SupSamp, 
                                                       polar_grid=polar_grid,
                                                       r_vals=r_vals_interp,
                                                       verbose=self.verbose)
-                psf1dList.append(radialprofile)
+                psf1dList.append(radialprofile / psf.sum())
                 psf1d_radius_list.append(rr)
                 
             psf1d.append(psf1dList)
