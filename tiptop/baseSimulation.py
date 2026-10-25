@@ -446,7 +446,7 @@ class baseSimulation(AbstractSimulation):
         if self.nWvl > 1:
             self.cubeResultsArray = np.array(cubeResultsArray)
         else:
-            self.cubeResultsArray = np.array(cubeResultsArray[0])
+            self.cubeResultsArray = cubeResultsArray[0]  # already a new array: no second copy
         # Output PSFs have unit sum over the field of view. Without jitter or LO
         # convolution the MASTSEL PSFs are not normalized (e.g. SOUL: sum ~3700): this
         # used to happen only as a side effect of computePSF1D.
