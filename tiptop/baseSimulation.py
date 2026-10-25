@@ -749,29 +749,29 @@ class baseSimulation(AbstractSimulation):
 
     def _apply_final_convolution(self, lo_data):
         self.cov_ellipses = lo_data.get('cov_ellipses')
-        resSpecList, resSpecListJ = [], []
 
+        resSpecJ = None
+        if self.jitter_FWHM is not None:
+            ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])] \
+                if isinstance(self.jitter_FWHM, list) \
+                    else [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+            ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
+            resSpecJ = residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
+
+        resSpecList = []
         for ellp in self.cov_ellipses:
             ellp = ellp.astype(self.fao.dtype)
-            resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
-
-            if self.jitter_FWHM is not None:
-                ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])] \
-                    if isinstance(self.jitter_FWHM, list) \
-                        else [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
-                resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
-            else:
-                resSpecListJ.append(0)
+            resSpec = residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
+            if resSpecJ is not None:
+                # LO and jitter kernels are both Fourier-domain transfer functions on
+                # the same grid: one circular convolution with their product equals
+                # the two convolutions in sequence (up to rounding)
+                resSpec.sampling = resSpec.sampling * resSpecJ.sampling
+            resSpecList.append(resSpec)
 
         for i in range(self.nWvl):
             psfList = self.psfLongExpPointingsArr[i] if self.nWvl > 1 else self.psfLongExpPointingsArr
-            resultList = []
-            for psfLongExp, resSpec, resSpecJ in zip(psfList, resSpecList, resSpecListJ):
-                temp = convolve(psfLongExp, resSpec)
-                if self.jitter_FWHM is not None:
-                    temp = convolve(temp, resSpecJ)
-                resultList.append(temp)
+            resultList = [convolve(psfLongExp, resSpec) for psfLongExp, resSpec in zip(psfList, resSpecList)]
 
             if self.nWvl > 1:
                 self.results.append(resultList)
