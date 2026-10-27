@@ -188,7 +188,12 @@ class AbstractSimulation(ABC):
         self.pointings = polarToCartesian(np.array([self.zenithSrc, self.azimuthSrc]))
         self.psInMas = self.my_data_map['sensor_science']['PixelScale']
         self.SupSamp = self.my_data_map['sensor_science']['Super_Sampling']
-        
+        # a non-literal .ini value (e.g. 'false') stays a string, which would be truthy
+        self.pixelResponse = self.my_data_map['sensor_science'].get('PixelResponse', False)
+        if not isinstance(self.pixelResponse, bool):
+            raise ValueError("'PixelResponse' in section 'sensor_science' must be True or False, "
+                             f"got {self.pixelResponse!r}")
+
         self.jitter_FWHM = self.my_data_map['telescope'].get('jitter_FWHM', None)
         self.addFocusError = self.my_data_map['telescope'].get('glFocusOnNGS', False)
         self.GFinPSD = False
@@ -476,7 +481,11 @@ class AbstractSimulation(ABC):
         hdul1[3].header.update({'TIME': now.strftime("%Y%m%d_%H%M%S"),
                                 'CONTENT': "DIFFRACTION LIMITED PSF",
                                 'SIZE': str(self.psf_dl_array.shape)})
-        
+        # only when set, so that default output files are unchanged
+        if self.pixelResponse:
+            for hdu in hdul1[1:4]:
+                hdu.header['PIX_RESP'] = (True, 'PSF integrated over the detector pixel')
+
         idx_offset = 4
         if self.savePSDs and self.psd_array is not None:
             hdul1[4].header.update({'TIME': now.strftime("%Y%m%d_%H%M%S"),

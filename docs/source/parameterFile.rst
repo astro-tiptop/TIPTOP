@@ -346,6 +346,16 @@ We now go more in detail for each section:
 |                         |         |        |If provided, TipTop performs a 2D polar interpolation of the PSF to       |
 |                         |         |        |produce a radial profile resampled at the requested scale.                |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|PixelResponse            |No       |bool    |Default False: PSFs are point-sampled at the pixel centres.               |
+|                         |         |        |                                                                          |
+|                         |         |        |If True, the science, open-loop and diffraction-limited PSFs are          |
+|                         |         |        |integrated over the square detector pixel (OTF multiplied by              |
+|                         |         |        |sinc(PixelScale fx) sinc(PixelScale fy)). FWHM and EE then include the    |
+|                         |         |        |pixel. The Strehl ratio uses a diffraction-limited reference integrated   |
+|                         |         |        |over the pixel too, so it stays close to the point-sampled one for        |
+|                         |         |        |PixelScale <= lambda/D; for coarser pixels the point-sampled Strehl is    |
+|                         |         |        |biased high by aliasing, the pixel-integrated one is not.                 |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 .. note::
 
