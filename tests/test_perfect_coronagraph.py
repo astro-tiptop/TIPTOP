@@ -144,6 +144,21 @@ class TestPerfectCoronagraphPhysics(unittest.TestCase):
         self.assertLess(abs(c['psf1d'][0] / centre - 1.0), 0.1)
         self.assertLess(c['psf1d'][0], 0.01 * n['psf1d'][0])  # not the PSF peak
 
+    def test_explicit_zero_jitter_matches_no_jitter(self):
+        # an explicit zero jitter still convolves (and unit-sum normalizes) the PSF; the coronagraphic
+        # cube must not come out in raw MASTSEL units
+        ref = _run(True)['cube']
+        for value in ('0', '[0, 0, 30]'):
+            key = 'jit' + value
+            if key not in _cache:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    _write_ini(tmpdir, 'pc', True, edit=lambda c: c.set('telescope', 'jitter_FWHM', value))
+                    sim = baseSimulation(tmpdir, 'pc', tmpdir, 'out', doConvolve=True, verbose=False)
+                    sim.doOverallSimulation()
+                    _cache[key] = np.array(cpuArray(sim.cubeResultsArray), dtype=float).squeeze()
+            np.testing.assert_allclose(_cache[key], ref, rtol=1e-9, atol=1e-12 * np.abs(ref).max(),
+                                       err_msg=f"jitter_FWHM = {value}")
+
     def test_fits_header_flag(self):
         self.assertIs(_run(True)['hdr']['CORONAGR'], True)
         self.assertNotIn('CORONAGR', _run()['hdr'])
