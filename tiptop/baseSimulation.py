@@ -554,7 +554,8 @@ class baseSimulation(AbstractSimulation):
                 for img in results_slice:
                     psf = arrayMastseltoP3(img.sampling).clip(0, None)
                     psf /= psf.sum()
-                    sr_l.append(np.round(psf.max() / dl_peak, 5))
+                    # host float, as getStrehl returned (psf is a cupy array on GPU)
+                    sr_l.append(np.round(float(psf.max() / dl_peak), 5))
                     fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
                                           rebin=rebin_fwhm, nargout=1))
 
