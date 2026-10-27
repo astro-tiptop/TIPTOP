@@ -613,7 +613,7 @@ class baseSimulation(AbstractSimulation):
             return
         res = self.results[0] if self.nWvl > 1 else self.results
         if self.LOisOn and self.doConvolve:
-            tiledDisplay(res)
+            tiledDisplay(res, cpuArray(self.cartSciencePointingCoords))
             plotEllipses(self.cartSciencePointingCoords, self.cov_ellipses, 0.4)
         else:
             res[0].standardPlot(True)
