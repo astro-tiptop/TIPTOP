@@ -16,6 +16,7 @@ from astropy.io import fits
 from scipy.integrate import dblquad
 from scipy.special import j1
 
+from p3.aoSystem import np as p3np
 from tiptop.baseSimulation import baseSimulation, _diffraction_limited_psf
 from tiptop.tiptopUtils import cpuArray
 
@@ -212,7 +213,8 @@ class TestDiffractionLimitedReference(unittest.TestCase):
         # i.e. a peak ((n-1)/n)^2 too low)
         n = 128
         x = (np.arange(n) - n / 2 + 0.5) / n
-        pupil = (np.hypot(*np.meshgrid(x, x)) <= 0.5).astype(float)
+        # on the P3 backend, as fao.ao.tel.pupil in computeMetrics (cupy on GPU)
+        pupil = p3np.asarray((np.hypot(*np.meshgrid(x, x)) <= 0.5).astype(float))
         for samp in (2.1, 1.06, 0.53):
             with self.subTest(samp=samp):
                 peak = float(cpuArray(_diffraction_limited_psf(pupil, samp, True)).max())
