@@ -503,6 +503,7 @@ class AbstractSimulation(ABC):
             for hdu in hdul1[1:4]:
                 hdu.header['PIX_RESP'] = (True, 'PSF integrated over the detector pixel')
         if self.perfectCoronagraph:
+            hdr1['CONTENT'] = "PERFECT CORONAGRAPH IMAGE CUBE"
             hdr1['CORONAGR'] = (True, 'perfect coronagraph, fraction of stellar flux')
 
         idx_offset = 4

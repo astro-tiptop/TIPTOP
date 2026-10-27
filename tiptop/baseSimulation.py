@@ -477,15 +477,17 @@ class baseSimulation(AbstractSimulation):
         # convolution the MASTSEL PSFs are not normalized (e.g. SOUL: sum ~3700): this
         # used to happen only as a side effect of computePSF1D.
         if self.cubeResultsArray.ndim >= 3:  # empty when only the asterism covariances are computed
-            flux = self.cubeResultsArray.sum(axis=(-2, -1), keepdims=True)
-            self.cubeResultsArray /= flux
+            self.cubeResultsArray /= self.cubeResultsArray.sum(axis=(-2, -1), keepdims=True)
             if self.perfectCoronagraph:
-                # coronagraphic images in units of the stellar flux in the field of view
-                # (the sum of the corresponding PSF): contrast = image / PSF peak
-                coro = [np.array([cpuArray(img.sampling) for img in
-                                  (self.psfCoroPointingsArr[i] if self.nWvl > 1 else self.psfCoroPointingsArr)])
+                # coronagraphic images in units of the stellar flux in the field of view: the
+                # sum of the corresponding MASTSEL PSF, same units (taken before the jitter
+                # convolution, which normalizes; a zero jitter_FWHM still convolves)
+                per_wvl = lambda arr, i: arr[i] if self.nWvl > 1 else arr
+                coro = [np.array([cpuArray(c.sampling) / float(cpuArray(p.sampling).sum())
+                                  for c, p in zip(per_wvl(self.psfCoroPointingsArr, i),
+                                                  per_wvl(self.psfLongExpPointingsArr, i))])
                         for i in range(self.nWvl)]
-                self.cubeResultsArray = (np.array(coro) if self.nWvl > 1 else coro[0]) / flux
+                self.cubeResultsArray = np.array(coro) if self.nWvl > 1 else coro[0]
 
     def _finalize_full_field_results(self, astIndex):
         """
