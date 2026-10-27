@@ -356,6 +356,16 @@ We now go more in detail for each section:
 |                         |         |        |PixelScale <= lambda/D; for coarser pixels the point-sampled Strehl is    |
 |                         |         |        |biased high by aliasing, the pixel-integrated one is not.                 |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|PerfectCoronagraph       |No       |bool    |Default False. If True, the PSF cube contains the long-exposure image     |
+|                         |         |        |behind a perfect coronagraph (Cavarroc et al. 2006: the projection of the |
+|                         |         |        |field on the pupil mode is removed in every frame), computed exactly for  |
+|                         |         |        |a Gaussian residual phase. Units: fraction of the stellar flux in the     |
+|                         |         |        |field of view per pixel, so contrast = image / PSF peak (the PSF peak is  |
+|                         |         |        |SR times the peak of the diffraction-limited PSF). Its sum is about 1-SR. |
+|                         |         |        |SR, FWHM and EE remain those of the PSF without coronagraph. The profiles |
+|                         |         |        |are centred on the star and not renormalized. Only without LO loop        |
+|                         |         |        |([sensor_LO]), jitter_FWHM and static aberrations: ValueError otherwise.  |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 .. note::
 
