@@ -365,6 +365,9 @@ We now go more in detail for each section:
 |                         |         |        |SR, FWHM and EE remain those of the PSF without coronagraph. The profiles |
 |                         |         |        |are centred on the star and not renormalized. Only without LO loop        |
 |                         |         |        |([sensor_LO]), jitter_FWHM and static aberrations: ValueError otherwise.  |
+|                         |         |        |Accuracy vs a frame-by-frame coronagraph on end-to-end (SPECULA, ERIS)    |
+|                         |         |        |residuals: within 7 % beyond 0.5 lambda/D, +17..+41 % within it. It is    |
+|                         |         |        |an upper bound for a real coronagraph (no inner working angle).           |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 .. note::
