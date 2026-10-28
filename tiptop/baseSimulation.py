@@ -24,16 +24,23 @@ rad2mas = 3600 * 180 * 1000 / np.pi
 _TIPTOP_ROOT = str(Path(__file__).resolve().parent.parent)
 
 
-def _ee_at_bin_edges(ee, rr, pixel_scale):
+def _ee_equivalent_area_radius(ee, n_pix, pixel_scale):
     """Radii at which the encircled energy of radial_profile applies.
 
-    ee[k] is the energy of the pixels with round(r) <= k, i.e. inside the outer
-    edge of bin k at rr[k] + pixel/2 (PSF centred on a pixel, rr[0] = 0). Using
-    rr[k] itself overestimated the EE (Gaussian sigma 32 mas at 50 mas: 0.733
-    instead of 0.705). The point (0, 0) is added so that radii below half a
-    pixel stay inside the interpolation range.
+    ee[k] is the energy of the N_k pixels with round(r) <= k (r from the centre
+    pixel). That pixel set is not a disc: its area N_k p^2 exceeds pi (k+1/2)^2 p^2
+    for small k (k=0: 1 vs 0.785, k=1: 9 vs 7.07), so the outer bin edge
+    (k+1/2) p overestimated the EE by 5-30 % for R < 2-3 px. ee[k] is assigned
+    to the radius of the disc with the same area, R_k = p sqrt(N_k / pi); for a
+    PSF smooth on the pixel scale the energy of the pixel set and of that disc
+    agree to first order. The point (0, 0) is added so that radii below
+    R_0 = p / sqrt(pi) stay inside the interpolation range.
     """
-    return np.concatenate(([0.0], cpuArray(ee))), np.concatenate(([0.0], cpuArray(rr) + 0.5 * float(pixel_scale)))
+    ee = cpuArray(ee)
+    x = np.arange(n_pix) - centeredPixelCoords(n_pix)[0]
+    # same rounding as radial_profile, so N_k matches its bins exactly
+    n_k = np.cumsum(np.bincount(np.round(np.hypot(x[:, None], x[None, :])).astype(int).ravel()))[:len(ee)]
+    return np.concatenate(([0.0], ee)), np.concatenate(([0.0], np.sqrt(n_k / np.pi) * float(pixel_scale)))
 
 
 def _lo_psf_fwhm(psf, pixel_scale, max_contour_pixels=10000):
@@ -565,7 +572,7 @@ class baseSimulation(AbstractSimulation):
                     else:
                         ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=self.psInMas,
                                                       center=centeredPixelCoords(self.nPixPSF), nargout=2)
-                        ee_, rr_ = _ee_at_bin_edges(ee_, rr_, self.psInMas)
+                        ee_, rr_ = _ee_equivalent_area_radius(ee_, self.nPixPSF, self.psInMas)
 
                     ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                     ee_val = ee_fn(self.eeRadiusInMas)
@@ -665,7 +672,7 @@ class baseSimulation(AbstractSimulation):
                 ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=LO_PSFsInMas,
                                               center=centeredPixelCoords(nPixPSFLO), nargout=2)
                 ee_ *= 1 / np.max(ee_)
-                ee_, rr_ = _ee_at_bin_edges(ee_, rr_, LO_PSFsInMas)
+                ee_, rr_ = _ee_equivalent_area_radius(ee_, nPixPSFLO, LO_PSFsInMas)
                 ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                 ps_mas_i = self.LO_psInMas[idx] if isinstance(self.LO_psInMas, list) else self.LO_psInMas
                 ee_NGS = ee_fn(max([FWHM, ps_mas_i]))
@@ -733,7 +740,7 @@ class baseSimulation(AbstractSimulation):
                         ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=Focus_PSFsInMas,
                                                       center=centeredPixelCoords(nPixPSFFocus), nargout=2)
                         ee_ *= 1 / np.max(ee_)
-                        ee_, rr_ = _ee_at_bin_edges(ee_, rr_, Focus_PSFsInMas)
+                        ee_, rr_ = _ee_equivalent_area_radius(ee_, nPixPSFFocus, Focus_PSFsInMas)
                         ee_fn = interp1d(rr_, ee_, kind='cubic', bounds_error=False)
                         ps_mas_i = self.Focus_psInMas[idx] if isinstance(self.Focus_psInMas, list) else self.Focus_psInMas
                         ee_Focus = ee_fn(max([FWHM, ps_mas_i]))
