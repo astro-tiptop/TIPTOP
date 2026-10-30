@@ -4,12 +4,13 @@ from matplotlib import rc
 from scipy.interpolate import interp1d
 
 # P3 Imports
+from p3.aoSystem import np as p3np
 from p3.aoSystem.fourierModel import fourierModel
 from p3.aoSystem.FourierUtils import getFWHM, getEncircledEnergy, getEnsquaredEnergy, pistonFilter, telescopeOtf, otf2psf
 
 # Mastsel Imports
 from mastsel import MavisLO, psdSetToPsfSet, longExposurePsf, Field, convolve, residualToSpectrum, maskSA
-from mastsel.mavisPsf import centeredPixelCoords, padOrCropCentered, mastselPsfPrecision, pupilOnGrid
+from mastsel.mavisPsf import centeredPixelCoords, padOrCropCentered, mastselPsfPrecision, pupilOnGrid, pixelOtf
 from mastsel.mavisUtilities import sigma_from_FWHM, tiledDisplay, plotEllipses, polarToCartesian, congrid
 
 # Tiptop Imports
@@ -60,6 +61,27 @@ def _lo_psf_fwhm(psf, pixel_scale, max_contour_pixels=10000):
         fwhm = 2 * np.sqrt(n_above / np.pi) * float(pixel_scale)
         return fwhm, fwhm
     return getFWHM(arrayMastseltoP3(psf), pixel_scale, method='contour', nargout=2)
+
+
+def _diffraction_limited_psf(pupil, samp, pixel_response=False):
+    """Unit-sum diffraction-limited PSF at sampling samp (lambda/D per pixel), the Strehl reference.
+
+    Point-sampled: P3 telescopeOtf at samp. Pixel-integrated: telescope OTF Nyquist
+    sampled at samp*m (m = ceil(2/samp), no aliasing) times the sinc of the output
+    pixel (m fine pixels), then point sampling every m fine pixels through the peak,
+    as MASTSEL does for the science PSF (pixelResponse), so that the SR stays a
+    property of the optics.
+    """
+    if pixel_response:
+        m = int(np.ceil(2.0 / samp)) if samp < 2.0 else 1
+        otf = telescopeOtf(pupil, samp * m)
+        otf = otf * pixelOtf(otf.shape[0], m, xp=p3np)
+        psf = otf2psf(otf, psfInOnePix=True)
+        c = psf.shape[0] // 2
+        psf = psf[c % m::m, c % m::m].clip(0, None)
+    else:
+        psf = otf2psf(telescopeOtf(pupil, samp), psfInOnePix=True).clip(0, None)
+    return psf / psf.sum()
 
 
 class baseSimulation(AbstractSimulation):
@@ -385,6 +407,7 @@ class baseSimulation(AbstractSimulation):
                     PSD_HO, mask, self.wvl, nPixPup=self.sx_per_wvl,
                     freq_range=self.freq_range_per_wvl, dk=self.dk_per_wvl,
                     nPixPsf=self.nPixPSF, opdMap=self.opdMap,
+                    pixelResponse=self.pixelResponse,
                 )
                 # HO_res (WFE in nm) is physically wavelength-independent;
                 # any grid gives the same value up to the numerical-resolution
@@ -399,7 +422,8 @@ class baseSimulation(AbstractSimulation):
                                                         nPixPup=self.sx, freq_range=self.freq_range,
                                                         dk=self.dk, nPixPsf=self.nPixPSF,
                                                         oversampling=self.overSamp,
-                                                        opdMap=self.opdMap)
+                                                        opdMap=self.opdMap,
+                                                        pixelResponse=self.pixelResponse)
 
                 # Safely compute HO residuals
                 self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings], axis=(1, 2)))
@@ -477,14 +501,16 @@ class baseSimulation(AbstractSimulation):
 
         psfOL = psdSetToPsfSet([psdOL.sampling], mask, self.wvlRef,
                                nPixPup=self.sx, freq_range=self.freq_range,
-                               dk=self.dk, nPixPsf=self.nPixPSF, oversampling=self.overSamp)
+                               dk=self.dk, nPixPsf=self.nPixPSF, oversampling=self.overSamp,
+                               pixelResponse=self.pixelResponse)
         self.psf_ol_array = cpuArray(psfOL[0].sampling)
 
         # DIFFRACTION LIMITED PSD
         psdDL = Field(self.wvlRef, self.N, self.freq_range, 'rad')
         psfDL = psdSetToPsfSet([psdDL.sampling], mask, self.wvlRef,
                                nPixPup=self.sx, freq_range=self.freq_range,
-                               dk=self.dk, nPixPsf=self.nPixPSF, oversampling=self.overSamp)
+                               dk=self.dk, nPixPsf=self.nPixPSF, oversampling=self.overSamp,
+                               pixelResponse=self.pixelResponse)
         self.psf_dl_array = cpuArray(psfDL[0].sampling)
 
         if self.savePSDs:
@@ -553,9 +579,7 @@ class baseSimulation(AbstractSimulation):
                 # Same operations as getStrehl(method='max', psfInOnePix=True),
                 # with the diffraction-limited PSF computed once per wavelength
                 # instead of once per PSF.
-                psfDL = otf2psf(telescopeOtf(self.fao.ao.tel.pupil, samp), psfInOnePix=True).clip(0, None)
-                psfDL /= psfDL.sum()
-                dl_peak = psfDL.max()
+                dl_peak = _diffraction_limited_psf(self.fao.ao.tel.pupil, samp, self.pixelResponse).max()
 
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
@@ -596,7 +620,7 @@ class baseSimulation(AbstractSimulation):
             return
         res = self.results[0] if self.nWvl > 1 else self.results
         if self.LOisOn and self.doConvolve:
-            tiledDisplay(res)
+            tiledDisplay(res, cpuArray(self.cartSciencePointingCoords))
             plotEllipses(self.cartSciencePointingCoords, self.cov_ellipses, 0.4)
         else:
             res[0].standardPlot(True)
