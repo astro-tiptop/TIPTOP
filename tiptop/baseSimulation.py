@@ -283,6 +283,8 @@ class baseSimulation(AbstractSimulation):
                              f" differs from P3 '{float(cpuArray(self.fao.freq.psInMas[0]))}'")
 
         self.opdMap = arrayP3toMastsel(self.fao.ao.tel.opdMap_on) if self.fao.ao.tel.opdMap_on is not None else None
+        if self.perfectCoronagraph and self.opdMap is not None:
+            raise ValueError("'PerfectCoronagraph' is supported only without static aberrations (opdMap)")
 
         if self.verbose:
             print('PSD step:', self.PSDstep)
@@ -403,12 +405,10 @@ class baseSimulation(AbstractSimulation):
                 # calling convention.
                 PSD_HO = [arrayP3toMastsel(self.PSD[i][0:self.nPointings])
                           for i in range(self.nWvl)]
-                psfLongExpPointingsArr = psdSetToPsfSet(
-                    PSD_HO, mask, self.wvl, nPixPup=self.sx_per_wvl,
-                    freq_range=self.freq_range_per_wvl, dk=self.dk_per_wvl,
-                    nPixPsf=self.nPixPSF, opdMap=self.opdMap,
-                    pixelResponse=self.pixelResponse,
-                )
+                psf_args = dict(nPixPup=self.sx_per_wvl, freq_range=self.freq_range_per_wvl,
+                                dk=self.dk_per_wvl, nPixPsf=self.nPixPSF, opdMap=self.opdMap,
+                                pixelResponse=self.pixelResponse)
+                psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask, self.wvl, **psf_args)
                 # HO_res (WFE in nm) is physically wavelength-independent;
                 # any grid gives the same value up to the numerical-resolution
                 # differences between grids, so the wvlRef-matching one is
@@ -418,12 +418,10 @@ class baseSimulation(AbstractSimulation):
                     self.PSD[self.wvlRef_grid_idx][0:self.nPointings], axis=(1, 2)))
             else:
                 PSD_HO = arrayP3toMastsel(self.PSD[0:self.nPointings])
-                psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask, self.wvl,
-                                                        nPixPup=self.sx, freq_range=self.freq_range,
-                                                        dk=self.dk, nPixPsf=self.nPixPSF,
-                                                        oversampling=self.overSamp,
-                                                        opdMap=self.opdMap,
-                                                        pixelResponse=self.pixelResponse)
+                psf_args = dict(nPixPup=self.sx, freq_range=self.freq_range, dk=self.dk,
+                                nPixPsf=self.nPixPSF, oversampling=self.overSamp,
+                                opdMap=self.opdMap, pixelResponse=self.pixelResponse)
+                psfLongExpPointingsArr = psdSetToPsfSet(PSD_HO, mask, self.wvl, **psf_args)
 
                 # Safely compute HO residuals
                 self.HO_res = np.sqrt(np.sum(self.PSD[0:self.nPointings], axis=(1, 2)))
@@ -453,6 +451,10 @@ class baseSimulation(AbstractSimulation):
                     self.pointings_FWHM_mas = fwhmList
 
             self.psfLongExpPointingsArr = psfLongExpPointingsArr
+            # image behind a perfect coronagraph; the PSFs above stay the ones of the
+            # metrics (SR, FWHM, EE of the AO PSF) and of the flux normalization
+            self.psfCoroPointingsArr = psdSetToPsfSet(PSD_HO, mask, self.wvl, perfectCoronagraph=True,
+                                                      **psf_args) if self.perfectCoronagraph else None
 
         # ------------------------------------------------------------------------
         # --- Final Convolutions ---
@@ -483,6 +485,16 @@ class baseSimulation(AbstractSimulation):
         # used to happen only as a side effect of computePSF1D.
         if self.cubeResultsArray.ndim >= 3:  # empty when only the asterism covariances are computed
             self.cubeResultsArray /= self.cubeResultsArray.sum(axis=(-2, -1), keepdims=True)
+            if self.perfectCoronagraph:
+                # coronagraphic images in units of the stellar flux in the field of view: the
+                # sum of the corresponding MASTSEL PSF, same units (taken before the jitter
+                # convolution, which normalizes; a zero jitter_FWHM still convolves)
+                per_wvl = lambda arr, i: arr[i] if self.nWvl > 1 else arr
+                coro = [np.array([cpuArray(c.sampling) / float(cpuArray(p.sampling).sum())
+                                  for c, p in zip(per_wvl(self.psfCoroPointingsArr, i),
+                                                  per_wvl(self.psfLongExpPointingsArr, i))])
+                        for i in range(self.nWvl)]
+                self.cubeResultsArray = np.array(coro) if self.nWvl > 1 else coro[0]
 
     def _finalize_full_field_results(self, astIndex):
         """
