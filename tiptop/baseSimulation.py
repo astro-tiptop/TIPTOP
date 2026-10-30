@@ -453,7 +453,7 @@ class baseSimulation(AbstractSimulation):
         if self.nWvl > 1:
             self.cubeResultsArray = np.array(cubeResultsArray)
         else:
-            self.cubeResultsArray = np.array(cubeResultsArray[0])
+            self.cubeResultsArray = cubeResultsArray[0]  # already a new array: no second copy
         # Output PSFs have unit sum over the field of view. Without jitter or LO
         # convolution the MASTSEL PSFs are not normalized (e.g. SOUL: sum ~3700): this
         # used to happen only as a side effect of computePSF1D.
@@ -559,18 +559,22 @@ class baseSimulation(AbstractSimulation):
 
                 sr_l, fwhm_l, ee_l = [], [], []
                 for img in results_slice:
-                    psf = arrayMastseltoP3(img.sampling).clip(0, None)
+                    # one host->device copy per PSF: getFWHM (rebin 1) and radial_profile
+                    # work on host arrays, so the image is passed to them as it is
+                    psf_p3 = arrayMastseltoP3(img.sampling)
+                    psf = psf_p3.clip(0, None)
                     psf /= psf.sum()
                     # host float, as getStrehl returned (psf is a cupy array on GPU)
                     sr_l.append(np.round(float(psf.max() / dl_peak), 5))
-                    fwhm_l.append(getFWHM(arrayMastseltoP3(img.sampling), self.psInMas, method='contour',
+                    psf_fwhm = img.sampling if rebin_fwhm == 1 else psf_p3
+                    fwhm_l.append(getFWHM(psf_fwhm, self.psInMas, method='contour',
                                           rebin=rebin_fwhm, nargout=1))
 
                     if self.ensquaredEnergy:
-                        ee_ = cpuArray(getEnsquaredEnergy(arrayMastseltoP3(img.sampling)))
+                        ee_ = cpuArray(getEnsquaredEnergy(psf_p3))
                         rr_ = np.arange(1, ee_.shape[0]*2, 2) * self.psInMas * 0.5
                     else:
-                        ee_, rr_ = getEncircledEnergy(arrayMastseltoP3(img.sampling), pixelscale=self.psInMas,
+                        ee_, rr_ = getEncircledEnergy(img.sampling, pixelscale=self.psInMas,
                                                       center=centeredPixelCoords(self.nPixPSF), nargout=2)
                         ee_, rr_ = _ee_equivalent_area_radius(ee_, self.nPixPSF, self.psInMas)
 
@@ -753,29 +757,29 @@ class baseSimulation(AbstractSimulation):
 
     def _apply_final_convolution(self, lo_data):
         self.cov_ellipses = lo_data.get('cov_ellipses')
-        resSpecList, resSpecListJ = [], []
 
+        resSpecJ = None
+        if self.jitter_FWHM is not None:
+            ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])] \
+                if isinstance(self.jitter_FWHM, list) \
+                    else [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
+            ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
+            resSpecJ = residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
+
+        resSpecList = []
         for ellp in self.cov_ellipses:
             ellp = ellp.astype(self.fao.dtype)
-            resSpecList.append(residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
-
-            if self.jitter_FWHM is not None:
-                ellpJ = [self.jitter_FWHM[2], sigma_from_FWHM(self.jitter_FWHM[0]), sigma_from_FWHM(self.jitter_FWHM[1])] \
-                    if isinstance(self.jitter_FWHM, list) \
-                        else [0, sigma_from_FWHM(self.jitter_FWHM), sigma_from_FWHM(self.jitter_FWHM)]
-                ellpJ = np.array(ellpJ, dtype=self.fao.dtype)
-                resSpecListJ.append(residualToSpectrum(ellpJ, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas)))
-            else:
-                resSpecListJ.append(0)
+            resSpec = residualToSpectrum(ellp, self.wvlRef, self.nPixPSF, 1/(self.nPixPSF * self.psInMas))
+            if resSpecJ is not None:
+                # LO and jitter kernels are both Fourier-domain transfer functions on
+                # the same grid: one circular convolution with their product equals
+                # the two convolutions in sequence (up to rounding)
+                resSpec.sampling = resSpec.sampling * resSpecJ.sampling
+            resSpecList.append(resSpec)
 
         for i in range(self.nWvl):
             psfList = self.psfLongExpPointingsArr[i] if self.nWvl > 1 else self.psfLongExpPointingsArr
-            resultList = []
-            for psfLongExp, resSpec, resSpecJ in zip(psfList, resSpecList, resSpecListJ):
-                temp = convolve(psfLongExp, resSpec)
-                if self.jitter_FWHM is not None:
-                    temp = convolve(temp, resSpecJ)
-                resultList.append(temp)
+            resultList = [convolve(psfLongExp, resSpec) for psfLongExp, resSpec in zip(psfList, resSpecList)]
 
             if self.nWvl > 1:
                 self.results.append(resultList)
