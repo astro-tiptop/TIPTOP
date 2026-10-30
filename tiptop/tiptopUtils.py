@@ -231,10 +231,12 @@ def plot_directions(parser, ticks_interval=5, labels=None, LO_labels=None,
         else:
             max_pos = np.max([rr_HO.max(), rr_LO.max()]) + 2*ticks_interval
     ax.set_ylim(0, max_pos)
-    ax.yaxis.set_major_locator(ticker.FixedLocator(np.arange(0,max_pos,ticks_interval)))
-    r_labels = [item.get_text() for item in ax.get_yticklabels()]
-    for i in range(len(r_labels)):
-        if i % 2: r_labels[i]=''
+    ticks = np.arange(0, max_pos, ticks_interval)
+    ax.yaxis.set_major_locator(ticker.FixedLocator(ticks))
+    # Build labels from tick positions: the polar RadialLocator hides r=0, so
+    # reading labels back from the axis gives one less than the locator
+    # locations (error since matplotlib 3.11). Label every other tick.
+    r_labels = [f'{t:g}' if (t // ticks_interval) % 2 else '' for t in ticks]
     ax.set_yticklabels(r_labels, verticalalignment = "top")
 
     # Put weights next to science sources
