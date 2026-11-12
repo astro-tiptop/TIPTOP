@@ -17,7 +17,7 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pyyaml",
-    "astro-p3>=1.7.0",
+    "astro-p3>=1.7.1",
     "mastsel>=1.6.0",
     "torch>=2.1.2",
     "torchmetrics>=1.4.0",
