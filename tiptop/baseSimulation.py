@@ -678,7 +678,7 @@ class baseSimulation(AbstractSimulation):
         psdNGS = []
 
         nSA = self.my_data_map['sensor_LO']['NumberLenslets']
-        maskLO = maskSA(nSA, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.tel.pupil))
+        maskLO = maskSA(nSA, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.pupilLO))
 
         for i in range(self.nNaturalGS_field):
             nSAi = nSA[i] if len(nSA) == self.nNaturalGS_field else nSA[0]
@@ -751,7 +751,7 @@ class baseSimulation(AbstractSimulation):
             if 'sensor_Focus' in self.my_data_map:
                 nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
                 psdFocus = arrayP3toMastsel(psd_source[-self.nNaturalGS_field:])
-                maskFocus = maskSA(nSAfocus, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.tel.pupil))
+                maskFocus = maskSA(nSAfocus, self.nNaturalGS_field, arrayP3toMastsel(self.fao.ao.pupilFocus))
 
                 for i in range(self.nNaturalGS_field):
                     nSAfocusI = nSAfocus[i] if len(nSAfocus) == self.nNaturalGS_field else nSAfocus[0]

@@ -549,6 +549,19 @@ Can be set but not used
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |addAliasError            |No       |bool    |*Default : False*, Add aliasing error as a function of the spot size.     |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
+|PathPupil                |No       |string  |*default: ''*, Path to a .fits pupil map of the LO WFS, used for the      |
+|                         |         |        |PSFs of all its stars. Same convention as ``[telescope] PathPupil``: the  |
+|                         |         |        |map spans ``TelescopeDiameter`` and is interpolated to ``Resolution``.    |
+|                         |         |        |If neither PathPupil nor ObscurationRatio is set, the telescope pupil is  |
+|                         |         |        |used.                                                                     |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|PupilAngle               |No       |float   |*default: 0.0*, Rotation of the PathPupil map in degrees. Requires        |
+|                         |         |        |PathPupil or ObscurationRatio.                                            |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|ObscurationRatio         |No       |float   |*default: none*, Central obstruction of an annular LO WFS pupil of        |
+|                         |         |        |diameter ``TelescopeDiameter``, as a ratio of it. Not together with       |
+|                         |         |        |PathPupil.                                                                |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 Can be set but not used
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -614,6 +627,19 @@ Can be set but not used
 |                         |         |        |pixels                                                                    |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 |NewValueThrPix           |Yes      |float   |*default: 0.0*, New value for pixels lower than threshold.                |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|PathPupil                |No       |string  |*default: ''*, Path to a .fits pupil map of the focus WFS, used for the   |
+|                         |         |        |PSFs of all its stars. Same convention as ``[telescope] PathPupil``: the  |
+|                         |         |        |map spans ``TelescopeDiameter`` and is interpolated to ``Resolution``.    |
+|                         |         |        |If neither PathPupil nor ObscurationRatio is set, the pupil of [sensor_LO]|
+|                         |         |        |is used (itself the telescope pupil by default).                          |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|PupilAngle               |No       |float   |*default: 0.0*, Rotation of the PathPupil map in degrees. Requires        |
+|                         |         |        |PathPupil or ObscurationRatio.                                            |
++-------------------------+---------+--------+--------------------------------------------------------------------------+
+|ObscurationRatio         |No       |float   |*default: none*, Central obstruction of an annular focus WFS pupil of     |
+|                         |         |        |diameter ``TelescopeDiameter``, as a ratio of it. Not together with       |
+|                         |         |        |PathPupil.                                                                |
 +-------------------------+---------+--------+--------------------------------------------------------------------------+
 
 
