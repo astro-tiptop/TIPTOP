@@ -661,16 +661,6 @@ class baseSimulation(AbstractSimulation):
 
     def _compute_ngs_psf(self):
         """Generates analytical PSFs for the NGS directions."""
-        LO_PSFsInMas = self.psInMas * self.LO_wvl / self.wvlMax
-
-        if LO_PSFsInMas / np.min(self.LO_psInMas) > 1 and self.overSamp_lo > 1:
-            LO_PSFsInMas /= self.overSamp_lo
-            nPixPSFLO = int(self.overSamp_lo * self.nPixPSF)
-            lo_oversampling = 1.0
-        else:
-            nPixPSFLO = self.nPixPSF
-            lo_oversampling = self.overSamp
-
         # HO_res/NGS/Focus PSDs are physically wavelength-independent (WFE in
         # nm), but when multiGridPSD is on there is no shared-grid PSD array
         # left (self.PSD is a per-science-wavelength list) -- so the NGS/Focus
@@ -690,6 +680,26 @@ class baseSimulation(AbstractSimulation):
             ngs_freq_range = self.freq_range
             ngs_dk = self.dk
             ngs_nPixPup = self.sx
+
+        # PSF pixel of psdSetToPsfSet: wavelength * PSD step * oversampling. The grid
+        # is built so that wvl_min * PSD step * grid_oversampling = psInMas, with wvl_min
+        # the shortest science wavelength: passing grid_oversampling gives the pixel
+        # psInMas * wavelength / wvl_min, passing 1 a pixel smaller by grid_oversampling.
+        # (shared grid: grid_oversampling = overSamp, P3 kRef_float; multi-grid: the
+        # one of the reference grid, which is the shortest-wavelength one)
+        if self.multiGridPSD:
+            grid_oversampling = self.psInMas / (np.min(self.wvl) * float(ref_grid.PSDstep) * rad2mas)
+        else:
+            grid_oversampling = self.overSamp
+        LO_PSFsInMas = self.psInMas * self.LO_wvl / np.min(self.wvl)
+        if LO_PSFsInMas / np.min(self.LO_psInMas) > 1 and grid_oversampling > 1:
+            # PSF pixel coarser than the LO detector pixel: native grid pixel instead
+            LO_PSFsInMas /= grid_oversampling
+            nPixPSFLO = int(grid_oversampling * self.nPixPSF)
+            lo_oversampling = 1.0
+        else:
+            nPixPSFLO = self.nPixPSF
+            lo_oversampling = grid_oversampling
 
         psdNGS_view = arrayP3toMastsel(psd_source[-self.nNaturalGS_field:])
 
@@ -762,15 +772,16 @@ class baseSimulation(AbstractSimulation):
             self.NGS_DL_FWHM_mas = None
 
         if self.addFocusError:
-            Focus_PSFsInMas = self.psInMas * self.Focus_wvl / self.wvlMax
+            # same grid and pixel convention as the NGS PSFs above
+            Focus_PSFsInMas = self.psInMas * self.Focus_wvl / np.min(self.wvl)
 
-            if Focus_PSFsInMas / np.min(self.Focus_psInMas) > 1 and self.overSamp_lo > 1:
-                Focus_PSFsInMas /= self.overSamp_lo
-                nPixPSFFocus = int(self.overSamp_lo * self.nPixPSF)
+            if Focus_PSFsInMas / np.min(self.Focus_psInMas) > 1 and grid_oversampling > 1:
+                Focus_PSFsInMas /= grid_oversampling
+                nPixPSFFocus = int(grid_oversampling * self.nPixPSF)
                 focus_oversampling = 1.0
             else:
                 nPixPSFFocus = self.nPixPSF
-                focus_oversampling = self.overSamp
+                focus_oversampling = grid_oversampling
 
             if 'sensor_Focus' in self.my_data_map:
                 nSAfocus = self.my_data_map['sensor_Focus']['NumberLenslets']
