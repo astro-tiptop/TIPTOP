@@ -45,15 +45,19 @@ def _ee_equivalent_area_radius(ee, n_pix, pixel_scale):
 
 
 def _fwhm_rebin(wavelength, pixel_scale, aperture_diameter):
-    """Upsampling factor for getFWHM so that the PSF is at least Nyquist sampled.
+    """Upsampling factor for getFWHM of a near diffraction-limited PSF.
 
     samp = lambda / (d * pixel_scale), with d the diameter of the aperture that
-    forms the PSF (telescope or sub-aperture). Below samp ~1.9 the core of a
-    near diffraction-limited PSF has a single pixel above half maximum and the
-    FWHM collapses to 1 pixel; the same rule is used for the science PSFs.
+    forms the PSF (telescope or sub-aperture). Without upsampling a single pixel
+    can be above half maximum and the contour FWHM collapses to 1 pixel: up to
+    samp ~1.9 for a circular pupil, up to samp ~2.3 for obstructed or square
+    (sub-aperture) pupils, whose core is narrower. ceil(3/samp) for samp < 3
+    keeps the FWHM within ~2 % of the true value for samp >= 1.5 for all these
+    pupils. Below samp ~1.2 point samples are too coarse and the FWHM is biased
+    high whatever the upsampling (+15-30 % at samp = 1).
     """
     samp = wavelength * rad2mas / (pixel_scale * aperture_diameter)
-    return max(1, int(np.ceil(2.0 / samp))) if samp < 2.0 else 1
+    return int(np.ceil(3.0 / samp)) if samp < 3.0 else 1
 
 
 def _lo_psf_fwhm(psf, pixel_scale, rebin=1, max_contour_pixels=10000):
