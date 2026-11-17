@@ -44,7 +44,23 @@ def _ee_equivalent_area_radius(ee, n_pix, pixel_scale):
     return np.concatenate(([0.0], ee)), np.concatenate(([0.0], np.sqrt(n_k / np.pi) * float(pixel_scale)))
 
 
-def _lo_psf_fwhm(psf, pixel_scale, max_contour_pixels=10000):
+def _fwhm_rebin(wavelength, pixel_scale, aperture_diameter):
+    """Upsampling factor for getFWHM of a near diffraction-limited PSF.
+
+    samp = lambda / (d * pixel_scale), with d the diameter of the aperture that
+    forms the PSF (telescope or sub-aperture). Without upsampling a single pixel
+    can be above half maximum and the contour FWHM collapses to 1 pixel: up to
+    samp ~1.9 for a circular pupil, up to samp ~2.3 for obstructed or square
+    (sub-aperture) pupils, whose core is narrower. ceil(3/samp) for samp < 3
+    keeps the FWHM within ~2 % of the true value for samp >= 1.5 for all these
+    pupils. Below samp ~1.2 point samples are too coarse and the FWHM is biased
+    high whatever the upsampling (+15-30 % at samp = 1).
+    """
+    samp = wavelength * rad2mas / (pixel_scale * aperture_diameter)
+    return int(np.ceil(3.0 / samp)) if samp < 3.0 else 1
+
+
+def _lo_psf_fwhm(psf, pixel_scale, rebin=1, max_contour_pixels=10000):
     """FWHM (x, y) [mas] of an NGS/Focus PSF, the input of the MASTSEL LO noise model.
 
     Contour method as for the science PSFs, except for very wide PSFs (more than
@@ -54,13 +70,15 @@ def _lo_psf_fwhm(psf, pixel_scale, max_contour_pixels=10000):
     exactly sqrt(FWHM_x FWHM_y), the quantity used downstream; at these sizes the
     pixel quantization of A is below ~1 % (MORFEO focus PSFs: -0.5..+1.1 % vs the
     contour, GF_res -0.2 %).
+    rebin is the upsampling factor passed to getFWHM (see _fwhm_rebin); it is
+    not needed in the wide-PSF branch.
     """
     img = cpuArray(psf)
     n_above = int((img > img.max() / 2).sum())
     if n_above > max_contour_pixels:
         fwhm = 2 * np.sqrt(n_above / np.pi) * float(pixel_scale)
         return fwhm, fwhm
-    return getFWHM(arrayMastseltoP3(psf), pixel_scale, method='contour', nargout=2)
+    return getFWHM(arrayMastseltoP3(psf), pixel_scale, method='contour', rebin=rebin, nargout=2)
 
 
 def _diffraction_limited_psf(pupil, samp, pixel_response=False):
@@ -702,7 +720,9 @@ class baseSimulation(AbstractSimulation):
             SR = np.exp(-s1 * (2*np.pi*1e-9/self.LO_wvl)**2)
             self.NGS_SR_field.append(SR)
 
-            fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, LO_PSFsInMas)
+            nSAi = nSA[idx] if len(nSA) == self.nNaturalGS_field else nSA[0]
+            rebin = _fwhm_rebin(self.LO_wvl, LO_PSFsInMas, 2 * self.tel_radius / nSAi)
+            fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, LO_PSFsInMas, rebin=rebin)
             FWHM = np.sqrt(fwhmX * fwhmY)
             self.NGS_FWHM_mas_field.append(FWHM)
 
@@ -728,7 +748,9 @@ class baseSimulation(AbstractSimulation):
                 maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
                 maskField.sampling = pupilOnGrid(maskI, self.sx, self.N, maskField.xp)
                 psfNgsDL = longExposurePsf(maskField, psdDL)
-                fx, fy = getFWHM(arrayMastseltoP3(psfNgsDL.sampling), LO_PSFsInMas, method='contour', nargout=2)
+                rebin = _fwhm_rebin(self.LO_wvl, LO_PSFsInMas, 2 * self.tel_radius / nSA[i])
+                fx, fy = getFWHM(arrayMastseltoP3(psfNgsDL.sampling), LO_PSFsInMas, method='contour',
+                                 rebin=rebin, nargout=2)
                 f_val = np.sqrt(fx * fy)
                 if self.NGS_DL_FWHM_mas is None:
                     self.NGS_DL_FWHM_mas = f_val
@@ -770,7 +792,9 @@ class baseSimulation(AbstractSimulation):
                     s1 = cpuArray(psdFocus[idx]).sum()
                     self.Focus_SR_field.append(np.exp(-s1 * (2*np.pi*1e-9/self.Focus_wvl)**2))
 
-                    fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, Focus_PSFsInMas)
+                    nSAfocusI = nSAfocus[idx] if len(nSAfocus) == self.nNaturalGS_field else nSAfocus[0]
+                    rebin = _fwhm_rebin(self.Focus_wvl, Focus_PSFsInMas, 2 * self.tel_radius / nSAfocusI)
+                    fwhmX, fwhmY = _lo_psf_fwhm(img.sampling, Focus_PSFsInMas, rebin=rebin)
                     FWHM = np.sqrt(fwhmX * fwhmY)
                     self.Focus_FWHM_mas_field.append(FWHM)
 
