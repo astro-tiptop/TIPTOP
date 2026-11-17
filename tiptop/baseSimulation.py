@@ -744,13 +744,15 @@ class baseSimulation(AbstractSimulation):
             len_nSA = len(nSA) if len(nSA) == self.nNaturalGS_field else 1
             for i in range(len_nSA):
                 maskI = maskLO[i] if isinstance(maskLO, list) else maskLO
-                psdDL = Field(self.LO_wvl, self.N, self.freq_range, 'rad')
-                maskField = Field(self.LO_wvl, self.N, self.grid_diameter)
-                maskField.sampling = pupilOnGrid(maskI, self.sx, self.N, maskField.xp)
-                psfNgsDL = longExposurePsf(maskField, psdDL)
+                # Same grid, sampling and FWHM estimate as the NGS PSFs above, with a
+                # null PSD, so that FWHM - FWHM_DL compares the same quantities.
+                # (longExposurePsf returned the PSF on the native N grid, pixel
+                # lambda/grid_diameter, but it was measured with LO_PSFsInMas.)
+                psfNgsDL = psdSetToPsfSet([psdNGS[0] * 0], maskI, self.LO_wvl,
+                                          nPixPup=ngs_nPixPup, freq_range=ngs_freq_range,
+                                          dk=ngs_dk, nPixPsf=nPixPSFLO, oversampling=lo_oversampling)[0]
                 rebin = _fwhm_rebin(self.LO_wvl, LO_PSFsInMas, 2 * self.tel_radius / nSA[i])
-                fx, fy = getFWHM(arrayMastseltoP3(psfNgsDL.sampling), LO_PSFsInMas, method='contour',
-                                 rebin=rebin, nargout=2)
+                fx, fy = _lo_psf_fwhm(psfNgsDL.sampling, LO_PSFsInMas, rebin=rebin)
                 f_val = np.sqrt(fx * fy)
                 if self.NGS_DL_FWHM_mas is None:
                     self.NGS_DL_FWHM_mas = f_val
